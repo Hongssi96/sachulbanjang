@@ -19,4 +19,29 @@ export interface CalendarEvent {
   time: string;
   title: string;
   kind: '점검' | '납품' | '회의';
+  description?: string;
+  month?: number; // 0 기준 월(11월 = 10). 미지정이면 11월로 취급한다
+}
+export type EquipmentState = '정상' | '주의' | '고장' | '휴식';
+export interface Equipment {
+  name: string;
+  product: string;
+  state: EquipmentState;
+  progress: number;
+  production?: number;
+  target?: number;
+  cycleMinutes?: number;
+  lastCheck?: string;
+}
+export interface RealtimeEvent {
+  time: string;
+  machine: string;
+  level: '정상' | '주의' | '고장' | '정보';
+  message: string;
+}
+export interface ProductQuality {
+  product: string;
+  inspections: number;
+  defects: number;
+  focus?: boolean;
 }

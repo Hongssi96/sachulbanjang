@@ -21,6 +21,7 @@ interface SidebarProps {
   onToggle: () => void;
   onNavigate: (name: string) => void;
   onAssistant: () => void;
+  active: string;
 }
 const menus = [
   { label: '홈', icon: House },
@@ -31,7 +32,13 @@ const menus = [
   { label: '품질 리포트', icon: FileChartColumn },
   { label: '일정 관리', icon: CalendarDays },
 ];
-export default function Sidebar({ collapsed, onToggle, onNavigate, onAssistant }: SidebarProps) {
+export default function Sidebar({
+  collapsed,
+  onToggle,
+  onNavigate,
+  onAssistant,
+  active,
+}: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="주 메뉴">
       <a className="brand" href="#main-content" aria-label="사출반장 홈">
@@ -54,11 +61,11 @@ export default function Sidebar({ collapsed, onToggle, onNavigate, onAssistant }
         {menus.map(({ label, icon: Icon, badge }) => (
           <button
             key={label}
-            className={`nav-item ${label === '홈' ? 'active' : ''}`}
+            className={`nav-item ${label === active ? 'active' : ''}`}
             aria-label={label}
-            aria-current={label === '홈' ? 'page' : undefined}
+            aria-current={label === active ? 'page' : undefined}
             onClick={() =>
-              label === '홈' ? window.scrollTo({ top: 0, behavior: 'smooth' }) : onNavigate(label)
+              label === active ? window.scrollTo({ top: 0, behavior: 'smooth' }) : onNavigate(label)
             }
             title={collapsed ? label : undefined}
           >
