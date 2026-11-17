@@ -6,7 +6,7 @@ export const reports: Report[] = [
     title: '사출 3호기 유압 압력 변동 보고',
     description:
       '오후 검사 중 유압 압력 변동이 관찰되었습니다. 담당자 확인 후 점검 일정을 조율해 주세요. 예시 보고이며 실제 설비 상태가 아닙니다.',
-    author: '이현우',
+    author: '홍태휘',
     time: '14:32',
     status: '대기',
     equipment: '사출 3호기',
