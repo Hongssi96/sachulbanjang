@@ -215,7 +215,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             </div>
             <div className="kpi-bottom">
               <span className="positive">
-                <ArrowUpRight size={14} /> 전일 대비 4.2%
+                <ArrowUpRight size={14} /> 어제 대비 4.2%
               </span>
               <span>목표 5,400개</span>
             </div>
@@ -233,7 +233,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             </div>
             <div className="kpi-bottom">
               <span className="positive">
-                <ArrowDownRight size={14} /> 전일 대비 0.32%p
+                <ArrowDownRight size={14} /> 어제 대비 0.32%p
               </span>
               <span>검사 기록 기준</span>
             </div>

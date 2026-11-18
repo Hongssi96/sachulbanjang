@@ -1,6 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Clock3 } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+} from 'lucide-react';
 import Modal from '../components/Modal';
 import {
   defectRatePrevious,
@@ -11,11 +19,6 @@ import {
   realtimeEvents,
 } from '../constants/demoData';
 import type { Equipment, EquipmentState, ProductQuality, RealtimeEvent } from '../types';
-
-interface RealtimePageProps {
-  onOpenPlaceholder: (name: string) => void;
-  onAskAssistant: () => void;
-}
 
 const statePill: Record<EquipmentState, string> = {
   정상: 'pill-green',
@@ -43,21 +46,93 @@ const statusGroupMachines = (label: '정상' | '휴식' | '고장') =>
     ? equipment.filter((machine) => machine.state === '정상' || machine.state === '주의')
     : equipment.filter((machine) => machine.state === label);
 
-const DONUT_RADIUS = 50;
-const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS;
+const DONUT_RADIUS = 46;
+const DONUT_STROKE = 24;
+// 각 세그먼트의 시작을 0.5% 앞당겨 경계 이음새를 덮는다. 12시 방향의 마지막
+// 경계는 첫 세그먼트가 뒤에서 받아쳐 고장색이 초록 시작 위로 겹쳐 보이지 않게 한다.
+const DONUT_OVERLAP = 0.5;
 
-export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: RealtimePageProps) {
+// 네이티브 select는 펼쳐지는 목록을 꾸밀 수 없어 목록을 직접 그리는 드롭다운을 쓴다.
+function FilterDropdown({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [open]);
+
+  return (
+    <div
+      className={`rt-select${open ? ' open' : ''}`}
+      ref={rootRef}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        className="rt-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {value}
+        <ChevronDown size={16} className="rt-select-chevron" />
+      </button>
+      {open && (
+        <ul className="rt-select-menu" role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <li key={option}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={option === value}
+                className={option === value ? 'selected' : ''}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+              >
+                {option}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function RealtimePage() {
+  const navigate = useNavigate();
   const [machineFilter, setMachineFilter] = useState('전체 설비');
   const [productFilter, setProductFilter] = useState('전체 제품');
-  const [period, setPeriod] = useState<'today' | 'week'>('today');
+  const [trend, setTrend] = useState<'daily' | 'weekly'>('daily');
+  const [eventsExpanded, setEventsExpanded] = useState(false);
   const [panel, setPanel] = useState<DetailPanel | null>(null);
   const [question, setQuestion] = useState('');
 
   const handleAsk = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!question.trim()) return;
-    onAskAssistant();
-    setQuestion('');
+    // 질문은 과거 대화 이력+검색 화면에서 대화로 쌓인다.
+    navigate('/chat', { state: { question: question.trim() } });
   };
 
   const activate = (action: () => void) => ({
@@ -87,6 +162,38 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
       (productFilter === '전체 제품' ||
         equipment.find((machine) => machine.name === event.machine)?.product === productFilter),
   );
+  // 실시간 기록은 최근 10건만 노출하고, 이전 기록은 생산·검사 이력 탭으로 유도한다.
+  // 실시간 기록은 기본적으로 최근 10건만 보여주고, 더 보기로 전체를 펼친다.
+  // 좌측 열에 최신 기록부터 아래로 쌓고, 나머지를 우측 열에 담는다.
+  const shownEvents = eventsExpanded ? filteredEvents : filteredEvents.slice(0, 10);
+  const eventSplit = Math.ceil(shownEvents.length / 2);
+  const eventColumns = [shownEvents.slice(0, eventSplit), shownEvents.slice(eventSplit)];
+
+  // 설비가 많아질 때를 대비해 목록을 좌우 스크롤 밴드로 전환한다.
+  const bandRef = useRef<HTMLDivElement>(null);
+  const [bandEdges, setBandEdges] = useState({ scrollable: false, start: true, end: true });
+
+  const syncBand = useCallback(() => {
+    const el = bandRef.current;
+    if (!el) return;
+    setBandEdges({
+      scrollable: el.scrollWidth > el.clientWidth + 1,
+      start: el.scrollLeft <= 1,
+      end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 1,
+    });
+  }, []);
+
+  useEffect(() => {
+    syncBand();
+    window.addEventListener('resize', syncBand);
+    return () => window.removeEventListener('resize', syncBand);
+  }, [syncBand, filteredEquipment.length]);
+
+  const scrollBand = (direction: number) => {
+    const el = bandRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
 
   const statusCounts = useMemo(() => {
     const operating = equipment.filter(
@@ -111,109 +218,81 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
   ];
   let donutOffset = 0;
   const donutCircles = donutSegments.map((segment) => {
-    const length = (segment.count / statusCounts.total) * DONUT_CIRCUMFERENCE;
+    const length = (segment.count / statusCounts.total) * 100;
     const circle = { ...segment, length, offset: donutOffset };
     donutOffset += length;
     return circle;
   });
 
-  const productionValue = period === 'today' ? productionSummary.today : productionSummary.week;
-  const productionBars =
-    period === 'today'
+  // 월 전체 생산량 카드의 보조 비교 막대. KPI·목표·저번 달 비교는 월 기준 고정이다.
+  const trendBars =
+    trend === 'daily'
       ? [
-          { label: '작월', value: productionSummary.previousToday, current: false },
-          { label: '당월', value: productionSummary.today, current: true },
+          { label: '어제', value: productionSummary.yesterday, current: false },
+          { label: '오늘', value: productionSummary.todayOutput, current: true },
         ]
       : [
-          { label: '이전', value: productionSummary.previousWeek, current: false },
-          { label: '최근', value: productionSummary.week, current: true },
+          { label: '지난주', value: productionSummary.lastWeek, current: false },
+          { label: '이번주', value: productionSummary.thisWeek, current: true },
         ];
-  const productionBarMax = Math.max(...productionBars.map((bar) => bar.value));
+  const trendBarMax = Math.max(...trendBars.map((bar) => bar.value));
 
   return (
     <>
-      <section className="rt-intro" aria-label="실시간 공정 소개">
-        <div>
-          <p>설비 상태와 생산 흐름, 품질 지표를 한 화면에서 확인하세요.</p>
-          <span className="rt-updated">
-            <Clock3 size={14} /> 예시 기준 시각 16:42
-          </span>
-        </div>
-        <p className="demo-disclaimer">예시 화면 · 실제 공정 및 서버 미연동</p>
-      </section>
-
-      <section className="rt-filters" aria-label="조회 필터">
-        <label className="select-control">
-          <span className="sr-only">설비 필터</span>
-          <select
-            aria-label="설비 필터"
-            value={machineFilter}
-            onChange={(event) => setMachineFilter(event.target.value)}
-          >
-            <option>전체 설비</option>
-            {equipment.map((machine) => (
-              <option key={machine.name}>{machine.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="select-control">
-          <span className="sr-only">제품 필터</span>
-          <select
-            aria-label="제품 필터"
-            value={productFilter}
-            onChange={(event) => setProductFilter(event.target.value)}
-          >
-            {productOptions.map((product) => (
-              <option key={product}>{product}</option>
-            ))}
-          </select>
-        </label>
-        <div className="segmented-control" aria-label="생산 조회 기간">
-          <button
-            className={period === 'today' ? 'selected' : ''}
-            aria-pressed={period === 'today'}
-            onClick={() => setPeriod('today')}
-          >
-            오늘
-          </button>
-          <button
-            className={period === 'week' ? 'selected' : ''}
-            aria-pressed={period === 'week'}
-            onClick={() => setPeriod('week')}
-          >
-            최근 9일
-          </button>
-        </div>
-      </section>
-
       <div className="rt-summary">
         <article
           className="card rt-kpi rt-clickable"
-          aria-label="전체 생산량 상세 보기"
+          aria-label="월 전체 생산량 상세 보기"
           {...activate(() => setPanel({ kind: 'production' }))}
         >
           <div className="card-heading">
-            <div>
-              <h2>전체 생산량</h2>
-              <p>{period === 'today' ? '오늘 기준 예시' : '최근 9일 누적 예시'}</p>
+            <h2>월 전체 생산량</h2>
+            <div
+              className="segmented-control"
+              role="group"
+              aria-label="생산 비교 기간 전환"
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className={trend === 'daily' ? 'selected' : ''}
+                aria-pressed={trend === 'daily'}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setTrend('daily');
+                }}
+              >
+                오늘
+              </button>
+              <button
+                type="button"
+                className={trend === 'weekly' ? 'selected' : ''}
+                aria-pressed={trend === 'weekly'}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setTrend('weekly');
+                }}
+              >
+                이번주
+              </button>
             </div>
-            <span className="pill pill-green">
-              <ArrowUpRight size={13} />
-              {period === 'today' ? '작월 대비 +4.2%' : '이전 기간 대비 +6.8%'}
-            </span>
           </div>
           <div className="kpi-value">
-            {productionValue.toLocaleString()}
+            {productionSummary.today.toLocaleString()}
             <span>개</span>
+            <span className="pill pill-green">
+              <ArrowUpRight size={13} />
+              저번 달 대비 +4.2%
+            </span>
           </div>
           <div className="rt-bars">
-            {productionBars.map((bar) => (
+            {trendBars.map((bar) => (
               <div className="rt-bar-row" key={bar.label}>
                 <span>{bar.label}</span>
                 <div className="rt-bar">
                   <span
                     className={bar.current ? 'rt-bar-current' : 'rt-bar-previous'}
-                    style={{ width: `${(bar.value / productionBarMax) * 100}%` }}
+                    style={{ width: `${(bar.value / trendBarMax) * 100}%` }}
                   />
                 </div>
                 <strong>{bar.value.toLocaleString()}개</strong>
@@ -221,67 +300,77 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
             ))}
           </div>
           <div className="kpi-bottom">
-            {period === 'today' ? (
-              <span>목표 {productionSummary.todayTarget.toLocaleString()}개</span>
-            ) : (
-              <span>최근 9일 누적</span>
-            )}
+            <span>이번 달 목표 {productionSummary.todayTarget.toLocaleString()}개</span>
+            <span>현재까지 {productionSummary.today.toLocaleString()}개</span>
           </div>
-          {period === 'today' && (
-            <div className="mini-progress">
-              <span
-                style={{
-                  width: `${(productionSummary.today / productionSummary.todayTarget) * 100}%`,
-                }}
-              />
-            </div>
-          )}
+          <div className="mini-progress">
+            <span
+              style={{
+                width: `${(productionSummary.today / productionSummary.todayTarget) * 100}%`,
+              }}
+            />
+          </div>
         </article>
 
         <article className="card rt-donut-card">
           <div className="card-heading">
-            <div>
-              <h2>설비 가동률</h2>
-              <p>10대 설비 기준 예시</p>
-            </div>
+            <h2>설비 가동률</h2>
           </div>
-          <div className="rt-donut">
-            <svg viewBox="0 0 120 120" role="img" aria-label={`가동률 ${operatingRate}%`}>
-              {donutCircles.map((circle) => (
+          <div className="rt-donut-body">
+            <div className="rt-donut">
+              <svg viewBox="0 0 120 120" role="img" aria-label={`가동률 ${operatingRate}%`}>
+                {donutCircles.map((circle) => (
+                  <circle
+                    key={circle.label}
+                    cx="60"
+                    cy="60"
+                    r={DONUT_RADIUS}
+                    fill="none"
+                    stroke={circle.color}
+                    strokeWidth={DONUT_STROKE}
+                    pathLength={100}
+                    strokeDasharray={`${circle.length + DONUT_OVERLAP} ${
+                      100 - circle.length - DONUT_OVERLAP
+                    }`}
+                    strokeDashoffset={DONUT_OVERLAP - circle.offset}
+                    transform="rotate(-90 60 60)"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setPanel({ kind: 'status', label: circle.label })}
+                  />
+                ))}
                 <circle
-                  key={circle.label}
+                  className="rt-donut-reveal"
                   cx="60"
                   cy="60"
                   r={DONUT_RADIUS}
                   fill="none"
-                  stroke={circle.color}
-                  strokeWidth="16"
-                  strokeDasharray={`${circle.length} ${DONUT_CIRCUMFERENCE - circle.length}`}
-                  strokeDashoffset={-circle.offset}
+                  stroke="var(--surface)"
+                  strokeWidth={DONUT_STROKE + 2}
+                  pathLength={100}
+                  strokeDasharray="100 100"
+                  pointerEvents="none"
                   transform="rotate(-90 60 60)"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setPanel({ kind: 'status', label: circle.label })}
                 />
-              ))}
-            </svg>
-            <div className="rt-donut-center">
-              <strong>{operatingRate}%</strong>
-              <span>가동률</span>
+              </svg>
+              <div className="rt-donut-center">
+                <strong>{operatingRate}%</strong>
+                <span>가동률</span>
+              </div>
             </div>
+            <ul className="rt-legend">
+              {donutCircles.map((circle) => (
+                <li key={circle.label}>
+                  <button
+                    type="button"
+                    onClick={() => setPanel({ kind: 'status', label: circle.label })}
+                  >
+                    <i style={{ background: circle.color }} />
+                    {circle.label} {circle.count}대
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="rt-legend">
-            {donutCircles.map((circle) => (
-              <li key={circle.label}>
-                <button
-                  type="button"
-                  onClick={() => setPanel({ kind: 'status', label: circle.label })}
-                >
-                  <i style={{ background: circle.color }} />
-                  {circle.label} {circle.count}대
-                </button>
-              </li>
-            ))}
-          </ul>
         </article>
 
         <article
@@ -290,18 +379,25 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
           {...activate(() => setPanel({ kind: 'defect' }))}
         >
           <div className="card-heading">
-            <div>
-              <h2>검사 불량률</h2>
-              <p>검사 기록 기준 예시</p>
-            </div>
+            <h2>검사 불량률</h2>
           </div>
           <div className="kpi-value">
             {defect.rate}
             <span>%</span>
+            <span className="pill pill-green">
+              <ArrowDownRight size={13} /> 어제 대비 -0.32%p
+            </span>
           </div>
           <div className="rt-bars">
             <div className="rt-bar-row">
-              <span>이번</span>
+              <span>어제</span>
+              <div className="rt-bar">
+                <span className="rt-bar-previous" style={{ width: '100%' }} />
+              </div>
+              <strong>{defectRatePrevious}%</strong>
+            </div>
+            <div className="rt-bar-row">
+              <span>오늘</span>
               <div className="rt-bar">
                 <span
                   className="rt-bar-current"
@@ -310,26 +406,13 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
               </div>
               <strong>{defect.rate}%</strong>
             </div>
-            <div className="rt-bar-row">
-              <span>전일</span>
-              <div className="rt-bar">
-                <span className="rt-bar-previous" style={{ width: '100%' }} />
-              </div>
-              <strong>{defectRatePrevious}%</strong>
-            </div>
           </div>
-          <p className="rt-defect-caption">
-            <ArrowDownRight size={14} /> 전일 대비 0.32%p 감소했어요
-          </p>
         </article>
       </div>
 
       <section className="card rt-quality">
         <div className="card-heading">
-          <div>
-            <h2>제품별 품질 현황</h2>
-            <p>{qualityPeriod} · 중복 제거 라벨 기록 · 예시</p>
-          </div>
+          <h2>제품별 품질 현황</h2>
         </div>
         <table className="rt-table">
           <thead>
@@ -350,11 +433,13 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
               >
                 <td>
                   <strong>{quality.product}</strong>
-                  {quality.focus && <span className="pill pill-amber">우선 확인</span>}
+                  {quality.focus && <span className="pill pill-red">우선 확인</span>}
                 </td>
                 <td>{quality.inspections.toLocaleString()}</td>
                 <td>{quality.defects}</td>
-                <td>{((quality.defects / quality.inspections) * 100).toFixed(1)}%</td>
+                <td>
+                  <strong>{((quality.defects / quality.inspections) * 100).toFixed(1)}%</strong>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -374,6 +459,21 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
         </p>
       </section>
 
+      <section className="rt-filters" aria-label="조회 필터">
+        <FilterDropdown
+          label="설비 필터"
+          value={machineFilter}
+          options={['전체 설비', ...equipment.map((machine) => machine.name)]}
+          onChange={setMachineFilter}
+        />
+        <FilterDropdown
+          label="제품 필터"
+          value={productFilter}
+          options={productOptions}
+          onChange={setProductFilter}
+        />
+      </section>
+
       <section className="rt-machines" aria-label="설비 상태">
         <div className="section-top">
           <h2>
@@ -386,30 +486,64 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
             <p>조건에 맞는 설비가 없어요. 필터를 바꿔 보세요.</p>
           </div>
         ) : (
-          <div className="rt-card-grid">
-            {filteredEquipment.map((machine) => (
-              <article key={machine.name} className="rt-machine">
-                <button
-                  onClick={() => setPanel({ kind: 'machine', machine })}
-                  aria-label={`${machine.name} 상세 보기`}
+          <div className="rt-band">
+            {bandEdges.scrollable && (
+              <button
+                type="button"
+                className="rt-band-nav prev"
+                aria-label="이전 설비 보기"
+                disabled={bandEdges.start}
+                onClick={() => scrollBand(-1)}
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <div className="rt-card-grid" ref={bandRef} onScroll={syncBand}>
+              {filteredEquipment.map((machine) => (
+                <article
+                  key={machine.name}
+                  className={`rt-machine${
+                    machine.state === '주의'
+                      ? ' rt-machine-warn'
+                      : machine.state === '고장'
+                        ? ' rt-machine-broken'
+                        : ''
+                  }`}
                 >
-                  <div className="rt-machine-top">
-                    <strong>{machine.name}</strong>
-                    <span className={`pill ${statePill[machine.state]}`}>{machine.state}</span>
-                  </div>
-                  <span className="rt-product">{machine.product}</span>
-                  <div className="mini-progress">
-                    <span style={{ width: `${machine.progress}%` }} />
-                  </div>
-                  <div className="rt-machine-meta">
-                    <span>
-                      {machine.production?.toLocaleString()} / {machine.target?.toLocaleString()}개
-                    </span>
-                    <span>사이클 {machine.cycleMinutes ? `${machine.cycleMinutes}분` : '—'}</span>
-                  </div>
-                </button>
-              </article>
-            ))}
+                  <button
+                    onClick={() => setPanel({ kind: 'machine', machine })}
+                    aria-label={`${machine.name} 상세 보기`}
+                  >
+                    <div className="rt-machine-top">
+                      <strong>{machine.name}</strong>
+                      <span className={`pill ${statePill[machine.state]}`}>{machine.state}</span>
+                    </div>
+                    <span className="rt-product">{machine.product}</span>
+                    <div className="mini-progress">
+                      <span style={{ width: `${machine.progress}%` }} />
+                    </div>
+                    <div className="rt-machine-meta">
+                      <span>
+                        {machine.production?.toLocaleString()} / {machine.target?.toLocaleString()}
+                        개
+                      </span>
+                      <span>사이클 {machine.cycleMinutes ? `${machine.cycleMinutes}분` : '—'}</span>
+                    </div>
+                  </button>
+                </article>
+              ))}
+            </div>
+            {bandEdges.scrollable && (
+              <button
+                type="button"
+                className="rt-band-nav next"
+                aria-label="다음 설비 보기"
+                disabled={bandEdges.end}
+                onClick={() => scrollBand(1)}
+              >
+                <ChevronRight size={18} />
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -418,33 +552,44 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
         <div className="card-heading">
           <div>
             <h2>최근 실시간 기록</h2>
-            <p>예시 이벤트 {filteredEvents.length}건</p>
+            <p>
+              총 {filteredEvents.length}건
+              {filteredEvents.length > shownEvents.length ? ' · 최근 10건' : ''}
+            </p>
           </div>
         </div>
         {filteredEvents.length === 0 ? (
           <p className="rt-empty">조건에 맞는 기록이 없어요. 필터를 바꿔 보세요.</p>
         ) : (
-          <ul className="rt-event-list">
-            {filteredEvents.map((event) => (
-              <li key={`${event.time}-${event.machine}`}>
-                <span className="rt-time">
-                  <Clock3 size={13} /> {event.time}
-                </span>
-                <span className={`pill ${levelPill[event.level]}`}>{event.level}</span>
-                <span className="rt-event-machine">{event.machine}</span>
-                <span className="rt-message">{event.message}</span>
-              </li>
+          <div className="rt-event-list">
+            {eventColumns.map((column, index) => (
+              <ul className="rt-event-col" key={index}>
+                {column.map((event) => (
+                  <li key={`${event.time}-${event.machine}`}>
+                    <span className="rt-time">
+                      <Clock3 size={13} /> {event.time}
+                    </span>
+                    <span className={`pill ${levelPill[event.level]}`}>{event.level}</span>
+                    <span className="rt-event-machine">{event.machine}</span>
+                    <span className="rt-message">{event.message}</span>
+                  </li>
+                ))}
+              </ul>
             ))}
-          </ul>
+          </div>
+        )}
+        {filteredEvents.length > shownEvents.length && (
+          <button
+            type="button"
+            className={`rt-events-more${eventsExpanded ? ' open' : ''}`}
+            aria-expanded={eventsExpanded}
+            onClick={() => setEventsExpanded(!eventsExpanded)}
+          >
+            {eventsExpanded ? '접기' : '더 보기'}
+            <ChevronDown size={14} />
+          </button>
         )}
       </section>
-
-      <footer className="rt-bottom">
-        <button className="button button-white" onClick={() => onOpenPlaceholder('생산·검사 이력')}>
-          생산·검사 이력 보기
-          <ChevronRight size={16} />
-        </button>
-      </footer>
 
       <section className="card rt-ask" aria-label="사출반장 질문">
         <div className="rt-ask-greeting">
@@ -465,9 +610,6 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
             보내기
           </button>
         </form>
-        <p className="demo-disclaimer">
-          예시 화면 · 실제 AI가 아닙니다. 질문은 홈의 사출반장으로 이어져요.
-        </p>
       </section>
 
       {machineDetail && (
@@ -505,7 +647,6 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
               <dd>{machineDetail.lastCheck ?? '—'}</dd>
             </div>
           </dl>
-          <p className="demo-disclaimer">예시 데이터이며 실제 설비 상태가 아닙니다.</p>
         </Modal>
       )}
 
@@ -555,34 +696,42 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
               </li>
             ))}
           </ul>
-          <p className="demo-disclaimer">예시 데이터이며 실제 설비 상태가 아닙니다.</p>
         </Modal>
       )}
 
       {panel?.kind === 'production' && (
-        <Modal title="전체 생산량 상세" onClose={() => setPanel(null)}>
+        <Modal title="월 전체 생산량 상세" onClose={() => setPanel(null)}>
           <dl className="rt-detail">
             <div>
-              <dt>오늘</dt>
+              <dt>이번 달 누계</dt>
               <dd>{productionSummary.today.toLocaleString()}개</dd>
             </div>
             <div>
-              <dt>최근 9일</dt>
-              <dd>{productionSummary.week.toLocaleString()}개</dd>
-            </div>
-            <div>
-              <dt>오늘 목표</dt>
+              <dt>이번 달 목표</dt>
               <dd>{productionSummary.todayTarget.toLocaleString()}개</dd>
             </div>
             <div>
-              <dt>작월</dt>
+              <dt>저번 달</dt>
               <dd>{productionSummary.previousToday.toLocaleString()}개</dd>
+            </div>
+            <div>
+              <dt>어제 · 오늘</dt>
+              <dd>
+                {productionSummary.yesterday.toLocaleString()}개 ·{' '}
+                {productionSummary.todayOutput.toLocaleString()}개
+              </dd>
+            </div>
+            <div>
+              <dt>지난주 · 이번주</dt>
+              <dd>
+                {productionSummary.lastWeek.toLocaleString()}개 ·{' '}
+                {productionSummary.thisWeek.toLocaleString()}개
+              </dd>
             </div>
           </dl>
           <p className="rt-note">
-            오늘 목표 달성률은 96.9%예요. 작월 대비 생산량이 +4.2% 늘었어요.
+            이번 달 목표 달성률은 96.9%예요. 저번 달 대비 생산량이 +4.2% 늘었어요.
           </p>
-          <p className="demo-disclaimer">예시 데이터이며 실제 생산량이 아닙니다.</p>
         </Modal>
       )}
 
@@ -590,12 +739,12 @@ export default function RealtimePage({ onOpenPlaceholder, onAskAssistant }: Real
         <Modal title="검사 불량률 상세" onClose={() => setPanel(null)}>
           <dl className="rt-detail">
             <div>
-              <dt>이번</dt>
-              <dd>{defect.rate}%</dd>
+              <dt>어제</dt>
+              <dd>{defectRatePrevious}%</dd>
             </div>
             <div>
-              <dt>전일</dt>
-              <dd>{defectRatePrevious}%</dd>
+              <dt>오늘</dt>
+              <dd>{defect.rate}%</dd>
             </div>
             <div>
               <dt>변화</dt>
