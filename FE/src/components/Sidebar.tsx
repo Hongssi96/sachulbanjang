@@ -14,25 +14,32 @@ import {
   FileChartColumn,
   Sparkles,
 } from 'lucide-react';
+import { Link } from 'react-router';
 import logo from '../assets/logo.png';
-import { Link, NavLink } from 'react-router';
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   onNavigate: (name: string) => void;
   onAssistant: () => void;
+  active: string;
 }
 const menus = [
-  { label: '홈', icon: House, path: '/' },
+  { label: '홈', icon: House },
   { label: '실시간 공정', icon: Factory },
   { label: '올라온 보고', icon: ClipboardList, badge: '3' },
-  { label: '생산·검사 이력', icon: History, path: '/records' },
-  { label: '재고 관리', icon: Package, path: '/inventory' },
-  { label: '품질 리포트', icon: FileChartColumn, path: '/quality-reports' },
+  { label: '생산·검사 이력', icon: History },
+  { label: '재고 관리', icon: Package },
+  { label: '품질 리포트', icon: FileChartColumn },
   { label: '일정 관리', icon: CalendarDays },
 ];
-export default function Sidebar({ collapsed, onToggle, onNavigate, onAssistant }: SidebarProps) {
+export default function Sidebar({
+  collapsed,
+  onToggle,
+  onNavigate,
+  onAssistant,
+  active,
+}: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="주 메뉴">
       <Link className="brand" to="/" aria-label="사출반장 홈">
@@ -41,45 +48,31 @@ export default function Sidebar({ collapsed, onToggle, onNavigate, onAssistant }
           사출반장<small>YOUR FACTORY PARTNER</small>
         </span>
       </Link>
-      <Link className="sidebar-search" to="/chat" title="과거 대화 이력 + 검색">
+      <button
+        className="sidebar-search"
+        onClick={() => onNavigate('과거 대화 이력 + 검색')}
+        title="과거 대화 이력 + 검색"
+      >
         <MessageSquare size={18} />
         <span>과거 대화 이력 + 검색</span>
         <ArrowUpRight size={15} />
-      </Link>
+      </button>
       <div className="nav-label">WORKSPACE</div>
       <nav>
-        {menus.map(({ label, icon: Icon, badge, path }) => {
-          const content = (
-            <>
-              <Icon size={21} strokeWidth={1.7} />
-              <span>{label}</span>
-              {badge && <b className="nav-badge">{badge}</b>}
-            </>
-          );
-          return path ? (
-            <NavLink
-              key={label}
-              to={path}
-              end={path === '/'}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              aria-label={label}
-              title={collapsed ? label : undefined}
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            >
-              {content}
-            </NavLink>
-          ) : (
-            <button
-              key={label}
-              className="nav-item"
-              aria-label={label}
-              onClick={() => onNavigate(label)}
-              title={collapsed ? label : undefined}
-            >
-              {content}
-            </button>
-          );
-        })}
+        {menus.map(({ label, icon: Icon, badge }) => (
+          <button
+            key={label}
+            className={`nav-item ${label === active ? 'active' : ''}`}
+            aria-label={label}
+            aria-current={label === active ? 'page' : undefined}
+            onClick={() => onNavigate(label)}
+            title={collapsed ? label : undefined}
+          >
+            <Icon size={21} strokeWidth={1.7} />
+            <span>{label}</span>
+            {badge && <b className="nav-badge">{badge}</b>}
+          </button>
+        ))}
       </nav>
       <div className="sidebar-bottom">
         <button className="sidebar-assistant" onClick={onAssistant}>
