@@ -145,12 +145,7 @@ export default function App() {
                 />
               }
             />
-            <Route
-              path="/realtime"
-              element={
-                <RealtimePage onOpenPlaceholder={setPlaceholder} onAskAssistant={askAssistant} />
-              }
-            />
+            <Route path="/realtime" element={<RealtimePage />} />
             <Route path="/schedule" element={<SchedulePage onToast={setToast} />} />
             <Route path="/records" element={<RecordsPage />} />
             <Route path="/records/:recordId" element={<RecordDetailPage />} />
@@ -227,9 +222,6 @@ export default function App() {
             <button className="button button-primary" onClick={relogin}>
               다시 로그인
             </button>
-            <p className="demo-disclaimer">
-              예시 세션 동작이며, 실제 로그인·인증은 아직 연동 전입니다.
-            </p>
           </div>
         </Modal>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import {
   ArrowUpRight,
   ArrowUp,
@@ -19,6 +19,7 @@ import '../RecordsPage/RecordsPage.css';
 import './ChatSearchPage.css';
 export default function ChatSearchPage() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const messageList = useRef<HTMLDivElement>(null);
   const searching = params.get('view') === 'search';
   const query = params.get('q') ?? '';
@@ -66,6 +67,14 @@ export default function ChatSearchPage() {
     update({ chat: id, view: '' });
     setDraft('');
   }
+  // 실시간 공정 채팅창에서 넘어온 질문을 도착 직후 한 번만 대화로 등록한다.
+  useEffect(() => {
+    const incoming = (location.state as { question?: string } | null)?.question?.trim();
+    if (!incoming) return;
+    send(incoming);
+    window.history.replaceState({}, '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 전달된 질문을 1회만 반영하기 위한 의도적 빈 배열
+  }, []);
   const matches = (text: string) => text.toLowerCase().includes(query.trim().toLowerCase());
   const recordResults = query.trim()
     ? productionInspectionRecords.filter((item) =>

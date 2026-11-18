@@ -17,9 +17,10 @@ const kindOptions: CalendarEvent['kind'][] = ['점검', '납품', '회의'];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function SchedulePage({ onToast }: SchedulePageProps) {
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(10);
-  const [selectedDay, setSelectedDay] = useState(17);
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [filter, setFilter] = useState('전체');
   const [customEvents, setCustomEvents] = useState<CalendarEvent[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -38,18 +39,19 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const firstWeekday = new Date(year, month, 1).getDay();
 
   const changeMonth = (delta: number) => {
-    const next = month + delta;
-    if (next < 0) {
-      setMonth(11);
-      setYear((value) => value - 1);
-      return;
+    let nextYear = year;
+    let nextMonth = month + delta;
+    if (nextMonth < 0) {
+      nextMonth = 11;
+      nextYear -= 1;
+    } else if (nextMonth > 11) {
+      nextMonth = 0;
+      nextYear += 1;
     }
-    if (next > 11) {
-      setMonth(0);
-      setYear((value) => value + 1);
-      return;
-    }
-    setMonth(next);
+    setYear(nextYear);
+    setMonth(nextMonth);
+    const maxDay = new Date(nextYear, nextMonth + 1, 0).getDate();
+    if (selectedDay > maxDay) setSelectedDay(maxDay);
   };
 
   const handleAdd = (event: FormEvent<HTMLFormElement>) => {
@@ -79,16 +81,6 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
 
   return (
     <>
-      <section className="sc-intro" aria-label="일정 관리 소개">
-        <div>
-          <p>공장 일정을 월간 달력에서 확인하고, 날짜를 선택해 상세 내용을 보세요.</p>
-          <span className="rt-updated">
-            <Clock3 size={14} /> 2026년 11월 예시 일정 기준
-          </span>
-        </div>
-        <p className="demo-disclaimer">예시 화면 · 실제 서버 미연동</p>
-      </section>
-
       <section className="rt-filters" aria-label="일정 종류 필터">
         <div className="segmented-control" role="group">
           {['전체', ...kindOptions].map((kind) => (
