@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { Route, Routes, useLocation, useNavigate } from 'react-router';
 import { Bell, Check, ChevronRight, Factory, LogOut } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -7,18 +7,32 @@ import Modal from './components/Modal';
 import HomePage from './pages/HomePage';
 import SchedulePage from './pages/SchedulePage';
 import RealtimePage from './pages/RealtimePage';
+import InventoryPage from './pages/InventoryPage/InventoryPage';
+import QualityReportPage from './pages/QualityReportPage/QualityReportPage';
+import RecordsPage, { RecordDetailPage } from './pages/RecordsPage/RecordsPage';
+import PrecisionInspectionPage from './pages/PrecisionInspectionPage/PrecisionInspectionPage';
+import ChatSearchPage from './pages/ChatSearchPage/ChatSearchPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { reports } from './constants/demoData';
 
 const menuRoutes: Record<string, string> = {
   홈: '/',
   '실시간 공정': '/realtime',
   '일정 관리': '/schedule',
+  '생산·검사 이력': '/records',
+  '재고 관리': '/inventory',
+  '품질 리포트': '/quality-reports',
+  '과거 대화 이력 + 검색': '/chat',
 };
 
 const routeTitles: Record<string, string> = {
   '/': '홈',
   '/realtime': '실시간 공정',
   '/schedule': '일정 관리',
+  '/records': '생산·검사 이력',
+  '/inventory': '재고 관리',
+  '/quality-reports': '품질 리포트',
+  '/chat': '대화·검색',
 };
 
 export default function App() {
@@ -34,14 +48,21 @@ export default function App() {
   const [sessionFired, setSessionFired] = useState(false);
   const [offWorkModalOpen, setOffWorkModalOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const routePath = location.pathname.replace(/\/$/, '') || '/';
   const activeMenu =
-    Object.entries(menuRoutes).find(([, route]) => route === location.pathname)?.[0] ?? '홈';
-  const pageTitle = routeTitles[location.pathname] ?? '홈';
+    Object.entries(menuRoutes).find(
+      ([, route]) => route === routePath || (route !== '/' && routePath.startsWith(route + '/')),
+    )?.[0] ?? '';
+  const pageTitle = routePath.endsWith('/precision-inspection')
+    ? '정밀기계검사'
+    : routePath.startsWith('/records/')
+      ? '생산·검사 상세'
+      : (routeTitles[routePath] ?? '페이지 없음');
 
   useEffect(() => {
-    document.title = `사출반장 · ${routeTitles[location.pathname] ?? '홈'}`;
+    document.title = `사출반장 · ${pageTitle}`;
     workspaceRef.current?.scrollTo(0, 0);
-  }, [location.pathname]);
+  }, [location.pathname, pageTitle]);
 
   const toggleExtended = () => {
     if (sessionEnded) {
@@ -131,7 +152,16 @@ export default function App() {
               }
             />
             <Route path="/schedule" element={<SchedulePage onToast={setToast} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/records" element={<RecordsPage />} />
+            <Route path="/records/:recordId" element={<RecordDetailPage />} />
+            <Route
+              path="/records/:recordId/precision-inspection"
+              element={<PrecisionInspectionPage />}
+            />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/quality-reports" element={<QualityReportPage />} />
+            <Route path="/chat" element={<ChatSearchPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
       </div>
@@ -153,7 +183,7 @@ export default function App() {
                 ? '사출반장 홈 사용하기'
                 : `${placeholder} 화면은 준비 중이에요`}
             </h3>
-            <p>현재 홈·실시간 공정·일정 관리 화면이 구현되어 있습니다.</p>
+            <p>현재 홈·실시간 공정·일정·재고·품질·검사·대화/검색 화면을 사용할 수 있습니다.</p>
             <ul>
               <li>생산 현황에서 조회 기간을 바꿔 보세요.</li>
               <li>보고를 누르면 상세 내용이 열립니다.</li>

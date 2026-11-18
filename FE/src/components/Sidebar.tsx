@@ -14,6 +14,7 @@ import {
   FileChartColumn,
   Sparkles,
 } from 'lucide-react';
+import { Link } from 'react-router';
 import logo from '../assets/logo.png';
 
 interface SidebarProps {
@@ -41,12 +42,12 @@ export default function Sidebar({
 }: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="주 메뉴">
-      <a className="brand" href="#main-content" aria-label="사출반장 홈">
+      <Link className="brand" to="/" aria-label="사출반장 홈">
         <img src={logo} alt="" />
         <span>
           사출반장<small>YOUR FACTORY PARTNER</small>
         </span>
-      </a>
+      </Link>
       <button
         className="sidebar-search"
         onClick={() => onNavigate('과거 대화 이력 + 검색')}
@@ -64,9 +65,7 @@ export default function Sidebar({
             className={`nav-item ${label === active ? 'active' : ''}`}
             aria-label={label}
             aria-current={label === active ? 'page' : undefined}
-            onClick={() =>
-              label === active ? window.scrollTo({ top: 0, behavior: 'smooth' }) : onNavigate(label)
-            }
+            onClick={() => onNavigate(label)}
             title={collapsed ? label : undefined}
           >
             <Icon size={21} strokeWidth={1.7} />

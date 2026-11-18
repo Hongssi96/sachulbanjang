@@ -181,12 +181,18 @@ components/
 | `/` | `pages/HomePage` | 홈 | 홈 |
 | `/realtime` | `pages/RealtimePage` | 실시간 공정 | 실시간 공정 |
 | `/schedule` | `pages/SchedulePage` | 일정 관리 | 일정 관리 |
-| `/reports` | `pages/ReportsPage` | 올라온 보고 | 올라온 보고 |
-| `/reports/:reportId` | `pages/ReportDetailPage` | 목록에서 진입 | 올라온 보고 |
-| `/chat` | `pages/ChatHistoryPage` | 과거 대화 이력 + 검색 | 과거 대화 이력 + 검색 |
+| `/records` | `pages/RecordsPage` | 생산·검사 이력 | 생산·검사 이력 |
+| `/records/:recordId` | `pages/RecordsPage` | 생산·검사 이력 | 생산·검사 상세 |
+| `/records/:recordId/precision-inspection` | `pages/PrecisionInspectionPage` | 생산·검사 이력 | 정밀기계검사 |
+| `/inventory` | `pages/InventoryPage` | 재고 관리 | 재고 관리 |
+| `/quality-reports` | `pages/QualityReportPage` | 품질 리포트 | 품질 리포트 |
+| `/chat` | `pages/ChatSearchPage` | 과거 대화 이력 + 검색 | 대화·검색 |
+| `/reports` (예정) | 미구현 | 올라온 보고 | 준비 중 |
 
-- 구현되지 않은 메뉴(생산·검사 이력, 재고 관리, 품질 리포트)는 셸의 "준비 중" 안내 모달로 처리하고 라우트를 만들지 않는다.
-- 정의되지 않은 주소는 홈(`/`)으로 리다이렉트한다.
+
+
+- 생산·검사 이력(`/records`), 상세(`/records/:recordId`), 정밀기계검사(`/records/:recordId/precision-inspection`), 재고(`/inventory`), 품질(`/quality-reports`), 대화·검색(`/chat`)을 App에 연결한다. 올라온 보고 등 미구현 메뉴만 준비 중 안내를 표시한다.
+- 정의되지 않은 주소는 페이지 없음 화면을 표시한다.
 - 새 라우트를 추가하면 이 표를 함께 갱신한다.
 
 #### 셸(App)이 소유하는 것
