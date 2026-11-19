@@ -18,7 +18,6 @@ import {
   productQuality,
   productionSummary,
   productionTrend,
-  qualityPeriod,
   realtimeEvents,
 } from '../constants/demoData';
 import { inspectionThreshold } from '../services/inspectionData';
@@ -173,6 +172,7 @@ export default function RealtimePage() {
     : [];
   const statusPanel = panel?.kind === 'status' ? panel : null;
   const statusPanelMachines = statusPanel ? statusGroupMachines(statusPanel.label) : [];
+  const qualityPanel = panel?.kind === 'quality' ? panel.quality : null;
 
   const productOptions = ['전체 제품', ...new Set(equipment.map((machine) => machine.product))];
 
@@ -248,6 +248,14 @@ export default function RealtimePage() {
     100;
   const productionProgress = (productionSummary.today / productionSummary.todayTarget) * 100;
   const productionCumulative = toCumulative(productionTrend);
+  const qualityRate = qualityPanel ? (qualityPanel.defects / qualityPanel.inspections) * 100 : 0;
+  const qualityShare =
+    qualityPanel && defect.defects ? Math.round((qualityPanel.defects / defect.defects) * 100) : 0;
+  // 게이지 축은 제품 중 최고 불량률과 점검 기준을 담도록 잡는다.
+  const qualityScaleMax = Math.max(
+    5,
+    Math.ceil(Math.max(...productQuality.map((item) => (item.defects / item.inspections) * 100))),
+  );
 
   const donutSegments: { label: '정상' | '휴식' | '고장'; count: number; color: string }[] = [
     { label: '정상', count: statusCounts.operating, color: '#61E2A6' },
@@ -744,35 +752,83 @@ export default function RealtimePage() {
         </Modal>
       )}
 
-      {panel?.kind === 'quality' && (
-        <Modal title={`${panel.quality.product} 품질 상세`} onClose={() => setPanel(null)}>
-          <dl className="rt-detail">
+      {qualityPanel && (
+        <Modal title={`${qualityPanel.product} 품질 상세`} wide onClose={() => setPanel(null)}>
+          <section className="metric-summary" aria-label={`${qualityPanel.product} 품질 요약`}>
+            <p className="metric-eyebrow">라벨 검사 기준</p>
+            <div className="metric-value">
+              <strong>{qualityRate.toFixed(2)}</strong>
+              <span className="metric-unit">%</span>
+              <span
+                className={`pill ${qualityRate > inspectionThreshold ? 'pill-red' : 'pill-green'}`}
+              >
+                {qualityRate > inspectionThreshold ? '우선 확인' : '기준 이하'}
+              </span>
+            </div>
+            <p className="metric-sub">
+              전체 불량 {defect.defects}건 중 {qualityPanel.defects}건
+            </p>
+          </section>
+          <section className="metric-section" aria-label="점검 기준 대비">
+            <div className="metric-section-head">
+              <h3>점검 기준 대비</h3>
+              <span className="metric-ref is-ink">
+                <i />
+                점검 기준 {inspectionThreshold}%
+              </span>
+            </div>
+            <div
+              className="metric-gauge"
+              role="img"
+              aria-label={`검사 불량률 ${qualityRate.toFixed(2)}%, 점검 기준 ${inspectionThreshold}%`}
+            >
+              <span
+                className="metric-gauge-fill"
+                style={{
+                  width: `${(qualityRate / qualityScaleMax) * 100}%`,
+                  background: qualityRate > inspectionThreshold ? '#F2BB69' : '#61E2A6',
+                }}
+              />
+              <span
+                className="metric-gauge-mark"
+                style={{ left: `${(inspectionThreshold / qualityScaleMax) * 100}%` }}
+              />
+            </div>
+            <p className="metric-gauge-note">
+              기준보다 {signed(qualityRate - inspectionThreshold, 2)}%p
+            </p>
+          </section>
+          <dl className="metric-stats">
             <div>
               <dt>검사 기록수</dt>
-              <dd>{panel.quality.inspections.toLocaleString()}건</dd>
+              <dd>{qualityPanel.inspections.toLocaleString()}건</dd>
             </div>
             <div>
               <dt>불량 수</dt>
-              <dd>{panel.quality.defects}건</dd>
+              <dd>{qualityPanel.defects.toLocaleString()}건</dd>
             </div>
             <div>
-              <dt>불량 비율</dt>
-              <dd>{((panel.quality.defects / panel.quality.inspections) * 100).toFixed(1)}%</dd>
-            </div>
-            <div>
-              <dt>집계 기간</dt>
-              <dd>{qualityPeriod}</dd>
+              <dt>전체 불량 비중</dt>
+              <dd>{qualityShare}%</dd>
             </div>
           </dl>
-          {panel.quality.focus && (
-            <p className="rt-note">
-              RG3 RH의 불량 기록 27건 중 25건이 10/22–23에 집중되어 있어요. 해당 기간의 공정 조건과
-              조치 이력을 우선 비교해 보세요.
-            </p>
-          )}
-          <p className="demo-disclaimer">
+          <p className="metric-basis">
             중복 제거 라벨 기록 기준이며 전체 생산 불량률이 아닙니다.
+            {qualityPanel.focus
+              ? ` ${qualityPanel.product}의 불량 기록 ${qualityPanel.defects}건 중 25건이 10/22–23에 집중되어 있어요.`
+              : ''}
           </p>
+          <button
+            type="button"
+            className="metric-link"
+            onClick={() => {
+              setPanel(null);
+              navigate(`/records?product=${encodeURIComponent(qualityPanel.product)}`);
+            }}
+          >
+            같은 제품 생산·검사 이력 보기
+            <ArrowUpRight size={14} />
+          </button>
         </Modal>
       )}
 
