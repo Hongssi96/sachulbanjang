@@ -187,8 +187,9 @@
   color: var(--muted);
 }
 .inv-search:focus-within {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  outline: none;
+  border-color: #c7bfd6;
+  box-shadow: none;
 }
 .inv-search input {
   width: 100%;
@@ -1314,4 +1315,56 @@
 .inv-table-scroll:focus-visible {
   outline: 2px solid #c1b7d4;
   outline-offset: 2px;
+}
+/* 재고 상세 내용은 스크롤할 수 있게 유지하고 스크롤바만 숨긴다. */
+
+.modal:has(.inv-detail) {
+  scrollbar-width: none;
+}
+.modal:has(.inv-detail)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.inventory-page .inv-stock-card {
+  position: relative;
+  z-index: 0;
+}
+.inv-filter-select {
+  min-width: 124px;
+}
+.inv-filter-select .filter-select-trigger {
+  min-height: 44px;
+  font-size: 13px;
+}
+.inv-movement-form .inv-field > .filter-select {
+  margin-top: 8px;
+}
+.inv-movement-form .filter-select-trigger {
+  font-size: 14px;
+  min-height: 44px;
+}
+.inv-movement-form .filter-select-options {
+  font-weight: 400;
+}
+/* 품목별 재고 현황 표에만 중앙 정렬을 적용한다. */
+.inventory-page .inv-stock-table th,
+.inventory-page .inv-stock-table td,
+.inventory-page .inv-stock-table .inv-number {
+  text-align: center;
+  vertical-align: middle;
+}
+.inv-stock-table .inv-product-cell {
+  margin-inline: auto;
+  justify-content: center;
+  text-align: center;
+}
+.inv-stock-table .inv-warehouse {
+  display: inline-grid;
+  justify-content: center;
+  text-align: center;
+  vertical-align: middle;
+}
+.inv-stock-table .icon-button {
+  margin-inline: auto;
 }

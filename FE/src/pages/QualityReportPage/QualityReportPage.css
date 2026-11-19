@@ -454,8 +454,9 @@
   min-height: 44px;
 }
 .qr-search:focus-within {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  outline: none;
+  border-color: #c7bfd6;
+  box-shadow: none;
 }
 .qr-search input {
   width: 100%;
@@ -1589,4 +1590,38 @@
   .quality-report-page .qr-period-buttons button {
     transition: none;
   }
+}
+.quality-report-page .qr-filter-fields .filter-select-trigger {
+  min-height: 44px;
+  font-size: 13px;
+}
+.quality-report-page .qr-filter-fields .filter-select {
+  margin-top: 8px;
+}
+/* 검사 배치 상세의 스크롤 기능은 유지하고 스크롤바만 숨긴다. */
+.modal:has(.qr-detail) {
+  scrollbar-width: none;
+}
+.modal:has(.qr-detail)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.qr-table-toolbar {
+  position: relative;
+  z-index: 1;
+}
+.qr-table-toolbar > .qr-select {
+  min-width: 160px;
+}
+.qr-table-toolbar .filter-select-trigger {
+  font-size: 12px;
+  min-height: 44px;
+}
+.qr-table-toolbar .filter-select-options {
+  min-width: 100%;
+}
+.quality-report-page .qr-filter-card {
+  position: relative;
+  z-index: 2;
 }

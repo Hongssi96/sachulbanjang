@@ -2,12 +2,19 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import './FilterSelect.css';
 interface FilterSelectProps {
+  id?: string;
   value: string;
   options: { value: string; label: string }[];
   label: string;
   onChange: (value: string) => void;
 }
-export default function FilterSelect({ value, options, label, onChange }: FilterSelectProps) {
+export default function FilterSelect({
+  id: triggerId,
+  value,
+  options,
+  label,
+  onChange,
+}: FilterSelectProps) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
   const selected = Math.max(
@@ -26,6 +33,13 @@ export default function FilterSelect({ value, options, label, onChange }: Filter
     document.addEventListener('mousedown', outside);
     return () => document.removeEventListener('mousedown', outside);
   }, [open]);
+  useEffect(() => {
+    if (open)
+      root.current
+        ?.querySelector('.filter-select-options > .highlighted')
+        ?.scrollIntoView({ block: 'nearest' });
+  }, [open, highlight]);
+
   // 아래 공간이 부족하면 목록을 위로 펼쳐 화면 밖으로 잘리지 않게 한다.
   const openMenu = () => {
     const element = trigger.current;
@@ -40,6 +54,7 @@ export default function FilterSelect({ value, options, label, onChange }: Filter
   return (
     <div className="filter-select" ref={root}>
       <button
+        id={triggerId}
         className="filter-select-trigger"
         type="button"
         ref={trigger}

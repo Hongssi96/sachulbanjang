@@ -262,34 +262,35 @@ export default function RecordsPage() {
               onChange={(e) => update({ q: e.target.value })}
             />
           </label>
-          <select
-            aria-label="검사 담당자"
+          <FilterSelect
+            label="검사 담당자"
             value={filters.inspector}
-            onChange={(e) => update({ inspector: e.target.value })}
-          >
-            <option value="">전체 담당자</option>
-            {inspectionStaff.map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-          <select
-            aria-label="검사 결과"
+            onChange={(value) => update({ inspector: value })}
+            options={[
+              { value: '', label: '전체 담당자' },
+              ...inspectionStaff.map((value) => ({ value, label: value })),
+            ]}
+          />
+          <FilterSelect
+            label="검사 결과"
             value={filters.result}
-            onChange={(e) => update({ result: e.target.value })}
-          >
-            <option value="">전체 검사 결과</option>
-            <option value="pass">양품</option>
-            <option value="defect">불량 포함</option>
-            <option value="above">기준 초과 (3%)</option>
-          </select>
-          <select
-            aria-label="정렬"
+            onChange={(value) => update({ result: value })}
+            options={[
+              { value: '', label: '전체 검사 결과' },
+              { value: 'pass', label: '양품' },
+              { value: 'defect', label: '불량 포함' },
+              { value: 'above', label: '기준 초과 (3%)' },
+            ]}
+          />
+          <FilterSelect
+            label="정렬"
             value={filters.order}
-            onChange={(e) => update({ order: e.target.value })}
-          >
-            <option value="latest">최신순</option>
-            <option value="oldest">오래된순</option>
-          </select>
+            onChange={(value) => update({ order: value })}
+            options={[
+              { value: 'latest', label: '최신순' },
+              { value: 'oldest', label: '오래된순' },
+            ]}
+          />
         </div>
         <div className="rd-table-wrap">
           <table>
@@ -336,7 +337,6 @@ export default function RecordsPage() {
                     {production
                       ? `${number(record.productionTarget)} / ${number(record.produced)}`
                       : number(record.inspected)}
-                    <small>개</small>
                   </td>
                   <td className={defectCount(record) ? 'rd-defective' : ''}>
                     {production
@@ -474,8 +474,17 @@ export function RecordDetailPage() {
         ].map(([label, value, note]) => (
           <div className="rd-panel" key={label}>
             <span className="rd-stat-label">{label}</span>
-            <strong>{value}</strong>
-            <p>{note}</p>
+            {note === '개' ? (
+              <strong className="rd-detail-value-row">
+                <span>{value}</span>
+                <small>개</small>
+              </strong>
+            ) : (
+              <>
+                <strong>{value}</strong>
+                <p>{note}</p>
+              </>
+            )}
           </div>
         ))}
       </div>

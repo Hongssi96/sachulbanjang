@@ -1,3 +1,4 @@
+import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
 import DatePicker from '../../components/DatePicker';
 import { useState, useTransition } from 'react';
@@ -8,7 +9,6 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
@@ -274,37 +274,30 @@ export default function QualityReportPage() {
           </fieldset>
           <label>
             제품
-            <div className="qr-select">
-              <select
-                aria-label="품질 제품 필터"
-                value={filters.product}
-                onChange={(event) => setFilter('product', event.target.value)}
-              >
-                <option value="">전체 제품</option>
-                {qualityProducts.map((product) => (
-                  <option key={product}>{product}</option>
-                ))}
-              </select>
-              <ChevronDown size={16} />
-            </div>
+            <FilterSelect
+              label="품질 제품 필터"
+              value={filters.product}
+              onChange={(value) => setFilter('product', value)}
+              options={[
+                { value: '', label: '전체 제품' },
+                ...qualityProducts.map((product) => ({ value: product, label: product })),
+              ]}
+            />
           </label>
           <label>
             설비
-            <div className="qr-select">
-              <select
-                aria-label="품질 설비 필터"
-                value={filters.equipment}
-                onChange={(event) => setFilter('equipment', event.target.value)}
-              >
-                <option value="">전체 설비</option>
-                {qualityEquipment.map((equipment, index) => (
-                  <option key={equipment} value={equipment}>
-                    {equipment} · 사출 {index + 1}호기
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} />
-            </div>
+            <FilterSelect
+              label="품질 설비 필터"
+              value={filters.equipment}
+              onChange={(value) => setFilter('equipment', value)}
+              options={[
+                { value: '', label: '전체 설비' },
+                ...qualityEquipment.map((equipment, index) => ({
+                  value: equipment,
+                  label: `${equipment} · 사출 ${index + 1}호기`,
+                })),
+              ]}
+            />
           </label>
         </div>
         {rangeError && (
@@ -537,17 +530,17 @@ export default function QualityReportPage() {
             )}
           </label>
           <div className="qr-select">
-            <select
-              aria-label="검사 결과 필터"
+            <FilterSelect
+              label="검사 결과 필터"
               value={['pass', 'defect', 'above'].includes(verdict) ? verdict : ''}
-              onChange={(event) => setFilter('result', event.target.value)}
-            >
-              <option value="">전체 검사 결과</option>
-              <option value="pass">양품 배치</option>
-              <option value="defect">불량 포함 배치</option>
-              <option value="above">기준 초과 배치</option>
-            </select>
-            <ChevronDown size={15} />
+              onChange={(value) => setFilter('result', value)}
+              options={[
+                { value: '', label: '전체 검사 결과' },
+                { value: 'pass', label: '양품 배치' },
+                { value: 'defect', label: '불량 포함 배치' },
+                { value: 'above', label: '기준 초과 배치' },
+              ]}
+            />
           </div>
           <span>표 검색·결과 필터는 요약 지표에 영향을 주지 않습니다.</span>
         </div>

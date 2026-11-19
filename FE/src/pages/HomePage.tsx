@@ -383,6 +383,62 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               })}
             </div>
           </section>
+          <section className="card handover-card">
+            <div className="card-heading">
+              <div className="heading-inline">
+                <h2>인수인계 노트</h2>
+                {unreadNotes > 0 && <span className="count-dot">{unreadNotes}</span>}
+              </div>
+              <button
+                className="icon-button"
+                aria-label="인수인계 노트 작성"
+                onClick={() => setOverlay({ kind: 'note' })}
+              >
+                <Plus size={19} />
+              </button>
+            </div>
+            {notes.length > 0 ? (
+              <>
+                <div className="note-preview">
+                  <span className={`pill ${notes[0].checked ? 'pill-green' : 'pill-amber'}`}>
+                    {notes[0].checked ? '확인 완료' : '미확인'}
+                  </span>
+                  <p>{notes[0].content}</p>
+                  <small>{notes[0].author}</small>
+                </div>
+                <button
+                  className="note-confirm"
+                  onClick={() => {
+                    const saved = saveNotes(
+                      notes.map((note, index) =>
+                        index === 0 ? { ...note, checked: !note.checked } : note,
+                      ),
+                    );
+                    if (saved)
+                      onToast(
+                        notes[0].checked
+                          ? '노트를 미확인으로 변경했습니다.'
+                          : '인수인계 노트를 확인했습니다.',
+                      );
+                  }}
+                >
+                  <Check size={16} />
+                  {notes[0].checked ? '확인 취소' : '내용 확인했어요'}
+                </button>
+                {notes.length > 1 && (
+                  <button
+                    className="text-link note-more"
+                    onClick={() => setOverlay({ kind: 'note' })}
+                  >
+                    전체 노트 {notes.length}건 보기
+                    <ArrowRight size={14} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="empty-text">아직 작성된 인수인계가 없어요.</p>
+            )}
+          </section>
         </div>
         <div className="side-column">
           <section className="insight-card">
@@ -518,62 +574,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                 <p className="empty-text">등록된 일정이 없어요.</p>
               )}
             </div>
-          </section>
-          <section className="card handover-card">
-            <div className="card-heading">
-              <div className="heading-inline">
-                <h2>인수인계 노트</h2>
-                {unreadNotes > 0 && <span className="count-dot">{unreadNotes}</span>}
-              </div>
-              <button
-                className="icon-button"
-                aria-label="인수인계 노트 작성"
-                onClick={() => setOverlay({ kind: 'note' })}
-              >
-                <Plus size={19} />
-              </button>
-            </div>
-            {notes.length > 0 ? (
-              <>
-                <div className="note-preview">
-                  <span className={`pill ${notes[0].checked ? 'pill-green' : 'pill-amber'}`}>
-                    {notes[0].checked ? '확인 완료' : '미확인'}
-                  </span>
-                  <p>{notes[0].content}</p>
-                  <small>{notes[0].author}</small>
-                </div>
-                <button
-                  className="note-confirm"
-                  onClick={() => {
-                    const saved = saveNotes(
-                      notes.map((note, index) =>
-                        index === 0 ? { ...note, checked: !note.checked } : note,
-                      ),
-                    );
-                    if (saved)
-                      onToast(
-                        notes[0].checked
-                          ? '노트를 미확인으로 변경했습니다.'
-                          : '인수인계 노트를 확인했습니다.',
-                      );
-                  }}
-                >
-                  <Check size={16} />
-                  {notes[0].checked ? '확인 취소' : '내용 확인했어요'}
-                </button>
-                {notes.length > 1 && (
-                  <button
-                    className="text-link note-more"
-                    onClick={() => setOverlay({ kind: 'note' })}
-                  >
-                    전체 노트 {notes.length}건 보기
-                    <ArrowRight size={14} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <p className="empty-text">아직 작성된 인수인계가 없어요.</p>
-            )}
           </section>
         </div>
         <div className="shift-card">

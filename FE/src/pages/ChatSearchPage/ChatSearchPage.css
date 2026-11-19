@@ -663,3 +663,62 @@
   font-family: inherit;
   font-weight: 400;
 }
+/* 대화 내용에 더 많은 높이를 배정하고 입력 영역은 간결하게 유지한다. */
+.chat-page .cs-messages {
+  min-height: 420px;
+}
+.chat-focus .chat-page .cs-messages {
+  min-height: 0;
+  padding-block: 18px;
+}
+.chat-focus main {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.chat-focus .chat-display-controls {
+  margin-bottom: 10px;
+}
+.chat-focus .chat-display-controls > .button {
+  min-height: 34px;
+  padding-block: 7px;
+}
+.chat-focus .chat-page > .rd-heading {
+  margin-bottom: 10px;
+}
+.chat-focus .cs-main > .rd-tabs {
+  padding-top: 0;
+}
+.chat-focus .cs-main > .rd-tabs button {
+  padding-block: 10px;
+}
+.chat-focus .cs-chat-heading {
+  padding: 12px 20px;
+}
+.chat-focus .cs-ai-mark {
+  width: 34px;
+  height: 34px;
+}
+.chat-focus .cs-composer {
+  padding: 10px 12px;
+  margin-inline: 20px;
+}
+.chat-focus .cs-composer textarea {
+  height: 44px;
+  min-height: 44px;
+  max-height: 100px;
+}
+.chat-focus .cs-disclaimer {
+  margin-block: 8px;
+}
+.chat-page .cs-global-search:focus-within {
+  outline: none;
+  border-color: #c7bfd6;
+  box-shadow: 0 0 0 2px #635b8509;
+}
+.chat-page .cs-global-search input,
+.chat-page .cs-global-search input:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
