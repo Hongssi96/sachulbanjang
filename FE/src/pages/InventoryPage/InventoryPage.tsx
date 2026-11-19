@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import LoadingState from '../../components/LoadingState';
+import { useState, useTransition } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   ArrowDownToLine,
@@ -49,7 +50,10 @@ type DialogState =
   | null;
 export default function InventoryPage() {
   const [inventory, setInventory] = useState<InventoryState>(loadInventory);
-  const [params, setParams] = useSearchParams();
+  const [params, rawSetParams] = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const setParams = (...args: Parameters<typeof rawSetParams>) =>
+    startTransition(() => rawSetParams(...args));
   const [dialog, setDialog] = useState<DialogState>(null);
   const [feedback, setFeedback] = useState('');
   const [historyKind, setHistoryKind] = useState('all');
@@ -199,13 +203,14 @@ export default function InventoryPage() {
   );
   return (
     <div className="inventory-page">
+      {isPending && <LoadingState compact label="재고 데이터를 조회하는 중이에요" />}
       <section className="page-intro">
         <div>
           <div className="eyebrow">
             <span />
             INVENTORY AT A GLANCE
           </div>
-          <h1>
+          <h1 className="sr-only">
             재고 관리<span className="greeting-dot">.</span>
           </h1>
           <p>완제품의 입고부터 출고까지, 필요한 재고를 한눈에 확인하세요.</p>
@@ -440,7 +445,13 @@ export default function InventoryPage() {
             </button>
           </div>
         </div>
-        <div className="inv-table-scroll" tabIndex={0} role="region" aria-label="품목별 재고 표">
+        <div
+          className="inv-table-scroll"
+          style={{ height: `${56 + inventory.items.length * 81}px` }}
+          tabIndex={0}
+          role="region"
+          aria-label="품목별 재고 표"
+        >
           <table className="inv-stock-table">
             <caption className="sr-only">
               완제품 재고 현황. 가용재고는 현재고에서 출고 예약을 뺀 수량입니다.
@@ -563,12 +574,14 @@ export default function InventoryPage() {
             전체 {inventory.items.length}개 중 <strong>{rows.length}개</strong> 품목
           </span>
           <span>수량 단위: 개 · 품목을 선택하면 상세 내역을 확인할 수 있어요.</span>
-          {params.size > 0 && (
-            <button className="text-link" onClick={() => setParams({})}>
-              <FilterX size={14} />
-              초기화
-            </button>
-          )}
+          <button
+            className="text-link"
+            style={{ visibility: params.size > 0 ? 'visible' : 'hidden' }}
+            disabled={params.size === 0}
+            onClick={() => setParams({})}
+          >
+            <FilterX size={14} /> 초기화
+          </button>
         </div>
       </section>
       <div className="inv-bottom-grid">
@@ -630,6 +643,7 @@ export default function InventoryPage() {
                     ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }}
                 aria-label={`${group.group} 재고 ${group.stock.toLocaleString()}개 조회`}
+                aria-describedby={`stock-tooltip-${group.group}`}
               >
                 <strong>{group.group}</strong>
                 <span className="inv-bar-track">
@@ -642,7 +656,26 @@ export default function InventoryPage() {
                     style={{ width: `${(group.reserved / maxStock) * 100}%` }}
                   />
                 </span>
-                <b>{group.stock.toLocaleString()}</b>
+                <b>
+                  {group.stock.toLocaleString()}
+                  <small>개</small>
+                </b>
+                <span
+                  className="inv-stock-tooltip"
+                  id={`stock-tooltip-${group.group}`}
+                  role="tooltip"
+                >
+                  <strong>{group.group} 재고 상세</strong>
+                  <span>
+                    현재고 <b>{group.stock.toLocaleString()}개</b>
+                  </span>
+                  <span>
+                    출고 예약 <b>{group.reserved.toLocaleString()}개</b>
+                  </span>
+                  <span>
+                    가용재고 <b>{group.available.toLocaleString()}개</b>
+                  </span>
+                </span>
               </button>
             ))}
           </div>

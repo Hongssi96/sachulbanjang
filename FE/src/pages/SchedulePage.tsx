@@ -1,3 +1,4 @@
+import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Clock3, Plus } from 'lucide-react';
@@ -83,7 +84,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
         <div>
           <p>공장 일정을 월간 달력에서 확인하고, 날짜를 선택해 상세 내용을 보세요.</p>
           <span className="rt-updated">
-            <Clock3 size={14} /> 2026년 11월 예시 일정 기준
+            <Clock3 size={14} /> 2026.11 예시 일정 기준
           </span>
         </div>
         <p className="demo-disclaimer">예시 화면 · 실제 서버 미연동</p>
@@ -117,7 +118,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
               <ChevronLeft size={18} />
             </button>
             <strong aria-live="polite">
-              {year}년 {month + 1}월
+              {year}.{String(month + 1).padStart(2, '0')}
             </strong>
             <button
               type="button"
@@ -157,7 +158,10 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
           <div className="card-heading">
             <div>
               <h2>
-                {month + 1}월 {selectedDay}일 일정
+                {formatDate(
+                  `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`,
+                )}{' '}
+                일정
               </h2>
               <p>예정 {selectedEvents.length}건</p>
             </div>

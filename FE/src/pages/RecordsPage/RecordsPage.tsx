@@ -1,3 +1,7 @@
+import FilterSelect from '../../components/FilterSelect';
+import LoadingState from '../../components/LoadingState';
+import { useTransition } from 'react';
+import DatePicker from '../../components/DatePicker';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
   ArrowLeft,
@@ -44,13 +48,16 @@ function download(records: typeof productionInspectionRecords) {
 }
 function Verdict({ record }: { record: (typeof productionInspectionRecords)[number] }) {
   return (
-    <span className={`rd-pill ${defectCount(record) ? 'warn' : 'good'}`}>
+    <span className={`rd-pill ${defectCount(record) ? 'defect' : 'good'}`}>
       {qualityVerdict(record)}
     </span>
   );
 }
 export default function RecordsPage() {
-  const [params, setParams] = useSearchParams();
+  const [params, rawSetParams] = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const setParams = (...args: Parameters<typeof rawSetParams>) =>
+    startTransition(() => rawSetParams(...args));
   const filters = {
     from: params.get('from') ?? defaultQualityFilters.from,
     to: params.get('to') ?? defaultQualityFilters.to,
@@ -108,11 +115,12 @@ export default function RecordsPage() {
     },
   ];
   return (
-    <section className="records-page">
+    <section className="records-page" aria-busy={isPending}>
+      {isPending && <LoadingState compact label="검사 데이터를 조회하는 중이에요" />}
       <div className="rd-heading">
         <div>
           <span className="rd-eyebrow">PRODUCTION & INSPECTION</span>
-          <h1>생산·검사 이력</h1>
+          <h1 className="sr-only">생산·검사 이력</h1>
           <p>생산부터 검사까지, 현장의 기록을 한곳에서 확인하세요.</p>
         </div>
         <button className="rd-button" disabled={!rows.length} onClick={() => download(rows)}>
@@ -120,7 +128,7 @@ export default function RecordsPage() {
         </button>
       </div>
       <div className="rd-demo">
-        <span /> 예시 데이터 <span className="rd-demo-divider">|</span> 2026.11.04–11.17 · 생산
+        <span /> 예시 데이터 <span className="rd-demo-divider">|</span> 2026.11.04–2026.11.17 · 생산
         수량은 시연용이며, 검사 불량률은 검사한 표본 기준입니다.
       </div>
       <div className="rd-panel rd-filter">
@@ -133,42 +141,43 @@ export default function RecordsPage() {
         <div className="rd-filter-grid">
           <label>
             조회 시작일
-            <input
+            <DatePicker
               aria-label="조회 시작일"
-              type="date"
               value={filters.from}
               onChange={(e) => update({ from: e.target.value })}
             />
           </label>
           <label>
             조회 종료일
-            <input
+            <DatePicker
               aria-label="조회 종료일"
-              type="date"
               value={filters.to}
               onChange={(e) => update({ to: e.target.value })}
             />
           </label>
           <label>
             제품
-            <select value={filters.product} onChange={(e) => update({ product: e.target.value })}>
-              <option value="">전체 제품</option>
-              {qualityProducts.map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
+            <FilterSelect
+              label="제품 선택"
+              value={filters.product}
+              onChange={(value) => update({ product: value })}
+              options={[
+                { value: '', label: '전체 제품' },
+                ...qualityProducts.map((value) => ({ value, label: value })),
+              ]}
+            />
           </label>
           <label>
             설비
-            <select
+            <FilterSelect
+              label="설비 선택"
               value={filters.equipment}
-              onChange={(e) => update({ equipment: e.target.value })}
-            >
-              <option value="">전체 설비</option>
-              {qualityEquipment.map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
+              onChange={(value) => update({ equipment: value })}
+              options={[
+                { value: '', label: '전체 설비' },
+                ...qualityEquipment.map((value) => ({ value, label: value })),
+              ]}
+            />
           </label>
         </div>
         <div className="rd-presets">
@@ -300,8 +309,21 @@ export default function RecordsPage() {
             <tbody>
               {rows.slice((page - 1) * 8, page * 8).map((record) => (
                 <tr key={record.id}>
-                  <td>
-                    {formatRecordTimestamp(production ? record.finishedAt : record.inspectedAt)}
+                  <td className="rd-completed-at">
+                    <span>
+                      {
+                        formatRecordTimestamp(
+                          production ? record.finishedAt : record.inspectedAt,
+                        ).split(' ')[0]
+                      }
+                    </span>
+                    <small>
+                      {
+                        formatRecordTimestamp(
+                          production ? record.finishedAt : record.inspectedAt,
+                        ).split(' ')[1]
+                      }
+                    </small>
                   </td>
                   <td>
                     <strong>{record.product}</strong>

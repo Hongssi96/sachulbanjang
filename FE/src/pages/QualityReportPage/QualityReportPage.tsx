@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import LoadingState from '../../components/LoadingState';
+import DatePicker from '../../components/DatePicker';
+import { useState, useTransition } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   ArrowDownRight,
@@ -59,7 +61,10 @@ function saveFile(filename: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 export default function QualityReportPage() {
-  const [params, setParams] = useSearchParams();
+  const [params, rawSetParams] = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const setParams = (...args: Parameters<typeof rawSetParams>) =>
+    startTransition(() => rawSetParams(...args));
   const [dialog, setDialog] = useState<QualityDialog>(null);
   const [feedback, setFeedback] = useState('');
   const filters: QualityFilters = {
@@ -165,14 +170,15 @@ export default function QualityReportPage() {
   };
   const metric = (value: number) => (rangeError ? '—' : value.toLocaleString());
   return (
-    <div className="quality-report-page">
+    <div className="quality-report-page" aria-busy={isPending}>
+      {isPending && <LoadingState compact label="품질 데이터를 조회하는 중이에요" />}
       <section className="page-intro">
         <div>
           <div className="eyebrow">
             <span />
             QUALITY AT A GLANCE
           </div>
-          <h1>
+          <h1 className="sr-only">
             품질 리포트<span className="greeting-dot">.</span>
           </h1>
           <p>검사 기록을 바탕으로, 품질의 흐름과 다음 확인 사항을 정리하세요.</p>
@@ -215,12 +221,26 @@ export default function QualityReportPage() {
             <CalendarDays size={18} />
             조회 조건
           </strong>
-          <div className="qr-period-buttons" aria-label="품질 조회 기간">
+          <div
+            className="qr-period-buttons"
+            role="group"
+            aria-label="품질 조회 기간"
+            data-active={
+              filters.to !== '2026-11-17'
+                ? 'custom'
+                : filters.from === '2026-11-17'
+                  ? '0'
+                  : filters.from === '2026-11-11'
+                    ? '1'
+                    : filters.from === '2026-11-01'
+                      ? '2'
+                      : 'custom'
+            }
+          >
             {[
-              { label: '오늘', from: '2026-11-17' },
-              { label: '최근 7일', from: '2026-11-11' },
-              { label: '최근 14일', from: '2026-11-04' },
-              { label: '이번 달', from: '2026-11-01' },
+              { label: '일간', from: '2026-11-17' },
+              { label: '주간', from: '2026-11-11' },
+              { label: '월간', from: '2026-11-01' },
             ].map((period) => (
               <button
                 key={period.label}
@@ -239,15 +259,13 @@ export default function QualityReportPage() {
           <fieldset>
             <legend>조회 기간</legend>
             <div className="qr-date-range">
-              <input
-                type="date"
+              <DatePicker
                 aria-label="품질 조회 시작일"
                 value={filters.from}
                 onChange={(event) => setFilter('from', event.target.value)}
               />
               <span>—</span>
-              <input
-                type="date"
+              <DatePicker
                 aria-label="품질 조회 종료일"
                 value={filters.to}
                 onChange={(event) => setFilter('to', event.target.value)}
@@ -297,7 +315,7 @@ export default function QualityReportPage() {
           </div>
         )}
         <p className="qr-filter-caption">
-          시연 기준일 2026.11.17 · 조회 가능한 예시 검사 기록은 2026.11.04–11.17입니다.
+          시연 기준일 2026.11.17 · 조회 가능한 예시 검사 기록은 2026.11.04–2026.11.17입니다.
         </p>
       </section>
       <section aria-labelledby="quality-summary-heading">

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import LoadingState from '../../components/LoadingState';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
   ArrowUpRight,
@@ -8,18 +9,22 @@ import {
   MessageSquare,
   Plus,
   Search,
-  Sparkles,
+  ChevronsUp,
   X,
 } from 'lucide-react';
 import { reports } from '../../constants/demoData';
 import { productionInspectionRecords, formatRecordTimestamp } from '../../services/inspectionData';
-import { answerQuestion, loadConversations, storageKey } from './chatData';
+import { loadConversations, storageKey } from './chatData';
 import type { Conversation } from './chatData';
 import '../RecordsPage/RecordsPage.css';
 import './ChatSearchPage.css';
 export default function ChatSearchPage() {
-  const [params, setParams] = useSearchParams();
+  const [params, rawSetParams] = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const setParams = (...args: Parameters<typeof rawSetParams>) =>
+    startTransition(() => rawSetParams(...args));
   const messageList = useRef<HTMLDivElement>(null);
+  const [answerPending, setAnswerPending] = useState(false);
   const searching = params.get('view') === 'search';
   const query = params.get('q') ?? '';
   const [conversations, setConversations] = useState(loadConversations);
@@ -30,7 +35,8 @@ export default function ChatSearchPage() {
   const active = selected ?? (!params.has('chat') ? conversations[0] : undefined);
   useEffect(() => {
     const list = messageList.current;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (list && active?.messages.length)
+      list.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [active, searching]);
   const update = (values: Record<string, string>) =>
     setParams((previous) => {
@@ -49,22 +55,30 @@ export default function ChatSearchPage() {
       setNotice('브라우저 저장 공간을 사용할 수 없어 이번 화면에서만 대화가 유지됩니다.');
     }
   };
-  function send(text: string) {
-    if (!text.trim()) return;
-    const message = text.trim();
-    const id = active?.id ?? `chat-${Date.now()}`;
-    const next: Conversation = {
-      id,
-      title: active?.title ?? message.slice(0, 35),
-      messages: [
-        ...(active?.messages ?? []),
-        { role: 'user', text: message },
-        answerQuestion(message),
-      ],
-    };
-    save([next, ...conversations.filter((item) => item.id !== id)]);
-    update({ chat: id, view: '' });
-    setDraft('');
+  async function send(text: string) {
+    if (!text.trim() || answerPending) return;
+    setAnswerPending(true);
+    try {
+      const { answerQuestion } = await import('./chatReply');
+      const message = text.trim();
+      const id = active?.id ?? `chat-${Date.now()}`;
+      const next: Conversation = {
+        id,
+        title: active?.title ?? message.slice(0, 35),
+        messages: [
+          ...(active?.messages ?? []),
+          { role: 'user', text: message },
+          answerQuestion(message),
+        ],
+      };
+      save([next, ...conversations.filter((item) => item.id !== id)]);
+      update({ chat: id, view: '' });
+      setDraft('');
+    } catch {
+      setNotice('응답을 불러오지 못했어요. 질문을 다시 보내 주세요.');
+    } finally {
+      setAnswerPending(false);
+    }
   }
   const matches = (text: string) => text.toLowerCase().includes(query.trim().toLowerCase());
   const recordResults = query.trim()
@@ -87,10 +101,11 @@ export default function ChatSearchPage() {
   );
   return (
     <section className="records-page chat-page">
+      {isPending && <LoadingState compact label="기록을 검색하는 중이에요" />}
       <div className="rd-heading">
         <div>
-          <span className="rd-eyebrow">YOUR FACTORY KNOWLEDGE</span>
-          <h1>대화·검색</h1>
+          <span className="rd-eyebrow">YOUR FACTORY PARTNER</span>
+          <h1 className="sr-only">대화·검색</h1>
           <p>궁금한 공정 정보부터 지난 기록까지, 사출반장과 함께 찾아보세요.</p>
         </div>
         <span className="cs-mode">
@@ -144,7 +159,7 @@ export default function ChatSearchPage() {
             {!visibleHistory.length && <p className="cs-muted">일치하는 대화가 없어요.</p>}
           </div>
           <div className="cs-history-note">
-            <Sparkles size={18} />
+            <ChevronsUp size={18} />
             <strong>기록이 다음 업무의 힌트가 돼요.</strong>
             <p>
               대화는 이 브라우저에 저장돼요.
@@ -285,7 +300,7 @@ export default function ChatSearchPage() {
             <>
               <div className="cs-chat-heading">
                 <span className="cs-ai-mark">
-                  <Sparkles size={21} />
+                  <ChevronsUp size={21} />
                 </span>
                 <div>
                   <strong>{active?.title ?? '어떤 업무를 도와드릴까요?'}</strong>
@@ -301,7 +316,7 @@ export default function ChatSearchPage() {
               >
                 {!active && (
                   <div className="cs-welcome">
-                    <Sparkles size={36} />
+                    <ChevronsUp size={36} />
                     <h2>안녕하세요, 사출반장이에요.</h2>
                     <p>검사 기록을 물어보거나 필요한 정보를 검색해 보세요.</p>
                     <div className="cs-suggestions">
@@ -321,7 +336,7 @@ export default function ChatSearchPage() {
                 {active?.messages.map((message, index) => (
                   <article key={`${active.id}-${index}`} className={`cs-message ${message.role}`}>
                     <span className="cs-avatar">
-                      {message.role === 'assistant' ? <Sparkles size={17} /> : '나'}
+                      {message.role === 'assistant' ? <ChevronsUp size={17} /> : '나'}
                     </span>
                     <div>
                       <span className="cs-message-author">
@@ -341,6 +356,7 @@ export default function ChatSearchPage() {
                   </article>
                 ))}
               </div>
+              {answerPending && <LoadingState compact label="검사 기록을 확인하는 중이에요" />}
               <form
                 className="cs-composer"
                 onSubmit={(e) => {
@@ -358,12 +374,23 @@ export default function ChatSearchPage() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   rows={2}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing &&
+                      event.nativeEvent.keyCode !== 229
+                    ) {
+                      event.preventDefault();
+                      void send(draft);
+                    }
+                  }}
                 />
                 <div>
-                  <span>{draft.length}/1,000 · 버튼을 눌러 전송</span>
+                  <span>{draft.length}/1,000 · Enter 전송 · Shift+Enter 줄바꿈</span>
                   <button
                     className="rd-button rd-primary"
-                    disabled={!draft.trim()}
+                    disabled={!draft.trim() || answerPending}
                     type="submit"
                     aria-label="질문 보내기"
                   >
@@ -372,8 +399,8 @@ export default function ChatSearchPage() {
                 </div>
               </form>
               <p className="cs-disclaimer">
-                AI 미연결 · 2026.11.11–11.17 예시 검사 데이터로 답변합니다. 실제 설비 상태나 불량
-                원인을 판단하지 않습니다.
+                AI 미연결 · 2026.11.11–2026.11.17 예시 검사 데이터로 답변합니다. 실제 설비 상태나
+                불량 원인을 판단하지 않습니다.
               </p>
             </>
           )}
