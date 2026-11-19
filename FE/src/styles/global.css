@@ -3336,35 +3336,17 @@ textarea {
 .sc-day:hover {
   background: rgba(139, 92, 246, 0.08);
 }
-.sc-day.selected {
-  color: var(--primary);
-  font-weight: 650;
-}
-.sc-day-out {
-  color: var(--muted);
-  cursor: default;
-  pointer-events: none;
-}
-.sc-dots {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 6px;
-  max-width: 100%;
-}
 .sc-day-out {
   color: var(--muted);
   opacity: 0.5;
   cursor: default;
+  pointer-events: none;
 }
-.sc-day:hover {
-  background: rgba(139, 92, 246, 0.08);
-}
+/* 선택일은 채우지 않고 테두리로만 표시해 일정 점·보라색과 구분한다. */
 .sc-day.selected {
-  background: var(--primary);
-  color: #fff;
+  border-width: 2px;
+  border-color: var(--primary);
+  color: var(--primary);
   font-weight: 650;
 }
 .sc-dots {
@@ -3389,17 +3371,6 @@ textarea {
 }
 .sc-dot-violet {
   background: #8b5cf6;
-}
-/* 선택일 하이라이트: 칸 하단에 붙는 정사각 블록 — 높이 기준이라 어떤 칸에서도 정사각 유지 */
-.sc-plate {
-  margin-top: auto;
-  height: 46%;
-  aspect-ratio: 1 / 1;
-  background: var(--primary);
-  border-radius: 12px;
-}
-.dark .sc-plate {
-  background: #635b85;
 }
 .segmented-control button:has(.sc-dot) {
   display: inline-flex;
@@ -3438,7 +3409,7 @@ textarea {
 .sc-list li::before {
   content: '';
   position: absolute;
-  left: 57px;
+  left: 61px;
   top: 0;
   bottom: 0;
   width: 2px;
@@ -3446,29 +3417,29 @@ textarea {
   background: var(--border);
 }
 .sc-list li:first-child::before {
-  top: 24px;
+  top: 26px;
 }
 .sc-list li:last-child::before {
   top: 0;
   bottom: auto;
-  height: 24px;
+  height: 26px;
 }
 .sc-list li:only-child::before {
   display: none;
 }
 .sc-timeline-time {
   flex-shrink: 0;
-  width: 44px;
-  padding-top: 2px;
-  font-size: 12px;
+  width: 48px;
+  padding-top: 3px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .sc-node {
   position: absolute;
-  left: 53px;
-  top: 19px;
+  left: 57px;
+  top: 21px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -3485,22 +3456,23 @@ textarea {
   align-items: center;
   gap: 8px;
 }
-/* 일정 제목은 일정추가 버튼 글자(14px)와 같은 위계 */
-.sc-item-head strong {
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 20px;
+/* 일정 제목은 일정추가 버튼 글자(14px)보다 한 단계 위 */
+.sc-item-head .pill {
+  font-size: 13px;
 }
-.sc-item-main p {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: var(--muted);
-  line-height: 20px;
+.sc-item-head strong {
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 24px;
 }
 .sc-add {
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid var(--border);
+  /* 공통 FilterSelect가 이 영역에서도 페이지 색을 쓰도록 맞춘다. */
+  --rd-surface: var(--surface);
+  --rd-ink: var(--ink);
+  --rd-border: var(--border);
 }
 /* 일정추가 버튼은 일정 항목과 같은 위계: 항목 크기(14px)에 맞춰 버튼 무게를 낮춘다 */
 .sc-add .button {
@@ -3511,8 +3483,7 @@ textarea {
   display: grid;
   gap: 8px;
 }
-.sc-add-form input,
-.sc-add-form select {
+.sc-add-form input {
   min-height: 42px;
   padding: 9px 12px;
   border: 1px solid var(--border);
@@ -3522,12 +3493,34 @@ textarea {
   font: inherit;
   font-size: 14px;
 }
+/* 시간·종류는 공통 드롭다운을 쓰고, 입력창과 같은 크기로 맞춘다. */
+.sc-add-form .filter-select-trigger {
+  min-height: 42px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+/* 시와 분을 따로 골라 30분 단위에 묶이지 않게 한다. */
+.sc-add-time {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.sc-add-time-colon {
+  font-weight: 600;
+  color: var(--muted);
+}
+/* 포커스 테두리는 얇게: 굵은 이중 링 대신 2px 한 겹만 남긴다. */
+.sc-add-form input:focus-visible,
+.sc-add-form .filter-select-trigger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 0;
+  border-color: var(--primary);
+}
 .sc-add-actions {
   display: flex;
   gap: 8px;
-}
-.sc-add .demo-disclaimer {
-  margin: 10px 0 0;
 }
 /* 화면이 좁거나 낮으면 칸 정사각을 완화해 넘침(=페이지 스크롤)을 막는다 */
 @media (max-height: 850px), (max-width: 1350px) {

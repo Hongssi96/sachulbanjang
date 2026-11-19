@@ -2,6 +2,7 @@ import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import FilterSelect from '../components/FilterSelect';
 import { calendarEvents } from '../constants/demoData';
 import type { CalendarEvent } from '../types';
 
@@ -20,6 +21,19 @@ const kindDot: Record<CalendarEvent['kind'], string> = {
   회의: 'sc-dot-violet',
 };
 const kindOptions: CalendarEvent['kind'][] = ['점검', '납품', '회의'];
+const kindSelectOptions = kindOptions.map((kind) => ({ value: kind, label: kind }));
+const timePad = (value: number) => String(value).padStart(2, '0');
+// 일정 시간은 시·분을 따로 고르고, 분은 5분 단위로 고른다.
+const hourOptions = Array.from({ length: 24 }, (_, hour) => ({
+  value: timePad(hour),
+  label: timePad(hour),
+}));
+const minuteOptions = Array.from({ length: 12 }, (_, index) => {
+  const value = timePad(index * 5);
+  return { value, label: value };
+});
+const DEFAULT_HOUR = '09';
+const DEFAULT_MINUTE = '00';
 const filterOptions: Array<CalendarEvent['kind'] | '전체'> = ['전체', ...kindOptions];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -32,7 +46,8 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const [customEvents, setCustomEvents] = useState<CalendarEvent[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newTime, setNewTime] = useState('');
+  const [newHour, setNewHour] = useState(DEFAULT_HOUR);
+  const [newMinute, setNewMinute] = useState(DEFAULT_MINUTE);
   const [newKind, setNewKind] = useState<CalendarEvent['kind']>('점검');
 
   const allEvents = [...calendarEvents, ...customEvents];
@@ -71,16 +86,15 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const handleAdd = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = newTitle.trim();
-    const time = newTime.trim();
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
-      onToast('시간 형식을 확인해 주세요 (예: 14:00).');
+    if (!title) {
+      onToast('일정 제목을 입력해 주세요.');
       return;
     }
     setCustomEvents((prev) => [
       ...prev,
       {
         day: selectedDay,
-        time,
+        time: `${newHour}:${newMinute}`,
         title,
         kind: newKind,
         month,
@@ -89,7 +103,8 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
     ]);
     onToast(`${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 새로고침하면 사라져요.`);
     setNewTitle('');
-    setNewTime('');
+    setNewHour(DEFAULT_HOUR);
+    setNewMinute(DEFAULT_MINUTE);
     setShowForm(false);
   };
 
@@ -169,7 +184,6 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                       />
                     ))}
                   </span>
-                  {day === selectedDay && <span className="sc-plate" aria-hidden="true" />}
                 </button>
               );
             })}
@@ -202,7 +216,6 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                       <span className={`pill ${kindPill[event.kind]}`}>{event.kind}</span>
                       <strong>{event.title}</strong>
                     </div>
-                    {event.description && <p>{event.description}</p>}
                   </div>
                 </li>
               ))}
@@ -218,22 +231,29 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                   aria-label="일정 제목"
                   required
                 />
-                <input
-                  value={newTime}
-                  onChange={(event) => setNewTime(event.target.value)}
-                  placeholder="시간 (예: 14:00)"
-                  aria-label="일정 시간"
-                  required
-                />
-                <select
+                <div className="sc-add-time">
+                  <FilterSelect
+                    value={newHour}
+                    options={hourOptions}
+                    label="일정 시"
+                    onChange={setNewHour}
+                  />
+                  <span className="sc-add-time-colon" aria-hidden="true">
+                    :
+                  </span>
+                  <FilterSelect
+                    value={newMinute}
+                    options={minuteOptions}
+                    label="일정 분"
+                    onChange={setNewMinute}
+                  />
+                </div>
+                <FilterSelect
                   value={newKind}
-                  onChange={(event) => setNewKind(event.target.value as CalendarEvent['kind'])}
-                  aria-label="일정 종류"
-                >
-                  {kindOptions.map((kind) => (
-                    <option key={kind}>{kind}</option>
-                  ))}
-                </select>
+                  options={kindSelectOptions}
+                  label="일정 종류"
+                  onChange={(value) => setNewKind(value as CalendarEvent['kind'])}
+                />
                 <div className="sc-add-actions">
                   <button type="submit" className="button button-primary">
                     추가
@@ -256,9 +276,6 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                 <Plus size={15} /> 일정 추가
               </button>
             )}
-            <p className="demo-disclaimer">
-              일정 추가는 이 브라우저 세션에만 저장되며 새로고침하면 사라져요.
-            </p>
           </div>
         </aside>
       </div>
