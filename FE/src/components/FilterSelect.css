@@ -39,12 +39,19 @@
   left: 0;
   width: 100%;
   min-width: 120px;
+  max-height: 264px;
+  overflow-y: auto;
   padding: 5px;
   background: var(--rd-surface, var(--surface, #fff));
   border: 1px solid var(--rd-border, var(--border, #e2e2e8));
   border-radius: 10px;
   box-shadow: 0 10px 28px #29263f20;
   animation: filter-options-in 0.14s ease-out;
+}
+.filter-select-options.drop-up {
+  top: auto;
+  bottom: calc(100% + 7px);
+  animation-name: filter-options-up;
 }
 .filter-select-options > [role='option'] {
   display: flex;
@@ -77,6 +84,16 @@
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes filter-options-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;

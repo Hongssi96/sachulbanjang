@@ -16,6 +16,7 @@ export default function FilterSelect({
   onChange,
 }: FilterSelectProps) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const selected = Math.max(
     0,
     options.findIndex((option) => option.value === value),
@@ -38,6 +39,13 @@ export default function FilterSelect({
         ?.querySelector('.filter-select-options > .highlighted')
         ?.scrollIntoView({ block: 'nearest' });
   }, [open, highlight]);
+
+  // 아래 공간이 부족하면 목록을 위로 펼쳐 화면 밖으로 잘리지 않게 한다.
+  const openMenu = () => {
+    const element = trigger.current;
+    if (element) setDropUp(window.innerHeight - element.getBoundingClientRect().bottom < 300);
+    setOpen(true);
+  };
   const choose = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
@@ -58,7 +66,8 @@ export default function FilterSelect({
         aria-activedescendant={open ? `${id}-${highlight}` : undefined}
         onClick={() => {
           setHighlight(selected);
-          setOpen(!open);
+          if (open) setOpen(false);
+          else openMenu();
         }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -67,7 +76,7 @@ export default function FilterSelect({
             setHighlight(
               open ? (highlight + direction + options.length) % options.length : selected,
             );
-            setOpen(true);
+            openMenu();
           } else if (event.key === 'Home' && open) {
             event.preventDefault();
             setHighlight(0);
@@ -79,7 +88,7 @@ export default function FilterSelect({
             if (open) choose(highlight);
             else {
               setHighlight(selected);
-              setOpen(true);
+              openMenu();
             }
           } else if (event.key === 'Escape') {
             event.preventDefault();
@@ -91,7 +100,12 @@ export default function FilterSelect({
         <ChevronDown size={16} />
       </button>
       {open && (
-        <div className="filter-select-options" id={`${id}-list`} role="listbox" aria-label={label}>
+        <div
+          className={`filter-select-options${dropUp ? ' drop-up' : ''}`}
+          id={`${id}-list`}
+          role="listbox"
+          aria-label={label}
+        >
           {options.map((option, index) => (
             <div
               key={option.value}
