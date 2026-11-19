@@ -1,3 +1,4 @@
+export type ReportStatus = '대기' | '진행 중' | '완료';
 export interface Report {
   id: string;
   category: string;
@@ -5,8 +6,14 @@ export interface Report {
   description: string;
   author: string;
   time: string;
-  status: '대기' | '진행 중' | '완료';
+  status: ReportStatus;
   equipment: string;
+}
+export interface ReportPost extends Report {
+  date: string;
+  views: number;
+  body: string;
+  nextAction: string;
 }
 export interface HandoverNote {
   id: string;
