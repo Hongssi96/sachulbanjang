@@ -50,6 +50,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [peekMenuKey, setPeekMenuKey] = useState<string | null>(null);
   const [dark, setDark] = useState(false);
   const [toast, setToast] = useState('');
   const [extended, setExtended] = useState(false);
@@ -122,13 +123,30 @@ export default function App() {
       <a className="skip-link" href="#main-content">
         본문으로 바로가기
       </a>
-      <Sidebar
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(!collapsed)}
-        active={activeMenu}
-        onNavigate={handleNavigate}
-        onAssistant={askAssistant}
-      />
+      {chatFocus && (
+        <button
+          type="button"
+          className="chat-menu-edge"
+          aria-label="메뉴 미리보기"
+          onMouseEnter={() => setPeekMenuKey(location.key)}
+          onFocus={() => setPeekMenuKey(location.key)}
+        />
+      )}
+      <div
+        className={`chat-hover-menu ${chatFocus && peekMenuKey === location.key ? 'is-open' : ''}`}
+        onMouseLeave={() => setPeekMenuKey(null)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setPeekMenuKey(null);
+        }}
+      >
+        <Sidebar
+          collapsed={chatFocus ? false : collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+          active={activeMenu}
+          onNavigate={handleNavigate}
+          onAssistant={askAssistant}
+        />
+      </div>
       <div className="workspace" ref={workspaceRef}>
         <Topbar
           title={pageTitle}

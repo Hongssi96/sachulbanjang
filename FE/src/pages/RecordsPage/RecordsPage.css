@@ -861,3 +861,55 @@
 .rd-filter-grid .filter-select-trigger {
   font-family: inherit;
 }
+/* 열린 조회 드롭다운이 상단 고정 헤더보다 위에 그려지지 않도록 제한한다. */
+.rd-filter {
+  position: relative;
+  z-index: 1;
+}
+.records-page .rd-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: #c7bfd6;
+}
+.rd-summary strong.rd-detail-value-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+}
+.rd-summary .rd-detail-value-row > small {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--rd-muted);
+  letter-spacing: 0;
+}
+.records-page .rd-list {
+  position: relative;
+  z-index: 0;
+}
+.rd-toolbar > .filter-select {
+  flex: 0 1 142px;
+  width: 142px;
+  min-width: 116px;
+}
+.rd-toolbar .filter-select-trigger {
+  font-size: 11px;
+  min-height: 40px;
+}
+.rd-toolbar .filter-select-options {
+  min-width: 100%;
+}
+@media (max-width: 1100px) {
+  .rd-toolbar > .filter-select {
+    flex: 1;
+    width: auto;
+  }
+}
+@media (max-width: 650px) {
+  .rd-toolbar > .filter-select {
+    flex-basis: 40%;
+    min-width: 0;
+  }
+}

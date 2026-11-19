@@ -1,3 +1,4 @@
+import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
 import { useState, useTransition } from 'react';
 import { useSearchParams } from 'react-router';
@@ -9,7 +10,6 @@ import {
   ArrowUpRight,
   Boxes,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleHelp,
   Download,
@@ -402,32 +402,28 @@ export default function InventoryPage() {
               </button>
             )}
           </label>
-          <label className="inv-filter-select">
-            <select
-              aria-label="재고 제품 필터"
+          <div className="inv-filter-select">
+            <FilterSelect
+              label="재고 제품 필터"
               value={product}
-              onChange={(event) => setFilter('product', event.target.value)}
-            >
-              <option value="">전체 제품</option>
-              {productGroups.map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
-            <ChevronDown size={15} />
-          </label>
-          <label className="inv-filter-select">
-            <select
-              aria-label="재고 창고 필터"
+              onChange={(value) => setFilter('product', value)}
+              options={[
+                { value: '', label: '전체 제품' },
+                ...productGroups.map((value) => ({ value, label: value })),
+              ]}
+            />
+          </div>
+          <div className="inv-filter-select">
+            <FilterSelect
+              label="재고 창고 필터"
               value={warehouse}
-              onChange={(event) => setFilter('warehouse', event.target.value)}
-            >
-              <option value="">전체 창고</option>
-              {['A창고', 'B창고', 'C창고'].map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
-            <ChevronDown size={15} />
-          </label>
+              onChange={(value) => setFilter('warehouse', value)}
+              options={[
+                { value: '', label: '전체 창고' },
+                ...['A창고', 'B창고', 'C창고'].map((value) => ({ value, label: value })),
+              ]}
+            />
+          </div>
           <div className="inv-status-filters" aria-label="재고 상태 필터">
             <button
               className={!onlyLow ? 'selected' : ''}

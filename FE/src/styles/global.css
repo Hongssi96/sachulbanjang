@@ -3730,8 +3730,8 @@ textarea {
   .home-dashboard > .side-column {
     height: 100%;
   }
-  .home-dashboard > .main-column > .reports-card,
-  .home-dashboard > .side-column > .handover-card {
+  .home-dashboard > .main-column > .handover-card,
+  .home-dashboard > .side-column > .calendar-card {
     flex: 1;
   }
 }
@@ -3746,4 +3746,180 @@ textarea {
     grid-column: 2;
     max-width: none;
   }
+}
+/* 대화 확대 화면의 바깥 스크롤을 없애고 입력창을 화면 안에 고정한다. */
+.chat-display-controls {
+  justify-content: flex-start;
+}
+.chat-display-controls > .button {
+  order: -1;
+}
+.chat-hover-menu {
+  display: contents;
+}
+.chat-menu-edge {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  z-index: 45;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.chat-menu-edge:focus-visible {
+  outline: 2px solid #b6a9ce;
+  outline-offset: -2px;
+}
+.chat-focus > .workspace {
+  height: 100dvh;
+  overflow: hidden;
+}
+.chat-focus main {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+.chat-focus .chat-display-controls {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+.chat-focus .chat-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  margin: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.chat-focus .chat-page > .rd-heading {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+.chat-focus .cs-layout {
+  flex: 1;
+  min-height: 0;
+}
+.chat-focus .cs-history,
+.chat-focus .cs-main {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-focus .cs-main {
+  display: flex;
+  flex-direction: column;
+}
+.chat-focus .cs-main > .rd-tabs,
+.chat-focus .cs-chat-heading,
+.chat-focus .cs-composer,
+.chat-focus .cs-disclaimer {
+  flex-shrink: 0;
+}
+.chat-focus .cs-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.chat-focus .cs-messages::-webkit-scrollbar,
+.chat-focus .cs-history-items::-webkit-scrollbar,
+.chat-focus .cs-search-content::-webkit-scrollbar {
+  display: none;
+}
+.chat-focus .cs-history-items {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  scrollbar-width: none;
+}
+.chat-focus .cs-history > :not(.cs-history-items) {
+  flex-shrink: 0;
+}
+.chat-focus .cs-search-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.chat-focus > .chat-hover-menu {
+  display: block;
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 240px;
+  z-index: 50;
+  pointer-events: none;
+}
+.chat-focus > .chat-hover-menu > .sidebar {
+  display: flex;
+  width: 240px;
+  transform: translateX(-100%);
+  visibility: hidden;
+  box-shadow: 8px 0 30px #29263f25;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+.chat-focus > .chat-hover-menu.is-open,
+.chat-focus > .chat-hover-menu:focus-within {
+  pointer-events: auto;
+}
+.chat-focus > .chat-hover-menu.is-open > .sidebar,
+.chat-focus > .chat-hover-menu:focus-within > .sidebar {
+  transform: translateX(0);
+  visibility: visible;
+}
+@media (max-width: 800px) {
+  .chat-focus main {
+    padding: 16px;
+  }
+  .chat-focus .cs-layout {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .chat-focus .cs-history {
+    display: block;
+    height: auto;
+    max-height: 210px;
+    overflow: auto;
+    scrollbar-width: none;
+  }
+  .chat-focus .cs-history-items {
+    max-height: 70px;
+  }
+  .chat-focus .cs-history-note {
+    display: none;
+  }
+  .chat-focus .cs-composer textarea {
+    min-height: 44px;
+  }
+  .chat-focus .cs-disclaimer {
+    margin-block: 9px;
+  }
+  .chat-focus .cs-chat-heading {
+    padding: 14px 16px;
+  }
+  .chat-focus .cs-history-search {
+    margin-block: 10px;
+  }
+  .chat-focus .cs-history-heading {
+    margin-bottom: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-focus > .chat-hover-menu > .sidebar {
+    transition: none;
+  }
+}
+.chat-focus .cs-history-items {
+  align-content: start;
 }

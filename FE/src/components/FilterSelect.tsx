@@ -2,12 +2,19 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import './FilterSelect.css';
 interface FilterSelectProps {
+  id?: string;
   value: string;
   options: { value: string; label: string }[];
   label: string;
   onChange: (value: string) => void;
 }
-export default function FilterSelect({ value, options, label, onChange }: FilterSelectProps) {
+export default function FilterSelect({
+  id: triggerId,
+  value,
+  options,
+  label,
+  onChange,
+}: FilterSelectProps) {
   const [open, setOpen] = useState(false);
   const selected = Math.max(
     0,
@@ -25,6 +32,12 @@ export default function FilterSelect({ value, options, label, onChange }: Filter
     document.addEventListener('mousedown', outside);
     return () => document.removeEventListener('mousedown', outside);
   }, [open]);
+  useEffect(() => {
+    if (open)
+      root.current
+        ?.querySelector('.filter-select-options > .highlighted')
+        ?.scrollIntoView({ block: 'nearest' });
+  }, [open, highlight]);
   const choose = (index: number) => {
     onChange(options[index].value);
     setOpen(false);
@@ -33,6 +46,7 @@ export default function FilterSelect({ value, options, label, onChange }: Filter
   return (
     <div className="filter-select" ref={root}>
       <button
+        id={triggerId}
         className="filter-select-trigger"
         type="button"
         ref={trigger}

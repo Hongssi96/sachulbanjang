@@ -1,3 +1,4 @@
+import FilterSelect from '../../components/FilterSelect';
 import { useState } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Info, Save } from 'lucide-react';
 import { availableStock, movementError } from './inventoryModel';
@@ -62,17 +63,13 @@ export default function StockMovementForm({ items, initialItemId, onSave }: Prop
       </fieldset>
       <label className="inv-field" htmlFor="movement-item">
         품목
-        <select
+        <FilterSelect
           id="movement-item"
+          label="입출고 품목 선택"
           value={itemId}
-          onChange={(event) => setItemId(event.target.value)}
-        >
-          {items.map((value) => (
-            <option value={value.id} key={value.id}>
-              {value.name} · {value.id}
-            </option>
-          ))}
-        </select>
+          onChange={setItemId}
+          options={items.map((item) => ({ value: item.id, label: `${item.name} · ${item.id}` }))}
+        />
       </label>
       {item && (
         <div className="inv-form-stock">
