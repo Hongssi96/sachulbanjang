@@ -105,11 +105,16 @@ export const calendarEvents: CalendarEvent[] = [
 ];
 // 전체 생산량 수치는 홈 KPI·생산 현황 카드의 고정 예시와 동일하게 유지한다
 export const productionSummary = {
-  today: 5232, // 홈 KPI '전체 생산량'과 동일
+  today: 5232, // 이번 달 누계 — 홈 KPI '전체 생산량'과 동일
   week: 42810, // 홈 생산현황 '최근 9일'과 동일
-  todayTarget: 5400, // 홈 KPI '목표 생산량'과 동일
-  previousToday: 5030, // 목업 '작월' 비교 값
+  todayTarget: 5400, // 이번 달 목표 — 홈 KPI '목표 생산량'과 동일
+  previousToday: 5030, // 목업 '저번 달' 비교 값
   previousWeek: 40086, // 이전 9일 비교 값(최근 9일 대비 +6.8% 기준 역산)
+  yesterday: 415, // 실시간 공정 카드 '어제/오늘' 비교 예시
+  todayOutput: 386, // 오늘 생산량(예시 기준 시각까지 누계)
+  dailyTarget: 450, // 일 목표
+  lastWeek: 2010, // 지난주 생산량(주 5일 기준 예시)
+  thisWeek: 1229, // 이번주 누계(주중 3일차 기준 예시)
 };
 export const equipment: Equipment[] = [
   {

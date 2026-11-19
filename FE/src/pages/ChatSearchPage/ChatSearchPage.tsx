@@ -1,6 +1,6 @@
 import LoadingState from '../../components/LoadingState';
-import { useEffect, useRef, useState, useTransition } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useEffect, useCallback, useRef, useState, useTransition } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   ArrowUpRight,
   ArrowUp,
@@ -19,10 +19,15 @@ import type { Conversation } from './chatData';
 import '../RecordsPage/RecordsPage.css';
 import './ChatSearchPage.css';
 export default function ChatSearchPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handledIncoming = useRef<string | null>(null);
   const [params, rawSetParams] = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const setParams = (...args: Parameters<typeof rawSetParams>) =>
-    startTransition(() => rawSetParams(...args));
+  const setParams = useCallback(
+    (...args: Parameters<typeof rawSetParams>) => startTransition(() => rawSetParams(...args)),
+    [rawSetParams, startTransition],
+  );
   const messageList = useRef<HTMLDivElement>(null);
   const [answerPending, setAnswerPending] = useState(false);
   const searching = params.get('view') === 'search';
@@ -38,15 +43,18 @@ export default function ChatSearchPage() {
     if (list && active?.messages.length)
       list.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [active, searching]);
-  const update = (values: Record<string, string>) =>
-    setParams((previous) => {
-      const next = new URLSearchParams(previous);
-      Object.entries(values).forEach(([key, value]) =>
-        value ? next.set(key, value) : next.delete(key),
-      );
-      return next;
-    });
-  const save = (next: Conversation[]) => {
+  const update = useCallback(
+    (values: Record<string, string>) =>
+      setParams((previous) => {
+        const next = new URLSearchParams(previous);
+        Object.entries(values).forEach(([key, value]) =>
+          value ? next.set(key, value) : next.delete(key),
+        );
+        return next;
+      }),
+    [setParams],
+  );
+  const save = useCallback((next: Conversation[]) => {
     setConversations(next);
     try {
       localStorage.setItem(storageKey, JSON.stringify(next));
@@ -54,32 +62,55 @@ export default function ChatSearchPage() {
     } catch {
       setNotice('브라우저 저장 공간을 사용할 수 없어 이번 화면에서만 대화가 유지됩니다.');
     }
-  };
-  async function send(text: string) {
-    if (!text.trim() || answerPending) return;
-    setAnswerPending(true);
-    try {
-      const { answerQuestion } = await import('./chatReply');
-      const message = text.trim();
-      const id = active?.id ?? `chat-${Date.now()}`;
-      const next: Conversation = {
-        id,
-        title: active?.title ?? message.slice(0, 35),
-        messages: [
-          ...(active?.messages ?? []),
-          { role: 'user', text: message },
-          answerQuestion(message),
-        ],
-      };
-      save([next, ...conversations.filter((item) => item.id !== id)]);
-      update({ chat: id, view: '' });
-      setDraft('');
-    } catch {
-      setNotice('응답을 불러오지 못했어요. 질문을 다시 보내 주세요.');
-    } finally {
-      setAnswerPending(false);
-    }
-  }
+  }, []);
+  const send = useCallback(
+    async (text: string, startNew = false) => {
+      if (!text.trim() || answerPending) return;
+      setAnswerPending(true);
+      try {
+        const { answerQuestion } = await import('./chatReply');
+        const message = text.trim();
+        const target = startNew ? undefined : active;
+        const id = target?.id ?? `chat-${Date.now()}`;
+        const next: Conversation = {
+          id,
+          title: target?.title ?? message.slice(0, 35),
+          messages: [
+            ...(target?.messages ?? []),
+            { role: 'user', text: message },
+            answerQuestion(message),
+          ],
+        };
+        save([next, ...conversations.filter((item) => item.id !== id)]);
+        update({ chat: id, view: '' });
+        setDraft('');
+      } catch {
+        setNotice('응답을 불러오지 못했어요. 질문을 다시 보내 주세요.');
+      } finally {
+        setAnswerPending(false);
+      }
+    },
+    [active, answerPending, conversations, save, update],
+  );
+  // 라우터로 전달된 질문은 새 대화에 한 번만 등록한다.
+  useEffect(() => {
+    const state: unknown = location.state;
+    if (
+      typeof state !== 'object' ||
+      state === null ||
+      !('question' in state) ||
+      typeof state.question !== 'string'
+    )
+      return;
+    const incoming = state.question.trim();
+    if (!incoming || handledIncoming.current === location.key) return;
+    handledIncoming.current = location.key;
+    void send(incoming, true);
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { replace: true, state: null },
+    );
+  }, [location.key, location.state, location.pathname, location.search, navigate, send]);
   const matches = (text: string) => text.toLowerCase().includes(query.trim().toLowerCase());
   const recordResults = query.trim()
     ? productionInspectionRecords.filter((item) =>

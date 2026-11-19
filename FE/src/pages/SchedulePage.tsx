@@ -1,7 +1,7 @@
 import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, Clock3, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { calendarEvents } from '../constants/demoData';
 import type { CalendarEvent } from '../types';
 
@@ -14,13 +14,20 @@ const kindPill: Record<CalendarEvent['kind'], string> = {
   납품: 'pill-green',
   회의: 'pill-violet',
 };
+const kindDot: Record<CalendarEvent['kind'], string> = {
+  점검: 'sc-dot-amber',
+  납품: 'sc-dot-green',
+  회의: 'sc-dot-violet',
+};
 const kindOptions: CalendarEvent['kind'][] = ['점검', '납품', '회의'];
+const filterOptions: Array<CalendarEvent['kind'] | '전체'> = ['전체', ...kindOptions];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function SchedulePage({ onToast }: SchedulePageProps) {
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(10);
-  const [selectedDay, setSelectedDay] = useState(17);
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [filter, setFilter] = useState('전체');
   const [customEvents, setCustomEvents] = useState<CalendarEvent[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -34,23 +41,31 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
     monthEvents.filter(
       (event) => event.day === day && (filter === '전체' || event.kind === filter),
     );
-  const selectedEvents = dayEvents(selectedDay);
+  const dayEventList = (day: number) =>
+    dayEvents(day)
+      .slice()
+      .sort((a, b) => a.time.localeCompare(b.time));
+  const selectedEvents = dayEventList(selectedDay);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
+  const prevMonthDays = new Date(year, month, 0).getDate();
+  // 말일이 속한 주까지만 렌더링해 다음 달 한 줄이 통째로 보이지 않게 한다
+  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
 
   const changeMonth = (delta: number) => {
-    const next = month + delta;
-    if (next < 0) {
-      setMonth(11);
-      setYear((value) => value - 1);
-      return;
+    let nextYear = year;
+    let nextMonth = month + delta;
+    if (nextMonth < 0) {
+      nextMonth = 11;
+      nextYear -= 1;
+    } else if (nextMonth > 11) {
+      nextMonth = 0;
+      nextYear += 1;
     }
-    if (next > 11) {
-      setMonth(0);
-      setYear((value) => value + 1);
-      return;
-    }
-    setMonth(next);
+    setYear(nextYear);
+    setMonth(nextMonth);
+    const maxDay = new Date(nextYear, nextMonth + 1, 0).getDate();
+    if (selectedDay > maxDay) setSelectedDay(maxDay);
   };
 
   const handleAdd = (event: FormEvent<HTMLFormElement>) => {
@@ -80,19 +95,9 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
 
   return (
     <>
-      <section className="sc-intro" aria-label="일정 관리 소개">
-        <div>
-          <p>공장 일정을 월간 달력에서 확인하고, 날짜를 선택해 상세 내용을 보세요.</p>
-          <span className="rt-updated">
-            <Clock3 size={14} /> 2026.11 예시 일정 기준
-          </span>
-        </div>
-        <p className="demo-disclaimer">예시 화면 · 실제 서버 미연동</p>
-      </section>
-
       <section className="rt-filters" aria-label="일정 종류 필터">
         <div className="segmented-control" role="group">
-          {['전체', ...kindOptions].map((kind) => (
+          {filterOptions.map((kind) => (
             <button
               key={kind}
               type="button"
@@ -100,6 +105,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
               aria-pressed={filter === kind}
               onClick={() => setFilter(kind)}
             >
+              {kind !== '전체' && <i className={`sc-dot ${kindDot[kind]}`} />}
               {kind}
             </button>
           ))}
@@ -135,22 +141,38 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
             ))}
           </div>
           <div className="sc-days">
-            {Array.from({ length: firstWeekday }, (_, index) => (
-              <span key={`blank-${index}`} />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => (
-              <button
-                key={day}
-                type="button"
-                className={`sc-day ${day === selectedDay ? 'selected' : ''}`}
-                aria-label={`${month + 1}월 ${day}일, 일정 ${dayEvents(day).length}건`}
-                aria-pressed={day === selectedDay}
-                onClick={() => setSelectedDay(day)}
-              >
-                {day}
-                {dayEvents(day).length > 0 && <i />}
-              </button>
-            ))}
+            {Array.from({ length: totalCells }, (_, index) => {
+              const day = index - firstWeekday + 1;
+              if (day < 1 || day > daysInMonth) {
+                const outDay = day < 1 ? prevMonthDays + day : day - daysInMonth;
+                return (
+                  <span key={`out-${index}`} className="sc-day sc-day-out" aria-hidden="true">
+                    {outDay}
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={`sc-day ${day === selectedDay ? 'selected' : ''}`}
+                  aria-label={`${month + 1}월 ${day}일, 일정 ${dayEvents(day).length}건`}
+                  aria-pressed={day === selectedDay}
+                  onClick={() => setSelectedDay(day)}
+                >
+                  {day}
+                  <span className="sc-dots">
+                    {dayEventList(day).map((event, index) => (
+                      <i
+                        key={`${event.time}-${event.title}-${index}`}
+                        className={`sc-dot ${kindDot[event.kind]}`}
+                      />
+                    ))}
+                  </span>
+                  {day === selectedDay && <span className="sc-plate" aria-hidden="true" />}
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -173,12 +195,13 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
             <ul className="sc-list">
               {selectedEvents.map((event, index) => (
                 <li key={`${event.day}-${event.time}-${event.title}-${index}`}>
-                  <span className={`pill ${kindPill[event.kind]}`}>{event.kind}</span>
+                  <span className="sc-timeline-time">{event.time}</span>
+                  <i className={`sc-node ${kindDot[event.kind]}`} />
                   <div className="sc-item-main">
-                    <strong>{event.title}</strong>
-                    <span>
-                      <Clock3 size={13} /> {event.time}
-                    </span>
+                    <div className="sc-item-head">
+                      <span className={`pill ${kindPill[event.kind]}`}>{event.kind}</span>
+                      <strong>{event.title}</strong>
+                    </div>
                     {event.description && <p>{event.description}</p>}
                   </div>
                 </li>
