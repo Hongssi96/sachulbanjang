@@ -743,3 +743,121 @@
     font-size: 11px !important;
   }
 }
+/* 생산·검사 이력: 가운데 정렬과 명확한 불량 상태 */
+.records-page .rd-table-wrap th,
+.records-page .rd-table-wrap td {
+  text-align: center;
+  vertical-align: middle;
+  padding-inline: 16px;
+}
+.records-page .rd-table-wrap td .rd-detail-link {
+  justify-content: center;
+}
+.rd-pill.defect {
+  color: #ac243c;
+  background: #ffedf0;
+  border: 1px solid #f4c1ca;
+  font-weight: 750;
+}
+.rd-defective {
+  color: #bf314a;
+  font-weight: 700;
+}
+.rd-pill.defect:before {
+  content: '!';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ca3a50;
+  color: white;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  margin-right: 5px;
+  font-size: 10px;
+}
+.rd-detail-card dl {
+  align-items: stretch;
+}
+.rd-detail-card dl > div {
+  padding: 12px;
+  background: var(--rd-surface);
+  border-bottom: 1px solid var(--rd-border);
+  text-align: left;
+  min-width: 0;
+}
+.rd-detail-card dd {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.8;
+}
+.rd-detail-card dt {
+  font-size: 11px;
+}
+.rd-summary > .rd-panel {
+  display: flex;
+  flex-direction: column;
+}
+.rd-summary p {
+  margin-top: auto;
+  padding-top: 9px;
+}
+.rd-defect-grid strong {
+  color: #ba334a;
+}
+.records-page select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #817497 50%),
+    linear-gradient(135deg, #817497 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+  min-height: 42px;
+}
+.records-page select:hover {
+  border-color: #b3a8c8;
+}
+.rd-filter-grid .date-picker {
+  font-size: 12px;
+}
+.dark .rd-pill.defect {
+  background: #542e3b;
+  border-color: #925064;
+  color: #ffbac7;
+}
+.dark .rd-defective,
+.dark .rd-defect-grid strong {
+  color: #f49aae;
+}
+.rd-filter-grid label {
+  position: relative;
+}
+.rd-filter {
+  overflow: visible;
+}
+.rd-pill {
+  line-height: 1.5;
+}
+.rd-summary > .rd-panel:last-child strong {
+  color: #b82f47;
+}
+.dark .rd-summary > .rd-panel:last-child strong {
+  color: #f49aae;
+}
+.rd-completed-at > span,
+.rd-completed-at > small {
+  display: block;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.records-page .rd-completed-at > small {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.rd-filter-grid .filter-select-trigger {
+  font-family: inherit;
+}

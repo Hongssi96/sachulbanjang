@@ -1,3 +1,4 @@
+import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
@@ -123,7 +124,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
               <ChevronLeft size={18} />
             </button>
             <strong aria-live="polite">
-              {year}년 {month + 1}월
+              {year}.{String(month + 1).padStart(2, '0')}
             </strong>
             <button
               type="button"
@@ -179,7 +180,10 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
           <div className="card-heading">
             <div>
               <h2>
-                {month + 1}월 {selectedDay}일 일정
+                {formatDate(
+                  `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`,
+                )}{' '}
+                일정
               </h2>
               <p>예정 {selectedEvents.length}건</p>
             </div>

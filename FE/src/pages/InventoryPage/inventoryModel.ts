@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateFormat';
 export type ProductGroup = 'CN7' | 'RG3' | 'JX1' | 'SP2';
 export type StockStatus = '정상' | '부족' | '품절';
 export interface StockItem {
@@ -272,12 +273,4 @@ export function persistInventory(state: InventoryState): boolean {
     return false;
   }
 }
-export const formatStockDate = (date: string) =>
-  new Date(date).toLocaleString('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
+export const formatStockDate = formatDateTime;

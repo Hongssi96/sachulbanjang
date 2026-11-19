@@ -1,3 +1,4 @@
+import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import {
   ArrowDownRight,
@@ -6,7 +7,6 @@ import {
   CalendarDays,
   Check,
   CheckCheck,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -35,10 +35,7 @@ type Overlay =
   | { kind: 'equipment' }
   | { kind: 'insight' }
   | null;
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+
 const NOTE_KEY = 'sachul-home-notes-v1';
 const demoNote: HandoverNote = {
   id: 'demo-1',
@@ -85,18 +82,12 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
   const [selectedDay, setSelectedDay] = useState(17);
   const [notes, setNotes] = useState<HandoverNote[]>(loadNotes);
   const [noteText, setNoteText] = useState('');
-  const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reportFilter, setReportFilter] = useState('전체');
   const [calendarExpanded, setCalendarExpanded] = useState(false);
-  const [equipmentName, setEquipmentName] = useState('전체 설비');
   const [announcementRead, setAnnouncementRead] = useState(false);
   const unreadNotes = notes.filter((note) => !note.checked).length;
   const visibleReports = reports.filter(
     (report) => reportFilter === '전체' || report.status !== '완료',
-  );
-  const visibleEquipment = equipment.filter(
-    (item) => equipmentName === '전체 설비' || item.name === equipmentName,
   );
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -119,29 +110,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
     setYear(date.getFullYear());
     setMonth(date.getMonth());
     setSelectedDay(1);
-  };
-  const askAssistant = (value: string) => {
-    const content = value.trim();
-    if (!content) return;
-    let reply =
-      '오늘 예시 공정은 생산량 5,232개, 검사 불량률 1.15%, 가동률 60%입니다. 설비·검사 기록과 현장 조치를 함께 확인해 주세요.';
-    if (/인수|교대/.test(content))
-      reply = `인수인계 미확인 노트는 ${unreadNotes}건입니다. 사출 3호기의 압력 변동 점검 기록을 확인하고, 조치 결과와 다음 확인 사항을 다음 근무자에게 전달해 주세요.`;
-    else if (/일정|점검/.test(content))
-      reply =
-        '11월 17일 예시 일정은 09:00 생산팀 회의, 14:00 사출 3호기 정기 점검, 16:30 CN7 출하 전 품질 확인입니다. 일정 카드에서 날짜를 선택하면 상세 내용을 볼 수 있어요.';
-    else if (/불량|품질|원인/.test(content))
-      reply =
-        '예시 검사 불량률은 1.15%입니다. RG3 RH의 과거 불량 기록 27건 중 25건이 10/22–23에 집중되어 있습니다. 해당 기간의 공정 조건과 조치 이력을 우선 비교해 보세요. 원인은 확정할 수 없습니다.';
-    else if (/설비|공정|보고/.test(content))
-      reply =
-        '예시 설비 현황에서 사출 3호기는 주의 상태이며 유압 압력 변동 보고가 대기 중입니다. 점검 기록과 보고 내용을 확인해 주세요. 과거 검사 불량과 현재 설비 고장은 서로 다른 상태입니다.';
-    setMessages((current) => [
-      ...current,
-      { role: 'user', content },
-      { role: 'assistant', content: reply },
-    ]);
-    setQuestion('');
   };
   const downloadSummary = () => {
     const csv =
@@ -169,7 +137,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
         <div className="intro-actions">
           <span className="date-label">
             <CalendarDays size={17} />
-            2026년 11월 17일 화요일
+            2026.11.17 (화)
           </span>
           <button className="button button-white" onClick={downloadSummary}>
             <Download size={17} /> 요약 다운로드
@@ -291,7 +259,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           </article>
         </div>
       </section>
-      <div className="dashboard-grid">
+      <div className="dashboard-grid home-dashboard">
         <div className="main-column">
           <section className="card production-card">
             <div className="card-heading">
@@ -349,54 +317,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                 공장 한눈에 보기
                 <ArrowUpRight size={15} />
               </button>
-            </div>
-          </section>
-          <section className="card equipment-card">
-            <div className="card-heading">
-              <div className="heading-inline">
-                <h2>주요 설비 현황</h2>
-                <span className="pill pill-neutral">4대</span>
-              </div>
-              <label className="select-control">
-                <span className="sr-only">설비 필터</span>
-                <select
-                  aria-label="설비 필터"
-                  value={equipmentName}
-                  onChange={(event) => setEquipmentName(event.target.value)}
-                >
-                  <option>전체 설비</option>
-                  {equipment.map((item) => (
-                    <option key={item.name}>{item.name}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} />
-              </label>
-            </div>
-            <div className="equipment-grid">
-              {visibleEquipment.map((item) => (
-                <button
-                  className={`equipment-tile ${item.state === '주의' ? 'equipment-warning' : ''}`}
-                  key={item.name}
-                  onClick={() => setOverlay({ kind: 'equipment' })}
-                >
-                  <div className="equipment-title">
-                    <Factory size={19} />
-                    <span className={`equipment-status ${item.state === '주의' ? 'warning' : ''}`}>
-                      <i />
-                      {item.state}
-                    </span>
-                  </div>
-                  <strong>{item.name}</strong>
-                  <span className="equipment-product">{item.product}</span>
-                  <div className="equipment-progress">
-                    <span style={{ width: `${item.progress}%` }} />
-                  </div>
-                  <div className="equipment-meta">
-                    <span>작업 진행률</span>
-                    <b>{item.progress}%</b>
-                  </div>
-                </button>
-              ))}
             </div>
           </section>
           <section className="card reports-card" id="reports">
@@ -458,63 +378,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               ))}
             </div>
           </section>
-          <section className="card assistant-card" id="assistant">
-            <div className="card-heading">
-              <div className="heading-inline">
-                <span className="ai-icon">
-                  <Sparkles size={21} />
-                </span>
-                <div>
-                  <h2>사출반장에게 물어보세요</h2>
-                  <p>오늘의 공정, 필요한 정보만 빠르게.</p>
-                </div>
-              </div>
-              <span className="pill pill-violet">AI 도우미</span>
-            </div>
-            <div className="question-chips">
-              {['오늘 공정 요약해줘', '확인할 품질 이슈는?', '다음 근무자 인수인계'].map((chip) => (
-                <button key={chip} onClick={() => askAssistant(chip)}>
-                  {chip}
-                  <ArrowUpRight size={14} />
-                </button>
-              ))}
-            </div>
-            {messages.length > 0 && (
-              <div className="chat-history" role="log" aria-label="도우미 대화">
-                {messages.map((message, i) => (
-                  <div className={`chat-message ${message.role}`} key={i}>
-                    <small>{message.role === 'user' ? '민규님' : '사출반장 · 예시 응답'}</small>
-                    <p>{message.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <form
-              className="question-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                askAssistant(question);
-              }}
-            >
-              <Sparkles size={19} />
-              <label htmlFor="question" className="sr-only">
-                사출반장 질문
-              </label>
-              <input
-                id="question"
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                maxLength={500}
-                placeholder="공정 현황에 대해 궁금한 점을 물어보세요"
-              />
-              <button type="submit" disabled={!question.trim()} aria-label="질문 보내기">
-                <ArrowRight size={21} />
-              </button>
-            </form>
-            <p className="demo-disclaimer">
-              예시 데이터에 기반한 정해진 응답입니다. 실제 AI 분석은 연동 전입니다.
-            </p>
-          </section>
         </div>
         <div className="side-column">
           <section className="insight-card">
@@ -575,7 +438,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             </div>
             <div className="calendar-month">
               <strong>
-                {year}년 {month + 1}월
+                {year}.{String(month + 1).padStart(2, '0')}
               </strong>
               <div>
                 <button
@@ -618,7 +481,9 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <div className="calendar-schedule">
               <div>
                 <strong>
-                  {month + 1}월 {selectedDay}일{' '}
+                  {formatDate(
+                    `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`,
+                  )}{' '}
                   <span>
                     {year === 2026 && month === 10 && selectedDay === 17 ? '오늘' : '선택일'}
                   </span>
@@ -705,16 +570,16 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               <p className="empty-text">아직 작성된 인수인계가 없어요.</p>
             )}
           </section>
-          <div className="shift-card">
-            <span className="shift-clock">
-              <Clock3 size={21} />
-            </span>
-            <div>
-              <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
-              <p>{extended ? '데모 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
-            </div>
-            <button onClick={onToggleExtended}>{extended ? '취소' : '로그인 연장'}</button>
+        </div>
+        <div className="shift-card">
+          <span className="shift-clock">
+            <Clock3 size={21} />
+          </span>
+          <div>
+            <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
+            <p>{extended ? '데모 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
           </div>
+          <button onClick={onToggleExtended}>{extended ? '취소' : '로그인 연장'}</button>
         </div>
       </div>
       <footer className="page-footer">
@@ -727,7 +592,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             overlay.kind === 'report'
               ? '현장 보고 상세'
               : overlay.kind === 'schedule'
-                ? `${year}년 ${month + 1}월 ${overlay.day}일 일정`
+                ? `${formatDate(`${year}-${String(month + 1).padStart(2, '0')}-${String(overlay.day).padStart(2, '0')}`)} 일정`
                 : overlay.kind === 'note'
                   ? '인수인계 노트'
                   : overlay.kind === 'equipment'
@@ -787,7 +652,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                   <p>다른 날짜를 선택해 확인해 보세요.</p>
                 </div>
               )}
-              <p className="demo-disclaimer">일정은 2026년 11월 기준의 시연용 데이터입니다.</p>
+              <p className="demo-disclaimer">일정은 2026.11 기준의 시연용 데이터입니다.</p>
             </>
           )}
           {overlay.kind === 'note' && (
@@ -866,11 +731,11 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           )}
           {overlay.kind === 'equipment' && (
             <>
-              <p className="muted">주요 설비 4대의 배치와 상태를 보여주는 예시입니다.</p>
+              <p className="muted">설비 배치와 상태를 보여주는 예시입니다.</p>
               <div className="factory-map">
                 {equipment.map((item, index) => (
                   <div
-                    className={`machine ${item.state === '주의' ? 'machine-warning' : ''}`}
+                    className={`machine machine-state-${item.state === '고장' ? 'fault' : item.state === '휴식' ? 'rest' : item.state === '주의' ? 'warning' : 'normal'}`}
                     key={item.name}
                   >
                     <Factory size={34} />

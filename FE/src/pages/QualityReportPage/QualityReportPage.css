@@ -1393,3 +1393,200 @@
     display: none;
   }
 }
+/* 일정과 같은 숫자식 날짜 표기 및 공통 달력, 기간 세그먼트 */
+.qr-filter-card {
+  overflow: visible;
+}
+.qr-date-range {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.qr-period-buttons {
+  display: inline-flex;
+  gap: 3px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  padding: 4px;
+  border-radius: 10px;
+}
+.qr-period-buttons button {
+  border: 0 !important;
+  background: transparent;
+  border-radius: 7px !important;
+  min-width: 68px;
+  padding: 9px 16px !important;
+  font-weight: 650;
+}
+.qr-period-buttons button.selected {
+  background: #635b85 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px #29263f15;
+}
+.quality-report-page .qr-breakdown {
+  grid-template-columns: minmax(220px, 1fr) minmax(140px, 1fr);
+  gap: 25px;
+  min-height: 300px;
+}
+.quality-report-page .qr-donut {
+  width: clamp(220px, 18vw, 280px);
+  height: auto;
+  max-width: 100%;
+  justify-self: center;
+}
+.quality-report-page .qr-defect-legend {
+  min-width: 0;
+}
+.quality-report-page .date-picker-trigger {
+  font-size: 13px;
+  min-height: 44px;
+}
+.qr-date-range > .date-picker:last-child .date-picker-popover {
+  left: auto;
+  right: 0;
+}
+.qr-detail-meta {
+  font-variant-numeric: tabular-nums;
+}
+.qr-detail .pill-amber {
+  background: #ffedf0;
+  color: #ac243c;
+}
+.quality-report-page select {
+  min-height: 42px;
+  border-color: var(--border);
+}
+@media (max-width: 1450px) {
+  .quality-report-page .qr-breakdown {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .quality-report-page .qr-donut {
+    width: 250px;
+  }
+  .quality-report-page .qr-defect-legend {
+    width: 100%;
+  }
+}
+@media (max-width: 650px) {
+  .quality-report-page .qr-donut {
+    width: 230px;
+  }
+  .qr-period-buttons button {
+    min-width: 55px;
+    padding: 8px 10px !important;
+  }
+  .qr-date-range {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+  .qr-date-range > span {
+    display: none;
+  }
+  .qr-date-range > .date-picker:last-child .date-picker-popover {
+    left: 0;
+    right: auto;
+  }
+}
+/* 검사 이력 표의 모든 열을 같은 중심선에 맞춘다. */
+.quality-report-page .qr-history-table th,
+.quality-report-page .qr-history-table td,
+.quality-report-page .qr-history-table .qr-number {
+  text-align: center;
+  vertical-align: middle;
+}
+.quality-report-page .qr-product-cell {
+  text-align: center;
+  margin-inline: auto;
+}
+.quality-report-page .qr-history-table .icon-button {
+  margin-inline: auto;
+}
+.quality-report-page .qr-breakdown {
+  grid-template-columns: minmax(0, 1fr);
+}
+.quality-report-page .qr-donut {
+  width: 310px;
+  height: auto;
+  max-width: 100%;
+  justify-self: center;
+}
+.quality-report-page .qr-defect-legend {
+  width: 100%;
+}
+/* 선택 배경이 이동하는 기간 세그먼트. */
+.quality-report-page .qr-period-buttons {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  width: 252px;
+  max-width: 100%;
+  padding: 4px;
+  border-radius: 11px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+}
+.quality-report-page .qr-period-buttons:before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 7px;
+  background: #635b85;
+  box-shadow: 0 2px 7px #29263f20;
+  z-index: 0;
+  transition:
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.18s;
+}
+.quality-report-page .qr-period-buttons[data-active='0']:before {
+  transform: translateX(0);
+}
+.quality-report-page .qr-period-buttons[data-active='1']:before {
+  transform: translateX(100%);
+}
+.quality-report-page .qr-period-buttons[data-active='2']:before {
+  transform: translateX(200%);
+}
+.quality-report-page .qr-period-buttons[data-active='custom']:before {
+  opacity: 0;
+}
+.quality-report-page .qr-period-buttons button {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  width: 100%;
+  background: transparent !important;
+  box-shadow: none;
+  transition:
+    color 0.18s,
+    transform 0.12s;
+}
+.quality-report-page .qr-period-buttons button.selected {
+  background: transparent !important;
+  box-shadow: none;
+  color: white !important;
+}
+.quality-report-page .qr-period-buttons button:not(.selected):hover {
+  color: #635b85;
+  transform: translateY(-1px);
+}
+.quality-report-page .qr-period-buttons button:active {
+  transform: scale(0.96);
+}
+@media (max-width: 650px) {
+  .quality-report-page .qr-donut {
+    width: 280px;
+  }
+  .quality-report-page .qr-period-buttons {
+    width: 228px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quality-report-page .qr-period-buttons:before,
+  .quality-report-page .qr-period-buttons button {
+    transition: none;
+  }
+}

@@ -3553,6 +3553,179 @@ textarea {
   }
 }
 
+/* 공장 한눈에 보기: 상태 색상과 텍스트를 함께 표시한다. */
+.machine.machine-state-normal,
+.equipment-tile.machine-state-normal {
+  background: #f0fbf5;
+  border-color: #bce9d1;
+}
+.machine.machine-state-normal > svg,
+.machine-state-normal .equipment-title > svg {
+  color: #27835c;
+}
+.machine.machine-state-fault,
+.equipment-tile.machine-state-fault {
+  background: #fff0f2;
+  border-color: #efb4be;
+}
+.machine.machine-state-fault > svg,
+.machine-state-fault .equipment-title > svg {
+  color: #c3364d;
+}
+.machine.machine-state-rest,
+.equipment-tile.machine-state-rest {
+  background: #f0f1f5;
+  border-color: #c8cbd6;
+}
+.machine.machine-state-rest > svg,
+.machine-state-rest .equipment-title > svg {
+  color: #7f849b;
+}
+.machine.machine-state-warning,
+.equipment-tile.machine-state-warning {
+  background: #fff8e9;
+  border-color: #f0d19b;
+}
+.machine.machine-state-warning > svg,
+.machine-state-warning .equipment-title > svg {
+  color: #a97625;
+}
+.machine-state-fault .pill,
+.machine-state-fault .equipment-status {
+  background: #ffe1e6;
+  color: #a6233c;
+}
+.machine-state-rest .pill,
+.machine-state-rest .equipment-status {
+  background: #e2e4ec;
+  color: #646a80;
+}
+.machine-state-fault .equipment-status i {
+  background: #c3364d;
+}
+.machine-state-rest .equipment-status i {
+  background: #8c91a5;
+}
+.machine-state-fault .equipment-progress > span {
+  background: #d95f70;
+}
+.machine-state-rest .equipment-progress > span {
+  background: #a9aab5;
+}
+.dark .machine.machine-state-normal,
+.dark .equipment-tile.machine-state-normal {
+  background: #243c34;
+  border-color: #3b6a54;
+}
+.dark .machine.machine-state-fault,
+.dark .equipment-tile.machine-state-fault {
+  background: #492c38;
+  border-color: #844452;
+}
+.dark .machine.machine-state-rest,
+.dark .equipment-tile.machine-state-rest {
+  background: #353644;
+  border-color: #606477;
+}
+.dark .machine.machine-state-warning,
+.dark .equipment-tile.machine-state-warning {
+  background: #453b2e;
+  border-color: #8f7248;
+}
+.records-page .date-picker-popover,
+.quality-report-page .date-picker-popover {
+  color: var(--ink, #29263f);
+}
+/* 대화·검색은 전체 폭으로 열고, 공통 메뉴를 버튼으로 복원한다. */
+.app.chat-focus {
+  --sidebar-width: 0px;
+}
+.chat-focus > .sidebar,
+.chat-focus > .workspace > .topbar {
+  display: none;
+}
+.chat-focus > .workspace {
+  margin-left: 0;
+}
+.chat-display-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.chat-display-controls > span {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+}
+.chat-display-controls > .button {
+  font-size: 12px;
+  min-height: 38px;
+  padding: 9px 13px;
+}
+.chat-focus .chat-page {
+  max-width: none;
+}
+.chat-focus .cs-layout {
+  grid-template-columns: 270px minmax(0, 1fr);
+}
+.chat-focus .cs-history {
+  min-height: calc(100vh - 190px);
+}
+.chat-focus .cs-main {
+  min-height: calc(100vh - 190px);
+}
+.chat-focus main {
+  max-width: none;
+}
+.dark .chat-display-controls > .button {
+  color: var(--ink);
+}
+@media (max-width: 800px) {
+  .chat-focus .cs-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chat-focus .cs-history {
+    min-height: 0;
+  }
+  .chat-focus .cs-main {
+    min-height: 480px;
+  }
+  .chat-display-controls > span {
+    font-size: 17px;
+  }
+  .chat-display-controls > .button {
+    font-size: 11px;
+  }
+}
+/* 홈 양쪽 열의 마지막 카드 끝선을 맞춘다. */
+@media (min-width: 1051px) {
+  .home-dashboard {
+    align-items: stretch;
+  }
+  .home-dashboard > .main-column,
+  .home-dashboard > .side-column {
+    height: 100%;
+  }
+  .home-dashboard > .main-column > .reports-card,
+  .home-dashboard > .side-column > .handover-card {
+    flex: 1;
+  }
+}
+.home-dashboard > .shift-card {
+  grid-column: 1/-1;
+  justify-self: end;
+  width: 100%;
+  max-width: 380px;
+}
+@media (min-width: 1051px) {
+  .home-dashboard > .shift-card {
+    grid-column: 2;
+    max-width: none;
+  }
+}
+
 /* 실시간 공정 카드 상세 모달 */
 .metric-eyebrow {
   font-size: 13px;

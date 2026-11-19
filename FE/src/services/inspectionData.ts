@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateFormat';
 export const qualityProducts = ['CN7 LH', 'CN7 RH', 'RG3 LH', 'RG3 RH'] as const;
 export const qualityEquipment = ['S01', 'S02', 'S03', 'S04'] as const;
 export const defectTypes = ['가스', '찍힘', '휘어짐', '미성형'] as const;
@@ -238,19 +239,7 @@ export function productionRecordSummary(records: ProductionInspectionRecord[]) {
   const target = records.reduce((sum, record) => sum + record.productionTarget, 0);
   return { ...quality, produced, target, coverage: percentage(quality.inspected, produced) };
 }
-export function formatRecordTimestamp(value: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(new Date(value));
-  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? '';
-  return `${part('year')}.${part('month')}.${part('day')} ${part('hour')}:${part('minute')}`;
-}
+export const formatRecordTimestamp = formatDateTime;
 export function recordsCsv(records: ProductionInspectionRecord[]) {
   const rows = [
     [

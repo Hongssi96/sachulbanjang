@@ -264,7 +264,7 @@ export const realtimeEvents: RealtimeEvent[] = [
     message: '현장 보고 접수: 유압 압력 변동 (R-003)',
   },
 ];
-export const qualityPeriod = '2026.10.16 – 11.06';
+export const qualityPeriod = '2026.10.16 – 2026.11.06';
 export const productQuality: ProductQuality[] = [
   { product: 'CN7 LH', inspections: 1985, defects: 10 },
   { product: 'CN7 RH', inspections: 1989, defects: 18 },
