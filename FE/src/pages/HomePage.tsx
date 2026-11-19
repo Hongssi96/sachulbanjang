@@ -26,6 +26,7 @@ import {
 import Modal from '../components/Modal';
 import ProductionChart from '../components/ProductionChart';
 import { calendarEvents, equipment, reports } from '../constants/demoData';
+import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { HandoverNote, Report } from '../types';
 
 type Overlay =
@@ -85,9 +86,10 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
   const [reportFilter, setReportFilter] = useState('전체');
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [announcementRead, setAnnouncementRead] = useState(false);
+  useReportStatusVersion();
   const unreadNotes = notes.filter((note) => !note.checked).length;
   const visibleReports = reports.filter(
-    (report) => reportFilter === '전체' || report.status !== '완료',
+    (report) => reportFilter === '전체' || getReportStatus(report) !== '완료',
   );
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -341,41 +343,44 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               </div>
             </div>
             <div className="report-list">
-              {visibleReports.map((report) => (
-                <button
-                  className="report-row"
-                  key={report.id}
-                  onClick={() => setOverlay({ kind: 'report', report })}
-                >
-                  <span
-                    className={`report-icon ${report.status === '대기' ? 'report-icon-alert' : ''}`}
+              {visibleReports.map((report) => {
+                const reportStatus = getReportStatus(report);
+                return (
+                  <button
+                    className="report-row"
+                    key={report.id}
+                    onClick={() => setOverlay({ kind: 'report', report })}
                   >
-                    {report.status === '대기' ? (
-                      <Wrench size={19} />
-                    ) : report.status === '완료' ? (
-                      <CheckCheck size={19} />
-                    ) : (
-                      <FileText size={19} />
-                    )}
-                  </span>
-                  <span className="report-copy">
-                    <strong>{report.title}</strong>
-                    <small>
-                      {report.author}
-                      <span>·</span>
-                      {report.equipment}
-                      <span>·</span>
-                      {report.time}
-                    </small>
-                  </span>
-                  <span
-                    className={`pill ${report.status === '대기' ? 'pill-amber' : report.status === '완료' ? 'pill-green' : 'pill-violet'}`}
-                  >
-                    {report.status}
-                  </span>
-                  <ChevronRight className="row-arrow" size={17} />
-                </button>
-              ))}
+                    <span
+                      className={`report-icon ${reportStatus === '대기' ? 'report-icon-alert' : ''}`}
+                    >
+                      {reportStatus === '대기' ? (
+                        <Wrench size={19} />
+                      ) : reportStatus === '완료' ? (
+                        <CheckCheck size={19} />
+                      ) : (
+                        <FileText size={19} />
+                      )}
+                    </span>
+                    <span className="report-copy">
+                      <strong>{report.title}</strong>
+                      <small>
+                        {report.author}
+                        <span>·</span>
+                        {report.equipment}
+                        <span>·</span>
+                        {report.time}
+                      </small>
+                    </span>
+                    <span
+                      className={`pill ${reportStatus === '대기' ? 'pill-amber' : reportStatus === '완료' ? 'pill-green' : 'pill-violet'}`}
+                    >
+                      {reportStatus}
+                    </span>
+                    <ChevronRight className="row-arrow" size={17} />
+                  </button>
+                );
+              })}
             </div>
           </section>
         </div>
@@ -605,7 +610,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           {overlay.kind === 'report' && (
             <>
               <span className="pill pill-violet">
-                {overlay.report.category} · {overlay.report.status}
+                {overlay.report.category} · {getReportStatus(overlay.report)}
               </span>
               <h3>{overlay.report.title}</h3>
               <p className="muted">
