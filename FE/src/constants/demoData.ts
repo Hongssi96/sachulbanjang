@@ -116,6 +116,18 @@ export const productionSummary = {
   lastWeek: 2010, // 지난주 생산량(주 5일 기준 예시)
   thisWeek: 1229, // 이번주 누계(주중 3일차 기준 예시)
 };
+// 상세 모달의 누계 추이에 쓰는 최근 9일 생산량. 합계는 productionSummary.today와 같다.
+export const productionTrend = [
+  { label: '9일 전', value: 360 },
+  { label: '8일 전', value: 470 },
+  { label: '7일 전', value: 420 },
+  { label: '6일 전', value: 620 },
+  { label: '5일 전', value: 580 },
+  { label: '4일 전', value: 790 },
+  { label: '3일 전', value: 650 },
+  { label: '2일 전', value: 720 },
+  { label: '오늘', value: 622 },
+];
 export const equipment: Equipment[] = [
   {
     name: '사출 1호기',
@@ -260,3 +272,13 @@ export const productQuality: ProductQuality[] = [
   { product: 'RG3 RH', inspections: 628, defects: 27, focus: true },
 ];
 export const defectRatePrevious = 1.47;
+// 상세 모달의 이번주 추이. 마지막 값은 productQuality 합계로 계산한 현재 비율과 같다.
+export const defectRateTrend = [
+  { label: '6일 전', value: 1.82 },
+  { label: '5일 전', value: 1.65 },
+  { label: '4일 전', value: 1.71 },
+  { label: '3일 전', value: 1.58 },
+  { label: '2일 전', value: 1.39 },
+  { label: '어제', value: defectRatePrevious },
+  { label: '오늘', value: 1.15 },
+];

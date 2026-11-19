@@ -10,14 +10,17 @@ import {
   Clock3,
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import MetricTrendChart from '../components/MetricTrendChart';
 import {
   defectRatePrevious,
+  defectRateTrend,
   equipment,
   productQuality,
   productionSummary,
-  qualityPeriod,
+  productionTrend,
   realtimeEvents,
 } from '../constants/demoData';
+import { inspectionThreshold } from '../services/inspectionData';
 import type { Equipment, EquipmentState, ProductQuality, RealtimeEvent } from '../types';
 
 const statePill: Record<EquipmentState, string> = {
@@ -32,6 +35,13 @@ const levelPill: Record<RealtimeEvent['level'], string> = {
   고장: 'pill-red',
   정보: 'pill-neutral',
 };
+const stateOrder: EquipmentState[] = ['정상', '주의', '휴식', '고장'];
+const stateColor: Record<EquipmentState, string> = {
+  정상: '#61E2A6',
+  주의: '#F2BB69',
+  고장: '#D95F70',
+  휴식: '#A9AAB5',
+};
 
 type DetailPanel =
   | { kind: 'machine'; machine: Equipment }
@@ -45,6 +55,15 @@ const statusGroupMachines = (label: '정상' | '휴식' | '고장') =>
   label === '정상'
     ? equipment.filter((machine) => machine.state === '정상' || machine.state === '주의')
     : equipment.filter((machine) => machine.state === label);
+
+const signed = (value: number, digits = 1) => `${value > 0 ? '+' : ''}${value.toFixed(digits)}`;
+const toCumulative = (points: { label: string; value: number }[]) => {
+  let total = 0;
+  return points.map((point) => {
+    total += point.value;
+    return { label: point.label, value: total };
+  });
+};
 
 const DONUT_RADIUS = 46;
 const DONUT_STROKE = 24;
@@ -148,6 +167,12 @@ export default function RealtimePage() {
   });
 
   const machineDetail = panel?.kind === 'machine' ? panel.machine : null;
+  const machineEvents = machineDetail
+    ? realtimeEvents.filter((event) => event.machine === machineDetail.name)
+    : [];
+  const statusPanel = panel?.kind === 'status' ? panel : null;
+  const statusPanelMachines = statusPanel ? statusGroupMachines(statusPanel.label) : [];
+  const qualityPanel = panel?.kind === 'quality' ? panel.quality : null;
 
   const productOptions = ['전체 제품', ...new Set(equipment.map((machine) => machine.product))];
 
@@ -196,20 +221,41 @@ export default function RealtimePage() {
   };
 
   const statusCounts = useMemo(() => {
-    const operating = equipment.filter(
-      (machine) => machine.state === '정상' || machine.state === '주의',
-    ).length;
+    const normal = equipment.filter((machine) => machine.state === '정상').length;
+    const caution = equipment.filter((machine) => machine.state === '주의').length;
+    const operating = normal + caution;
     const resting = equipment.filter((machine) => machine.state === '휴식').length;
     const broken = equipment.filter((machine) => machine.state === '고장').length;
-    return { operating, resting, broken, total: equipment.length };
+    return { normal, caution, operating, resting, broken, total: equipment.length };
   }, []);
   const operatingRate = Math.round((statusCounts.operating / statusCounts.total) * 100);
+  const stateCounts: Record<EquipmentState, number> = {
+    정상: statusCounts.normal,
+    주의: statusCounts.caution,
+    휴식: statusCounts.resting,
+    고장: statusCounts.broken,
+  };
 
   const defect = useMemo(() => {
     const inspections = productQuality.reduce((sum, quality) => sum + quality.inspections, 0);
     const defects = productQuality.reduce((sum, quality) => sum + quality.defects, 0);
     return { inspections, defects, rate: Number(((defects / inspections) * 100).toFixed(2)) };
   }, []);
+  const defectDelta = Number((defect.rate - defectRatePrevious).toFixed(2));
+  const productionDelta =
+    ((productionSummary.today - productionSummary.previousToday) /
+      productionSummary.previousToday) *
+    100;
+  const productionProgress = (productionSummary.today / productionSummary.todayTarget) * 100;
+  const productionCumulative = toCumulative(productionTrend);
+  const qualityRate = qualityPanel ? (qualityPanel.defects / qualityPanel.inspections) * 100 : 0;
+  const qualityShare =
+    qualityPanel && defect.defects ? Math.round((qualityPanel.defects / defect.defects) * 100) : 0;
+  // 게이지 축은 제품 중 최고 불량률과 점검 기준을 담도록 잡는다.
+  const qualityScaleMax = Math.max(
+    5,
+    Math.ceil(Math.max(...productQuality.map((item) => (item.defects / item.inspections) * 100))),
+  );
 
   const donutSegments: { label: '정상' | '휴식' | '고장'; count: number; color: string }[] = [
     { label: '정상', count: statusCounts.operating, color: '#61E2A6' },
@@ -613,29 +659,53 @@ export default function RealtimePage() {
       </section>
 
       {machineDetail && (
-        <Modal title={`${machineDetail.name} 상세`} onClose={() => setPanel(null)}>
-          <dl className="rt-detail">
+        <Modal title={`${machineDetail.name} 상세`} wide onClose={() => setPanel(null)}>
+          <section className="metric-summary" aria-label={`${machineDetail.name} 요약`}>
+            <p className="metric-eyebrow">{machineDetail.product} · 작업 진행률</p>
+            <div className="metric-value">
+              <strong>{machineDetail.progress}</strong>
+              <span className="metric-unit">%</span>
+              <span className={`pill ${statePill[machineDetail.state]}`}>
+                {machineDetail.state}
+              </span>
+            </div>
+            <p className="metric-sub">
+              {machineDetail.production != null && machineDetail.target != null
+                ? `오늘 ${machineDetail.production.toLocaleString()} / ${machineDetail.target.toLocaleString()}개`
+                : '오늘 생산 기록이 없어요'}
+              {machineDetail.cycleMinutes ? ` · 사이클 ${machineDetail.cycleMinutes}분` : ''}
+            </p>
+          </section>
+          <div
+            className="metric-progress"
+            role="progressbar"
+            aria-valuenow={machineDetail.progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="작업 진행률"
+          >
+            <span
+              style={{
+                width: `${machineDetail.progress}%`,
+                background: stateColor[machineDetail.state],
+              }}
+            />
+          </div>
+          {machineDetail.state === '고장' && (
+            <p className="metric-state-note is-alert">
+              가동이 멈춘 상태예요. 최근 기록과 점검 이력을 확인해 주세요.
+            </p>
+          )}
+          {machineDetail.state === '휴식' && (
+            <p className="metric-state-note">현재 가동하지 않는 설비예요.</p>
+          )}
+          <dl className="metric-stats">
             <div>
-              <dt>상태</dt>
+              <dt>오늘 생산</dt>
               <dd>
-                <span className={`pill ${statePill[machineDetail.state]}`}>
-                  {machineDetail.state}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>제품</dt>
-              <dd>{machineDetail.product}</dd>
-            </div>
-            <div>
-              <dt>진행률</dt>
-              <dd>{machineDetail.progress}%</dd>
-            </div>
-            <div>
-              <dt>오늘 생산량</dt>
-              <dd>
-                {machineDetail.production?.toLocaleString()} /{' '}
-                {machineDetail.target?.toLocaleString()}개
+                {machineDetail.production != null
+                  ? `${machineDetail.production.toLocaleString()}개`
+                  : '—'}
               </dd>
             </div>
             <div>
@@ -647,120 +717,313 @@ export default function RealtimePage() {
               <dd>{machineDetail.lastCheck ?? '—'}</dd>
             </div>
           </dl>
+          <section className="metric-section" aria-label="최근 실시간 기록">
+            <div className="metric-section-head">
+              <h3>최근 실시간 기록</h3>
+            </div>
+            {machineEvents.length ? (
+              <ul className="metric-events">
+                {machineEvents.map((event, index) => (
+                  <li key={`${event.time}-${index}`}>
+                    <span className="metric-event-time">{event.time}</span>
+                    <span className={`pill ${levelPill[event.level]}`}>{event.level}</span>
+                    <span className="metric-event-message">{event.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="metric-empty">최근 실시간 기록이 없어요.</p>
+            )}
+          </section>
+          <p className="metric-basis">
+            설비 상태·생산량·점검 기록은 시연용 예시이며 실시간 데이터가 아닙니다.
+          </p>
+          <button
+            type="button"
+            className="metric-link"
+            onClick={() => {
+              setPanel(null);
+              navigate(`/records?product=${encodeURIComponent(machineDetail.product)}`);
+            }}
+          >
+            같은 제품 생산·검사 이력 보기
+            <ArrowUpRight size={14} />
+          </button>
         </Modal>
       )}
 
-      {panel?.kind === 'quality' && (
-        <Modal title={`${panel.quality.product} 품질 상세`} onClose={() => setPanel(null)}>
-          <dl className="rt-detail">
+      {qualityPanel && (
+        <Modal title={`${qualityPanel.product} 품질 상세`} wide onClose={() => setPanel(null)}>
+          <section className="metric-summary" aria-label={`${qualityPanel.product} 품질 요약`}>
+            <p className="metric-eyebrow">라벨 검사 기준</p>
+            <div className="metric-value">
+              <strong>{qualityRate.toFixed(2)}</strong>
+              <span className="metric-unit">%</span>
+              <span
+                className={`pill ${qualityRate > inspectionThreshold ? 'pill-red' : 'pill-green'}`}
+              >
+                {qualityRate > inspectionThreshold ? '우선 확인' : '기준 이하'}
+              </span>
+            </div>
+            <p className="metric-sub">
+              전체 불량 {defect.defects}건 중 {qualityPanel.defects}건
+            </p>
+          </section>
+          <section className="metric-section" aria-label="점검 기준 대비">
+            <div className="metric-section-head">
+              <h3>점검 기준 대비</h3>
+              <span className="metric-ref is-ink">
+                <i />
+                점검 기준 {inspectionThreshold}%
+              </span>
+            </div>
+            <div
+              className="metric-gauge"
+              role="img"
+              aria-label={`검사 불량률 ${qualityRate.toFixed(2)}%, 점검 기준 ${inspectionThreshold}%`}
+            >
+              <span
+                className="metric-gauge-fill"
+                style={{
+                  width: `${(qualityRate / qualityScaleMax) * 100}%`,
+                  background: qualityRate > inspectionThreshold ? '#F2BB69' : '#61E2A6',
+                }}
+              />
+              <span
+                className="metric-gauge-mark"
+                style={{ left: `${(inspectionThreshold / qualityScaleMax) * 100}%` }}
+              />
+            </div>
+            <p className="metric-gauge-note">
+              기준보다 {signed(qualityRate - inspectionThreshold, 2)}%p
+            </p>
+          </section>
+          <dl className="metric-stats">
             <div>
               <dt>검사 기록수</dt>
-              <dd>{panel.quality.inspections.toLocaleString()}건</dd>
+              <dd>{qualityPanel.inspections.toLocaleString()}건</dd>
             </div>
             <div>
               <dt>불량 수</dt>
-              <dd>{panel.quality.defects}건</dd>
+              <dd>{qualityPanel.defects.toLocaleString()}건</dd>
             </div>
             <div>
-              <dt>불량 비율</dt>
-              <dd>{((panel.quality.defects / panel.quality.inspections) * 100).toFixed(1)}%</dd>
-            </div>
-            <div>
-              <dt>집계 기간</dt>
-              <dd>{qualityPeriod}</dd>
+              <dt>전체 불량 비중</dt>
+              <dd>{qualityShare}%</dd>
             </div>
           </dl>
-          {panel.quality.focus && (
-            <p className="rt-note">
-              RG3 RH의 불량 기록 27건 중 25건이 10/22–23에 집중되어 있어요. 해당 기간의 공정 조건과
-              조치 이력을 우선 비교해 보세요.
-            </p>
-          )}
-          <p className="demo-disclaimer">
+          <p className="metric-basis">
             중복 제거 라벨 기록 기준이며 전체 생산 불량률이 아닙니다.
+            {qualityPanel.focus
+              ? ` ${qualityPanel.product}의 불량 기록 ${qualityPanel.defects}건 중 25건이 10/22–23에 집중되어 있어요.`
+              : ''}
           </p>
+          <button
+            type="button"
+            className="metric-link"
+            onClick={() => {
+              setPanel(null);
+              navigate(`/records?product=${encodeURIComponent(qualityPanel.product)}`);
+            }}
+          >
+            같은 제품 생산·검사 이력 보기
+            <ArrowUpRight size={14} />
+          </button>
         </Modal>
       )}
 
-      {panel?.kind === 'status' && (
+      {statusPanel && (
         <Modal
-          title={`${panel.label === '정상' ? '가동 중' : panel.label} 설비 ${statusGroupMachines(panel.label).length}대`}
+          title={`${statusPanel.label === '정상' ? '가동 중' : statusPanel.label} 설비 ${statusPanelMachines.length}대`}
+          wide
           onClose={() => setPanel(null)}
         >
-          <ul className="rt-status-list">
-            {statusGroupMachines(panel.label).map((machine) => (
-              <li key={machine.name}>
-                <strong>{machine.name}</strong>
-                <span className="rt-status-product">{machine.product}</span>
-                <span className={`pill ${statePill[machine.state]}`}>{machine.state}</span>
+          <section className="metric-summary" aria-label="설비 상태 요약">
+            <p className="metric-eyebrow">
+              전체 {statusCounts.total}대 중 {statusPanelMachines.length}대 ·{' '}
+              {Math.round((statusPanelMachines.length / statusCounts.total) * 100)}%
+            </p>
+            <div className="metric-value">
+              <strong>{statusPanelMachines.length}</strong>
+              <span className="metric-unit">대</span>
+              <span
+                className={`pill ${statusPanel.label === '정상' ? 'pill-green' : statePill[statusPanel.label]}`}
+              >
+                {statusPanel.label === '정상' ? '가동 중' : statusPanel.label}
+              </span>
+            </div>
+            <p className="metric-sub">
+              {statusPanel.label === '정상'
+                ? `정상 ${statusCounts.normal}대와 주의 ${statusCounts.caution}대를 함께 표시합니다.`
+                : statusPanel.label === '휴식'
+                  ? '현재 가동하지 않는 설비입니다.'
+                  : '최근 기록과 점검 이력을 확인해 주세요.'}
+            </p>
+          </section>
+          <div
+            className="state-composition"
+            role="img"
+            aria-label={`전체 설비 구성: ${stateOrder
+              .map((state) => `${state} ${stateCounts[state]}대`)
+              .join(', ')}`}
+          >
+            {stateOrder.map((state) => (
+              <span
+                key={state}
+                style={{
+                  width: `${(stateCounts[state] / statusCounts.total) * 100}%`,
+                  background: stateColor[state],
+                }}
+                title={`${state} ${stateCounts[state]}대`}
+              />
+            ))}
+          </div>
+          <ul className="state-legend">
+            {stateOrder.map((state) => (
+              <li key={state}>
+                <i style={{ background: stateColor[state] }} />
+                {state} {stateCounts[state]}대
               </li>
             ))}
           </ul>
+          <section className="metric-section" aria-label="설비 목록">
+            <div className="metric-section-head">
+              <h3>설비 목록</h3>
+              <span className="metric-ref">{statusPanelMachines.length}대</span>
+            </div>
+            <ul className="metric-machine-list">
+              {statusPanelMachines.map((machine) => (
+                <li key={machine.name}>
+                  <button
+                    type="button"
+                    aria-label={`${machine.name} 상세 보기`}
+                    onClick={() => setPanel({ kind: 'machine', machine })}
+                  >
+                    <span className="metric-machine-name">
+                      {machine.name}
+                      <small>{machine.product}</small>
+                    </span>
+                    <span className={`pill ${statePill[machine.state]}`}>{machine.state}</span>
+                    <span className="metric-machine-progress">{machine.progress}%</span>
+                    <ChevronRight size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <p className="metric-basis">설비 상태와 진행률은 시연용 예시입니다.</p>
         </Modal>
       )}
 
       {panel?.kind === 'production' && (
-        <Modal title="월 전체 생산량 상세" onClose={() => setPanel(null)}>
-          <dl className="rt-detail">
+        <Modal title="월 전체 생산량 상세" wide onClose={() => setPanel(null)}>
+          <section className="metric-summary" aria-label="이번 달 생산 요약">
+            <p className="metric-eyebrow">이번 달 누계</p>
+            <div className="metric-value">
+              <strong>{productionSummary.today.toLocaleString()}</strong>
+              <span className="metric-unit">개</span>
+              <span className={`pill ${productionDelta >= 0 ? 'pill-green' : 'pill-red'}`}>
+                {productionDelta >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                저번 달 대비 {signed(productionDelta)}%
+              </span>
+            </div>
+            <p className="metric-sub">
+              목표 {productionSummary.todayTarget.toLocaleString()}개 중{' '}
+              {productionProgress.toFixed(1)}% 달성
+            </p>
+          </section>
+          <MetricTrendChart
+            title="이번 달 누계 추이"
+            points={productionCumulative}
+            reference={{
+              value: productionSummary.todayTarget,
+              label: `목표 ${productionSummary.todayTarget.toLocaleString()}개`,
+            }}
+            seriesLabel="누계"
+            formatValue={(value) => `${value.toLocaleString()}개`}
+          />
+          <dl className="metric-stats">
             <div>
-              <dt>이번 달 누계</dt>
-              <dd>{productionSummary.today.toLocaleString()}개</dd>
+              <dt>오늘 생산</dt>
+              <dd>{productionSummary.todayOutput.toLocaleString()}개</dd>
             </div>
             <div>
-              <dt>이번 달 목표</dt>
-              <dd>{productionSummary.todayTarget.toLocaleString()}개</dd>
+              <dt>이번 주</dt>
+              <dd>{productionSummary.thisWeek.toLocaleString()}개</dd>
             </div>
             <div>
               <dt>저번 달</dt>
               <dd>{productionSummary.previousToday.toLocaleString()}개</dd>
             </div>
-            <div>
-              <dt>어제 · 오늘</dt>
-              <dd>
-                {productionSummary.yesterday.toLocaleString()}개 ·{' '}
-                {productionSummary.todayOutput.toLocaleString()}개
-              </dd>
-            </div>
-            <div>
-              <dt>지난주 · 이번주</dt>
-              <dd>
-                {productionSummary.lastWeek.toLocaleString()}개 ·{' '}
-                {productionSummary.thisWeek.toLocaleString()}개
-              </dd>
-            </div>
           </dl>
-          <p className="rt-note">
-            이번 달 목표 달성률은 96.9%예요. 저번 달 대비 생산량이 +4.2% 늘었어요.
+          <p className="metric-basis">
+            월 누계·목표와 비교 값은 시연용 예시입니다. 누계 추이는 최근 9일 생산량을 합산한
+            값입니다.
           </p>
+          <button
+            type="button"
+            className="metric-link"
+            onClick={() => {
+              setPanel(null);
+              navigate('/records');
+            }}
+          >
+            생산·검사 이력에서 보기
+            <ArrowUpRight size={14} />
+          </button>
         </Modal>
       )}
 
       {panel?.kind === 'defect' && (
-        <Modal title="검사 불량률 상세" onClose={() => setPanel(null)}>
-          <dl className="rt-detail">
-            <div>
-              <dt>어제</dt>
-              <dd>{defectRatePrevious}%</dd>
+        <Modal title="검사 불량률 상세" wide onClose={() => setPanel(null)}>
+          <section className="metric-summary" aria-label="검사 불량률 요약">
+            <p className="metric-eyebrow">이번주 · 라벨 검사 기준</p>
+            <div className="metric-value">
+              <strong>{defect.rate}</strong>
+              <span className="metric-unit">%</span>
+              <span className={`pill ${defectDelta <= 0 ? 'pill-green' : 'pill-red'}`}>
+                {defectDelta <= 0 ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
+                어제 대비 {signed(defectDelta, 2)}%p
+              </span>
             </div>
-            <div>
-              <dt>오늘</dt>
-              <dd>{defect.rate}%</dd>
-            </div>
-            <div>
-              <dt>변화</dt>
-              <dd>0.32%p 감소</dd>
-            </div>
+            <p className="metric-sub">점검 기준 {inspectionThreshold}% 이하</p>
+          </section>
+          <MetricTrendChart
+            title="이번주 검사 불량률"
+            points={defectRateTrend}
+            reference={{
+              value: inspectionThreshold,
+              label: `점검 기준 ${inspectionThreshold}%`,
+            }}
+            seriesLabel="불량률"
+            formatValue={(value) => `${value}%`}
+          />
+          <dl className="metric-stats">
             <div>
               <dt>검사 기록수</dt>
               <dd>{defect.inspections.toLocaleString()}건</dd>
             </div>
+            <div>
+              <dt>불량 수</dt>
+              <dd>{defect.defects.toLocaleString()}건</dd>
+            </div>
+            <div>
+              <dt>점검 기준</dt>
+              <dd>{inspectionThreshold}%</dd>
+            </div>
           </dl>
-          <p className="rt-note">
-            제품별 불량 내역은 화면의 제품별 품질 현황 표에서 확인할 수 있어요.
-          </p>
-          <p className="demo-disclaimer">
-            중복 제거 라벨 기록 기준이며 전체 생산 불량률이 아닙니다.
-          </p>
+          <p className="metric-basis">중복 제거 라벨 기록 기준이며 전체 생산 불량률이 아닙니다.</p>
+          <button
+            type="button"
+            className="metric-link"
+            onClick={() => {
+              setPanel(null);
+              navigate('/quality-reports');
+            }}
+          >
+            품질 리포트에서 보기
+            <ArrowUpRight size={14} />
+          </button>
         </Modal>
       )}
     </>
