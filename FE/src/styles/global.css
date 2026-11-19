@@ -3280,17 +3280,28 @@ textarea {
 }
 
 /* ===== 일정 관리 페이지 (/schedule) ===== */
+/* 일정 탭은 스크롤 없이 화면 한 화면에 들어간다(200px = 탑바 + 필터 행 + 패딩) */
 .sc-grid {
   display: grid;
   grid-template-columns: auto 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  height: calc(100vh - 200px);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
+/* 캘린더 높이 = 탑바·필터·패딩(200px)을 제외한 화면 높이, 폭 960px 상한.
+   남은 폭이 부족한 좁은 화면에서는 폭 상한을 따른다. */
 .sc-calendar {
   display: flex;
   flex-direction: column;
-  width: 440px;
+  align-self: start;
+  width: min(calc(100vh - 200px), calc(100vw - 704px), 960px);
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 1 / 1;
+  /* 칸이 넘쳐도 카드가 커져 페이지 스크롤이 생기지 않게 한다 */
+  min-height: 0;
+  overflow: hidden;
 }
 .sc-month-head {
   display: flex;
@@ -3299,9 +3310,9 @@ textarea {
   margin-bottom: 12px;
 }
 .sc-month-head strong {
-  font-size: 17px;
+  font-size: 28px;
   font-weight: 650;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.5px;
 }
 .sc-weekdays {
   display: grid;
@@ -3311,31 +3322,61 @@ textarea {
 }
 .sc-weekdays span {
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   font-weight: 600;
   padding: 4px 0;
 }
+/* 칸은 항상 정사각, 남는 세로 공간은 행간이 흡수해 바닥이 비지 않는다 */
 .sc-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: 1fr;
+  align-content: space-between;
   flex: 1;
   gap: 4px;
 }
 .sc-day {
   position: relative;
+  aspect-ratio: 1 / 1;
   min-height: 0;
   border: 1px solid transparent;
   border-radius: 10px;
   background: none;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 18px;
   color: var(--ink);
   cursor: pointer;
-  display: grid;
-  place-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 9% 0 7%;
   transition: background 0.15s;
+}
+.sc-day:hover {
+  background: rgba(139, 92, 246, 0.08);
+}
+.sc-day.selected {
+  color: var(--primary);
+  font-weight: 650;
+}
+.sc-day-out {
+  color: var(--muted);
+  cursor: default;
+  pointer-events: none;
+}
+.sc-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 6px;
+  max-width: 100%;
+}
+.sc-day-out {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
 }
 .sc-day:hover {
   background: rgba(139, 92, 246, 0.08);
@@ -3345,66 +3386,145 @@ textarea {
   color: #fff;
   font-weight: 650;
 }
-.sc-day i {
+.sc-dots {
   position: absolute;
-  bottom: 5px;
+  bottom: 8px;
   left: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
   transform: translateX(-50%);
-  background: var(--primary);
+  display: flex;
+  gap: 4px;
 }
-.sc-day.selected i {
-  background: #fff;
+.sc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sc-dot-amber {
+  background: #f59e0b;
+}
+.sc-dot-green {
+  background: #10b981;
+}
+.sc-dot-violet {
+  background: #8b5cf6;
+}
+/* 선택일 하이라이트: 칸 하단에 붙는 정사각 블록 — 높이 기준이라 어떤 칸에서도 정사각 유지 */
+.sc-plate {
+  margin-top: auto;
+  height: 46%;
+  aspect-ratio: 1 / 1;
+  background: var(--primary);
+  border-radius: 12px;
+}
+.dark .sc-plate {
+  background: #635b85;
+}
+.segmented-control button:has(.sc-dot) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sc-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .sc-detail .card-heading {
   margin-bottom: 8px;
 }
+/* 일정 목록 제목: 월과 날짜 숫자 사이 단계(월 > 일별 일정 제목 > 일 = 일정 항목) */
+.sc-detail .card-heading h2 {
+  font-size: 22px;
+  line-height: 30px;
+}
 .sc-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 2px 8px 2px 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
+/* 일별 일정 타임라인: 시간 왼쪽 · 종류 색 노드와 세로선 · 오른쪽에 내용 */
 .sc-list li {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 0;
-  border-bottom: 1px dashed var(--border);
+  gap: 12px;
+  padding: 14px 0;
 }
-.sc-list li:last-child {
-  border-bottom: none;
+.sc-list li::before {
+  content: '';
+  position: absolute;
+  left: 57px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border);
 }
-.sc-list .pill {
+.sc-list li:first-child::before {
+  top: 24px;
+}
+.sc-list li:last-child::before {
+  top: 0;
+  bottom: auto;
+  height: 24px;
+}
+.sc-list li:only-child::before {
+  display: none;
+}
+.sc-timeline-time {
   flex-shrink: 0;
-  margin-top: 1px;
+  width: 44px;
+  padding-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sc-node {
+  position: absolute;
+  left: 53px;
+  top: 19px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 .sc-item-main {
   flex: 1;
+  min-width: 0;
+  /* 타임라인 선·노드와 칩/내용 사이 간격 */
+  margin-left: 16px;
 }
-.sc-item-main strong {
-  display: block;
-  font-size: 14px;
-}
-.sc-item-main > span {
-  display: inline-flex;
+.sc-item-head {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 2px;
+  gap: 8px;
+}
+/* 일정 제목은 일정추가 버튼 글자(14px)와 같은 위계 */
+.sc-item-head strong {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
 }
 .sc-item-main p {
-  margin: 4px 0 0;
-  font-size: 12.5px;
+  margin: 6px 0 0;
+  font-size: 14px;
   color: var(--muted);
-  line-height: 18px;
+  line-height: 20px;
 }
 .sc-add {
-  margin-top: 16px;
+  margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid var(--border);
+}
+/* 일정추가 버튼은 일정 항목과 같은 위계: 항목 크기(14px)에 맞춰 버튼 무게를 낮춘다 */
+.sc-add .button {
+  min-height: 40px;
+  padding: 8px 14px;
 }
 .sc-add-form {
   display: grid;
@@ -3428,13 +3548,26 @@ textarea {
 .sc-add .demo-disclaimer {
   margin: 10px 0 0;
 }
+/* 화면이 좁거나 낮으면 칸 정사각을 완화해 넘침(=페이지 스크롤)을 막는다 */
+@media (max-height: 850px), (max-width: 1350px) {
+  .sc-days {
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+  }
+  .sc-day {
+    aspect-ratio: auto;
+  }
+}
 @media (max-width: 1100px) {
   .sc-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    height: auto;
+    align-items: start;
   }
   .sc-calendar {
     width: 100%;
-    max-width: 440px;
+    max-width: 520px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
