@@ -1241,3 +1241,77 @@
     font-size: 12px;
   }
 }
+/* 필터 결과 수와 관계없이 표 영역 높이를 유지한다. */
+.inv-table-scroll {
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.inv-stock-table td {
+  box-sizing: border-box;
+  height: 81px;
+}
+.inv-product-bars > button {
+  position: relative;
+  overflow: visible;
+  min-height: 48px;
+}
+.inv-product-bars > button > b {
+  white-space: nowrap;
+}
+.inv-product-bars > button > b > small {
+  font-size: 10px;
+  margin-left: 4px;
+  color: var(--muted);
+}
+.inv-stock-tooltip {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  bottom: calc(100% + 9px);
+  min-width: 210px;
+  background: #29263f;
+  color: #fff;
+  border: 1px solid #635b85;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 8px 26px #29263f25;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(5px);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+  text-align: left;
+}
+.inv-stock-tooltip > strong {
+  display: block;
+  font-size: 12px !important;
+  color: #fff !important;
+  margin-bottom: 12px;
+}
+.inv-stock-tooltip > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 11px;
+  line-height: 2.1;
+  color: #dcd7e8;
+}
+.inv-stock-tooltip b {
+  color: #fff;
+  font-size: 11px !important;
+}
+.inv-product-bars > button:hover .inv-stock-tooltip,
+.inv-product-bars > button:focus-visible .inv-stock-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+.inv-product-summary {
+  overflow: visible;
+}
+.inv-table-scroll:focus-visible {
+  outline: 2px solid #c1b7d4;
+  outline-offset: 2px;
+}

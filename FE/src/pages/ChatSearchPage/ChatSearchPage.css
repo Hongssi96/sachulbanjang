@@ -614,3 +614,52 @@
     gap: 8px;
   }
 }
+/* 대화 내용과 화면에 별도 세로 스크롤을 만들지 않는다. */
+.cs-messages {
+  max-height: none;
+  overflow: visible;
+  min-height: 260px;
+}
+.cs-composer:focus-within {
+  outline: none;
+  box-shadow: 0 0 0 2px #635b8509;
+  border-color: #c7bfd6;
+}
+.cs-composer textarea:focus-visible {
+  outline: none;
+}
+.cs-ai-mark {
+  background: #635b85;
+}
+.chat-page > .rd-heading {
+  margin-bottom: 20px;
+}
+.chat-page .cs-message.assistant .cs-avatar {
+  background: #e7f5ee;
+  color: #317756;
+}
+.chat-page .cs-disclaimer {
+  font-size: 10px;
+}
+.cs-mode {
+  margin-left: auto;
+}
+.chat-page .cs-history-search input {
+  padding-left: 33px;
+}
+.chat-page .cs-global-search input {
+  padding-left: 0;
+}
+/* 저장 대화와 추천 검색어에 동일한 서비스 글꼴을 적용한다. */
+.chat-page .cs-history-items button,
+.chat-page .cs-chips button {
+  font-family: Pretendard, 'Malgun Gothic', sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.chat-page .cs-history-items button small {
+  font-family: inherit;
+  font-weight: 400;
+}

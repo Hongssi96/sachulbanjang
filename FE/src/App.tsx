@@ -1,19 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
+import LoadingState from './components/LoadingState';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router';
-import { Bell, Check, ChevronRight, Factory, LogOut } from 'lucide-react';
+import { Bell, Check, ChevronRight, Factory, LogOut, PanelLeftOpen, Maximize2 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import Modal from './components/Modal';
-import HomePage from './pages/HomePage';
-import SchedulePage from './pages/SchedulePage';
-import RealtimePage from './pages/RealtimePage';
-import InventoryPage from './pages/InventoryPage/InventoryPage';
-import QualityReportPage from './pages/QualityReportPage/QualityReportPage';
-import RecordsPage, { RecordDetailPage } from './pages/RecordsPage/RecordsPage';
-import PrecisionInspectionPage from './pages/PrecisionInspectionPage/PrecisionInspectionPage';
-import ChatSearchPage from './pages/ChatSearchPage/ChatSearchPage';
-import NotFoundPage from './pages/NotFoundPage';
+
+const RecordsPage = lazy(() => import('./pages/RecordsPage/RecordsPage'));
+const RecordDetailPage = lazy(() =>
+  import('./pages/RecordsPage/RecordsPage').then((module) => ({
+    default: module.RecordDetailPage,
+  })),
+);
+
 import { reports } from './constants/demoData';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const SchedulePage = lazy(() => import('./pages/SchedulePage'));
+const RealtimePage = lazy(() => import('./pages/RealtimePage'));
+const InventoryPage = lazy(() => import('./pages/InventoryPage/InventoryPage'));
+const QualityReportPage = lazy(() => import('./pages/QualityReportPage/QualityReportPage'));
+const PrecisionInspectionPage = lazy(
+  () => import('./pages/PrecisionInspectionPage/PrecisionInspectionPage'),
+);
+const ChatSearchPage = lazy(() => import('./pages/ChatSearchPage/ChatSearchPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 const menuRoutes: Record<string, string> = {
   홈: '/',
@@ -49,6 +60,14 @@ export default function App() {
   const [offWorkModalOpen, setOffWorkModalOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const routePath = location.pathname.replace(/\/$/, '') || '/';
+  const isChat = routePath === '/chat';
+  const chatFocus = isChat && new URLSearchParams(location.search).get('menu') !== 'show';
+  const toggleChatMenu = () => {
+    const query = new URLSearchParams(location.search);
+    if (chatFocus) query.set('menu', 'show');
+    else query.delete('menu');
+    navigate({ pathname: location.pathname, search: query.toString() }, { replace: true });
+  };
   const activeMenu =
     Object.entries(menuRoutes).find(
       ([, route]) => route === routePath || (route !== '/' && routePath.startsWith(route + '/')),
@@ -95,21 +114,11 @@ export default function App() {
     if (route) navigate(route);
     else setPlaceholder(name);
   };
-  const askAssistant = () => {
-    const focus = () => {
-      document.getElementById('assistant')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      document.getElementById('question')?.focus({ preventScroll: true });
-    };
-    if (location.pathname !== '/') {
-      setToast('홈 사출반장으로 이동했어요. 이어서 질문해 주세요.');
-      navigate('/');
-      window.setTimeout(focus, 120);
-    } else {
-      focus();
-    }
-  };
+  const askAssistant = () => navigate('/chat?chat=new');
   return (
-    <div className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${dark ? 'dark' : ''}`}>
+    <div
+      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${dark ? 'dark' : ''} ${chatFocus ? 'chat-focus' : ''}`}
+    >
       <a className="skip-link" href="#main-content">
         본문으로 바로가기
       </a>
@@ -134,30 +143,46 @@ export default function App() {
           onRelogin={relogin}
         />
         <main id="main-content">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <HomePage
-                  onToast={setToast}
-                  extended={extended}
-                  onToggleExtended={toggleExtended}
-                />
-              }
-            />
-            <Route path="/realtime" element={<RealtimePage />} />
-            <Route path="/schedule" element={<SchedulePage onToast={setToast} />} />
-            <Route path="/records" element={<RecordsPage />} />
-            <Route path="/records/:recordId" element={<RecordDetailPage />} />
-            <Route
-              path="/records/:recordId/precision-inspection"
-              element={<PrecisionInspectionPage />}
-            />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/quality-reports" element={<QualityReportPage />} />
-            <Route path="/chat" element={<ChatSearchPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+          {isChat && (
+            <div className="chat-display-controls">
+              <span>{chatFocus ? '대화·검색' : ''}</span>
+              <button
+                type="button"
+                className="button button-white"
+                onClick={toggleChatMenu}
+                aria-expanded={!chatFocus}
+              >
+                {chatFocus ? <PanelLeftOpen size={17} /> : <Maximize2 size={17} />}
+                {chatFocus ? '메뉴 보이기' : '메뉴 숨기고 확대'}
+              </button>
+            </div>
+          )}
+          <Suspense fallback={<LoadingState />}>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <HomePage
+                    onToast={setToast}
+                    extended={extended}
+                    onToggleExtended={toggleExtended}
+                  />
+                }
+              />
+              <Route path="/realtime" element={<RealtimePage />} />
+              <Route path="/schedule" element={<SchedulePage onToast={setToast} />} />
+              <Route path="/records" element={<RecordsPage />} />
+              <Route path="/records/:recordId" element={<RecordDetailPage />} />
+              <Route
+                path="/records/:recordId/precision-inspection"
+                element={<PrecisionInspectionPage />}
+              />
+              <Route path="/inventory" element={<InventoryPage />} />
+              <Route path="/quality-reports" element={<QualityReportPage />} />
+              <Route path="/chat" element={<ChatSearchPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
       {toast && (
@@ -184,7 +209,7 @@ export default function App() {
               <li>보고를 누르면 상세 내용이 열립니다.</li>
               <li>달력에서 날짜를 선택해 일정을 확인하세요.</li>
               <li>인수인계 노트를 작성하고 확인 상태를 관리하세요.</li>
-              <li>하단 사출반장에서 예시 질문을 실행해 보세요.</li>
+              <li>대화·검색 화면에서 예시 질문을 실행해 보세요.</li>
             </ul>
             <button className="button button-primary" onClick={() => setPlaceholder('')}>
               닫기
