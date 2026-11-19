@@ -1,5 +1,3 @@
-import { useId } from 'react';
-
 interface MetricPoint {
   label: string;
   value: number;
@@ -45,7 +43,6 @@ export default function MetricTrendChart({
   seriesLabel,
   formatValue,
 }: MetricTrendChartProps) {
-  const gradientId = `metric-trend-${useId().replaceAll(':', '')}`;
   if (!points.length) return <p className="metric-empty">표시할 기록이 없어요.</p>;
 
   const step = niceStep(Math.max(reference.value, ...points.map((point) => point.value)) / 4);
@@ -54,7 +51,6 @@ export default function MetricTrendChart({
     points.length === 1 ? LEFT + PLOT_WIDTH / 2 : LEFT + (index * PLOT_WIDTH) / (points.length - 1);
   const y = (value: number) => TOP + PLOT_HEIGHT - (value / max) * PLOT_HEIGHT;
   const line = points.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
-  const area = `M${x(0)},${TOP + PLOT_HEIGHT} L${line.replaceAll(' ', ' L')} L${x(points.length - 1)},${TOP + PLOT_HEIGHT} Z`;
   const ariaLabel = `${title}. ${points
     .map((point) => `${point.label} ${formatValue(point.value)}`)
     .join(', ')}. ${reference.label}.`;
@@ -69,70 +65,65 @@ export default function MetricTrendChart({
         </span>
       </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={ariaLabel}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#635B85" stopOpacity=".18" />
-            <stop offset="100%" stopColor="#635B85" stopOpacity=".02" />
-          </linearGradient>
-        </defs>
         {[0, 1, 2, 3, 4].map((index) => (
-          <g key={index}>
-            <line
-              x1={LEFT}
-              x2={WIDTH - RIGHT}
-              y1={y(index * step)}
-              y2={y(index * step)}
-              stroke="var(--border)"
-              strokeDasharray="3 5"
-            />
-            <text x={LEFT - 10} y={y(index * step) + 4} textAnchor="end">
-              {formatValue(index * step)}
-            </text>
-          </g>
+          <line
+            key={index}
+            x1={LEFT}
+            x2={WIDTH - RIGHT}
+            y1={y(index * step)}
+            y2={y(index * step)}
+            stroke="var(--border)"
+            strokeDasharray="3 5"
+          />
+        ))}
+        {[0, 1, 2, 3, 4].map((index) => (
+          <text key={index} x={LEFT - 10} y={y(index * step) + 4} textAnchor="end">
+            {formatValue(index * step)}
+          </text>
         ))}
         <line
+          className="metric-ref-line"
           x1={LEFT}
           x2={WIDTH - RIGHT}
           y1={y(reference.value)}
           y2={y(reference.value)}
-          stroke="#F2BB69"
-          strokeWidth="2"
-          strokeDasharray="5 5"
+          stroke="var(--metric-reference)"
+          strokeWidth="1"
+          strokeDasharray="4 4"
         >
           <title>{reference.label}</title>
         </line>
-        <path d={area} fill={`url(#${gradientId})`} />
         <polyline
+          className="metric-line"
           points={line}
+          pathLength={1}
           fill="none"
           stroke="var(--primary)"
-          strokeWidth="3"
+          strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {points.map((point, index) => {
-          const isLast = index === points.length - 1;
-          const aboveReference = point.value > reference.value;
-          return (
-            <g key={point.label}>
-              <circle
-                cx={x(index)}
-                cy={y(point.value)}
-                r={isLast ? 5 : 4}
-                fill={aboveReference ? '#F2BB69' : isLast ? '#61E2A6' : 'var(--primary)'}
-                stroke="var(--surface)"
-                strokeWidth="2"
-              >
-                <title>
-                  {point.label} · {seriesLabel} {formatValue(point.value)}
-                </title>
-              </circle>
-              <text x={x(index)} y={HEIGHT - 10} textAnchor="middle">
-                {point.label}
-              </text>
-            </g>
-          );
-        })}
+        {points.map((point, index) => (
+          <circle
+            className="metric-dot"
+            key={point.label}
+            cx={x(index)}
+            cy={y(point.value)}
+            r={index === points.length - 1 ? 4.5 : 3}
+            fill={index === points.length - 1 ? '#61E2A6' : 'var(--primary)'}
+            stroke="var(--surface)"
+            strokeWidth="2"
+          >
+            <title>
+              {point.label} · {seriesLabel} {formatValue(point.value)}
+            </title>
+          </circle>
+        ))}
+        {points.map((point, index) => (
+          <text key={point.label} x={x(index)} y={HEIGHT - 10} textAnchor="middle">
+            {point.label}
+          </text>
+        ))}
       </svg>
     </section>
   );

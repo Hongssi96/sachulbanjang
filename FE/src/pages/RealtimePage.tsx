@@ -659,7 +659,7 @@ export default function RealtimePage() {
       </section>
 
       {machineDetail && (
-        <Modal title={`${machineDetail.name} 상세`} wide onClose={() => setPanel(null)}>
+        <Modal title={`${machineDetail.name} 상세`} wide plain onClose={() => setPanel(null)}>
           <section className="metric-summary" aria-label={`${machineDetail.name} 요약`}>
             <p className="metric-eyebrow">{machineDetail.product} · 작업 진행률</p>
             <div className="metric-value">
@@ -753,7 +753,12 @@ export default function RealtimePage() {
       )}
 
       {qualityPanel && (
-        <Modal title={`${qualityPanel.product} 품질 상세`} wide onClose={() => setPanel(null)}>
+        <Modal
+          title={`${qualityPanel.product} 품질 상세`}
+          wide
+          plain
+          onClose={() => setPanel(null)}
+        >
           <section className="metric-summary" aria-label={`${qualityPanel.product} 품질 요약`}>
             <p className="metric-eyebrow">라벨 검사 기준</p>
             <div className="metric-value">
@@ -772,7 +777,7 @@ export default function RealtimePage() {
           <section className="metric-section" aria-label="점검 기준 대비">
             <div className="metric-section-head">
               <h3>점검 기준 대비</h3>
-              <span className="metric-ref is-ink">
+              <span className="metric-ref">
                 <i />
                 점검 기준 {inspectionThreshold}%
               </span>
@@ -836,6 +841,7 @@ export default function RealtimePage() {
         <Modal
           title={`${statusPanel.label === '정상' ? '가동 중' : statusPanel.label} 설비 ${statusPanelMachines.length}대`}
           wide
+          plain
           onClose={() => setPanel(null)}
         >
           <section className="metric-summary" aria-label="설비 상태 요약">
@@ -916,7 +922,7 @@ export default function RealtimePage() {
       )}
 
       {panel?.kind === 'production' && (
-        <Modal title="월 전체 생산량 상세" wide onClose={() => setPanel(null)}>
+        <Modal title="월 전체 생산량 상세" wide plain onClose={() => setPanel(null)}>
           <section className="metric-summary" aria-label="이번 달 생산 요약">
             <p className="metric-eyebrow">이번 달 누계</p>
             <div className="metric-value">
@@ -975,7 +981,7 @@ export default function RealtimePage() {
       )}
 
       {panel?.kind === 'defect' && (
-        <Modal title="검사 불량률 상세" wide onClose={() => setPanel(null)}>
+        <Modal title="검사 불량률 상세" wide plain onClose={() => setPanel(null)}>
           <section className="metric-summary" aria-label="검사 불량률 요약">
             <p className="metric-eyebrow">이번주 · 라벨 검사 기준</p>
             <div className="metric-value">

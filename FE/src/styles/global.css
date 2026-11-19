@@ -20,6 +20,7 @@
   --border: #e2e2e8;
   --muted: #777583;
   --soft: #f8f8fa;
+  --metric-reference: #dd8296;
 }
 * {
   box-sizing: border-box;
@@ -1561,6 +1562,9 @@ main {
 .modal-heading h2 {
   font-size: 20px;
   line-height: 28px;
+}
+.modal-plain .modal-heading {
+  border-bottom: none;
 }
 .modal-body {
   padding: 24px;
@@ -3762,9 +3766,7 @@ textarea {
 }
 .metric-chart,
 .metric-section {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
+  margin-top: 26px;
 }
 .metric-chart-head,
 .metric-section-head {
@@ -3791,7 +3793,7 @@ textarea {
 .metric-ref i {
   display: block;
   width: 16px;
-  border-top: 2px dashed #f2bb69;
+  border-top: 1px dashed var(--metric-reference);
 }
 .metric-chart svg {
   display: block;
@@ -3803,6 +3805,39 @@ textarea {
 .metric-chart text {
   font-size: 11px;
   fill: var(--muted);
+}
+/* 모달이 열리면 선은 그려지고 점·기준선은 뒤이어 나타난다. */
+.metric-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: metric-draw 0.75s ease-out forwards;
+}
+.metric-ref-line {
+  opacity: 0;
+  animation: metric-fade 0.4s ease-out 0.15s forwards;
+}
+.metric-dot {
+  opacity: 0;
+  animation: metric-fade 0.35s ease-out 0.5s forwards;
+}
+@keyframes metric-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes metric-fade {
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .metric-line,
+  .metric-ref-line,
+  .metric-dot {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
 }
 .metric-progress {
   height: 8px;
@@ -3826,9 +3861,6 @@ textarea {
 .metric-state-note.is-alert {
   color: #d95f70;
 }
-.metric-ref.is-ink i {
-  border-top-color: var(--ink);
-}
 .metric-gauge {
   position: relative;
   height: 12px;
@@ -3848,7 +3880,7 @@ textarea {
   top: -4px;
   bottom: -4px;
   width: 0;
-  border-left: 2px dashed var(--ink);
+  border-left: 1px dashed var(--metric-reference);
   transform: translateX(-1px);
 }
 .metric-gauge-note {
@@ -3892,12 +3924,9 @@ textarea {
   border-radius: 9999px;
 }
 .metric-machine-list {
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
-}
-.metric-machine-list li + li {
-  border-top: 1px solid var(--border);
 }
 .metric-machine-list button {
   display: grid;
@@ -3905,7 +3934,7 @@ textarea {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 12px 4px;
+  padding: 13px 4px;
   text-align: left;
   border-radius: 6px;
 }

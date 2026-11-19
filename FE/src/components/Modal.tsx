@@ -7,8 +7,10 @@ interface ModalProps {
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  /** 제목 아래 구분선을 없앤 최소형 헤더를 쓴다. */
+  plain?: boolean;
 }
-export default function Modal({ title, children, onClose, wide }: ModalProps) {
+export default function Modal({ title, children, onClose, wide, plain }: ModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
@@ -22,7 +24,7 @@ export default function Modal({ title, children, onClose, wide }: ModalProps) {
   return (
     <dialog
       ref={dialog}
-      className={`modal ${wide ? 'modal-wide' : ''}`}
+      className={`modal ${wide ? 'modal-wide' : ''} ${plain ? 'modal-plain' : ''}`}
       aria-labelledby="modal-title"
       onCancel={(event) => {
         event.preventDefault();
