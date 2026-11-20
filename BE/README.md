@@ -46,6 +46,23 @@ uvicorn app.main:app --reload
 - liveness: `GET http://localhost:8000/api/v1/health/live`
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
+### 공정 CSV 적재
+
+마이그레이션 적용 후 공정 CSV의 원본 시간대를 명시해 적재한다. 현재 원본 TimeStamp의 시간대는
+업무 확인 전이므로 명령에 기본값을 두지 않는다.
+
+```powershell
+python -m app.commands.import_process_csv `
+  "C:\path\to\molding.csv" `
+  --source-timezone Asia/Seoul
+```
+
+DB에 연결하거나 저장하지 않고 전체 행만 검증하려면 `--validate-only`를 추가한다.
+
+적재는 파일 전체를 하나의 트랜잭션으로 처리한다. 필수 헤더·수치·마스터 데이터 충돌이 있으면
+전체를 롤백한다. 같은 파일 fingerprint는 재적재하지 않고, 같은 `_id`가 다른 내용으로 들어오면
+충돌로 중단한다. 원본 파일은 저장소에 커밋하지 않는다.
+
 ## 4. 검증
 
 ```powershell

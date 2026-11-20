@@ -33,13 +33,13 @@
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
 | source_import | source_name, source_fingerprint UNIQUE, status, started_at, finished_at?, error_code?. 파일 해시만으로 행의 업무 식별자를 대체하지 않음 |
-| process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number) UNIQUE |
+| process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number), (source_namespace, source_record_key) UNIQUE |
 | inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at, verdict, defect_type?, reason?, is_demo, version, deleted_at |
 | operation_day | equipment_id FK, local_date, planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, local_date) UNIQUE |
 | record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation, before_value, after_value, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나 |
 | process_replay | source_import_id FK, cursor, data_time?, last_advanced_at?, state. 재시작 절차는 Q-167 보류 |
 
-확인한 CSV에는 별도 행 ID가 없으므로 원본 파일과 1부터 시작하는 행 번호를 조합해 중복 적재를 막는다. source_record_key는 원천별 추적 키로 보존하되 현재 전역 UNIQUE로 가정하지 않는다. 같은 파일 fingerprint의 재적재는 거부하고 원본 행 전체를 source_payload에 보존한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.
+확인한 세 CSV 모두 `_id`를 제공하며 elice_v1과 labeled 데이터에 같은 키가 재등장한다. 원본 파일과 1부터 시작하는 행 번호로 파일 내 위치를 식별하고, source namespace와 `_id` 조합의 UNIQUE로 교차 파일 중복 적재를 막는다. 같은 키·같은 원본 내용은 건너뛰고 내용이 다르면 충돌로 전체 적재를 롤백한다. 같은 파일 fingerprint의 재적재도 거부하고 원본 행 전체를 source_payload에 보존한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.
 
 확인한 공정 CSV에는 EQUIP_CD·EQUIP_NAME·PART_NO(일부 파일)·PART_NAME·TimeStamp·Cycle_Time이 있다. 설비 코드는 실제 값(S01, S02, S04, S06~S15)을 사용하고 프론트 목업의 사출 1~10호기를 마스터 근거로 사용하지 않는다. 같은 품목이 여러 설비에서 생산되므로 설비와 품목을 고정 1:1로 연결하지 않는다. Cycle_Time은 초 단위 `cycle_time_seconds`로 저장한다. CSV에 없는 라인·설비 상태·목표 생산량·실제 생산 수량은 추론하지 않는다.
 
