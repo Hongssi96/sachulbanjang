@@ -11,6 +11,7 @@
 | Router | 인증·입력 스키마·Service 호출·응답 변환. DB 쿼리·집계 업무를 작성하지 않음 |
 | AuthService / WorkSessionService | 비밀번호 검증·토큰 교체·로그아웃, 서버 시각 기반 종료·연장. 사용자·세션 Repository와 해시/토큰 도구 의존 |
 | ProcessService / InspectionService | 조회·관리자 정정·감사 이력·버전 충돌. 기록 Repository 의존 |
+| ProcessReplayService / Replay Worker | CSV 다음 레코드의 5초 간격 공개와 정상 종료. replay 행 잠금으로 동시 진행을 직렬화하고 조회 시 15초 지연 상태를 계산 |
 | QualityService | 필터 범위 전체의 품질·가동률 집계. 공통 집계는 보고서도 사용 |
 | ReportService | 중복 안내·권한·본문 버전·상태 변경·PDF 제공. 보고 Repository·작업 Repository·Renderer 의존 |
 | GenerationWorker | DB 작업 선점·현재 권한 확인·고정 집계로 AI 호출·원자적 결과 등록. AI 클라이언트·Repository 의존 |
@@ -33,6 +34,7 @@ DB Session은 요청·작업 단위로 전달한다. Service가 트랜잭션 경
 | 작업 접수 | 요청 키 중복 검사 + 기준 시각·대상 고정 + 일관된 집계 스냅샷 영속화 |
 | 생성 완료 | 작업이 아직 실행 중인지 확인 + 보고/답변 등록 + succeeded 전환 |
 | 기본 초기 적재 | 한 실행의 기본 데이터 전체. 실패 시 롤백 |
+| 공정 재생 진행 | replay 행 잠금 + 다음 레코드 공개 시각 + cursor·상태·마지막 갱신 시각 변경 |
 
 외부 AI 응답 대기 중에는 DB 트랜잭션을 열어 두지 않는다. PostgreSQL 작업 테이블과 별도 worker 프로세스를 기본안으로 사용해 요청 수명과 작업 수명을 분리한다. 별도 Redis·브로커를 미리 도입하지 않는다. 작업 선점은 행 잠금으로 중복 실행을 방지하고 시작·종료 상태를 영속화한다. worker 단일 실행부터 검증하며 heartbeat/lease와 재시작 중단 판별을 구현·테스트하기 전 다중 worker로 확장하지 않는다. 자동 재실행은 보류된 기존 정책을 유지한다.
 

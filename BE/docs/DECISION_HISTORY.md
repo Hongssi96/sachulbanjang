@@ -1575,3 +1575,13 @@
 - 토큰은 HS256 JWT(`PyJWT`)를 사용하고 `APP_JWT_SECRET`(32자 이상)으로 서명한다. 리프레시 토큰도 JWT로 발급하되 원문은 저장하지 않고 SHA-256 digest만 DB에 남긴다. 재사용 감지와 세대 교체는 후속 갱신 API에서 구현한다.
 - Python 3.14 기준 `argon2-cffi` 25.1.0, `PyJWT` 2.15.1을 고정 설치했고, Windows 로컬 3.12 환경에서도 동작을 확인했다.
 
+## TECH-009 — 공정 CSV 5초 재생 구현
+
+- DEC-006·DEC-166·DEC-202에 따라 적재된 CSV 레코드를 첫 실행 시 즉시, 이후 5초마다 하나씩 공개하는 재생 Service와 CLI worker를 구현했다.
+- `ProcessReplayService`가 트랜잭션을 소유하고 Repository의 `SELECT ... FOR UPDATE`로 replay 행을 잠근다. 같은 replay를 여러 worker가 실행해도 cursor와 공개 시각을 한 worker만 변경한다.
+- 마지막 레코드를 공개한 트랜잭션에서 상태를 `completed`로 바꾸며 마지막 `data_time`과 공개 값을 유지한다. 빈 replay도 `completed`로 종료하고 자동 반복하지 않는다.
+- 조회용 상태 계산은 실행 상태가 `running`이고 마지막 정상 갱신 후 15초 이상 지났을 때만 `delayed`를 반환한다. 정상 종료 `completed`와 명시적 실패 `failed`는 지연 상태로 덮어쓰지 않는다.
+- 별도 스키마·API 계약 변경은 없다. 현재 공정 조회 API와 FE polling 연동은 후속 작업으로 남긴다.
+- Ruff, mypy, 전체 pytest와 PostgreSQL 18에서 두 레코드 replay가 5초 간격으로 진행되어 마지막에 종료되는 동작을 검증했다.
+- 기록일: 2026-11-20.
+
