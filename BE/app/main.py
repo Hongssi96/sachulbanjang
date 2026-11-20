@@ -8,8 +8,9 @@ from sqlalchemy import Engine
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.migrations import assert_database_at_head
-from app.db.session import create_database_engine
+from app.db.session import create_database_engine, create_session_factory
 from app.middleware import RequestContextMiddleware
+from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
 
 MigrationChecker = Callable[[Engine, Path], None]
@@ -31,8 +32,10 @@ def create_app(
         engine.dispose()
 
     application = FastAPI(title="imleader API", version="0.1.0", lifespan=lifespan)
+    application.state.session_factory = create_session_factory(engine)
     application.add_middleware(RequestContextMiddleware)
     application.include_router(health_router, prefix="/api/v1")
+    application.include_router(auth_router, prefix="/api/v1")
     return application
 
 

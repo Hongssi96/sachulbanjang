@@ -1,9 +1,9 @@
 # imleader Backend
 
 Python 3.14, FastAPI, SQLAlchemy, Alembic, PostgreSQL 18 기반의 백엔드 초기 구성이다.
-현재 실행 환경과 마이그레이션 안전장치, 계정·조직·설비·품목 및 CSV 공정 재생의 핵심
-테이블을 포함한다. 업무 API와 나머지 도메인 테이블은 후속 구현한다. 현재 구조는
-`docs/ERD.md`에서 확인한다.
+현재 실행 환경과 마이그레이션 안전장치, 계정·조직·설비·품목, 로그인 세션 및 CSV 공정 재생의 핵심
+테이블을 포함한다. 사번 로그인과 현재 사용자 조회 API를 제공하며 나머지 업무 API는 후속 구현한다.
+현재 구조는 `docs/ERD.md`에서 확인한다.
 
 ## 1. 로컬 환경 준비
 
@@ -20,7 +20,9 @@ Copy-Item .env.example .env
 
 `.env`의 `APP_DATABASE_URL`, `APP_JWT_SECRET`을 개인 개발 값으로 변경한다. JWT 비밀값은
 32자 이상이어야 한다. `APP_AI_API_KEY`는 선택값이며 비어 있어도 일반 기능은 실행된다.
-실제 `.env`와 비밀값은 커밋하지 않는다.
+`APP_ACCESS_TOKEN_TTL_SECONDS`, `APP_REFRESH_TOKEN_TTL_SECONDS`, `APP_LOGIN_MAX_FAILURES`,
+`APP_LOGIN_LOCK_SECONDS`로 인증 기본값을 조정한다. 실제 HTTPS 배포에서는
+`APP_AUTH_COOKIE_SECURE=true`로 설정한다. 실제 `.env`와 비밀값은 커밋하지 않는다.
 
 ## 2. PostgreSQL과 마이그레이션
 
@@ -44,6 +46,8 @@ uvicorn app.main:app --reload
 
 - OpenAPI: `http://localhost:8000/docs`
 - liveness: `GET http://localhost:8000/api/v1/health/live`
+- 로그인: `POST http://localhost:8000/api/v1/auth/login` (`employee_no`, `password`)
+- 현재 사용자: `GET http://localhost:8000/api/v1/auth/me` (로그인 응답의 액세스 쿠키 필요)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 공정 CSV 적재

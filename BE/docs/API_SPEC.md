@@ -61,7 +61,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 영역 | 상태 | 검증 근거 | 갱신일 |
 | --- | --- | --- | --- |
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
-| 인증 | 미착수 | - | 2026-11-20 |
+| 인증 | 구현 중 | 사번 로그인·현재 사용자 조회·Argon2id 검증·5회 실패 잠금·HttpOnly 쿠키·액세스 15분/리프레시 7일 토큰 발급 구현. pytest 인증 22건·PostgreSQL 18 로그인/잠금 통합 확인. 갱신·로그아웃·CSRF·비밀번호 변경·초기화 미구현 | 2026-11-20 |
 | 근무 | 미착수 | - | 2026-11-20 |
 | 공정 | 구현 중 | 핵심 스키마·원자적 CSV 적재·중복/충돌·한국시간 매핑 구현, pytest 15건·실제 CSV 808,543행 검증·PostgreSQL 18 migration 검증. 5초 재생과 조회 API 미구현 | 2026-11-20 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
@@ -159,6 +159,16 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 - 비동기 상태는 DOMAIN_MODEL.md를 따른다. MVP는 상태 조회 polling으로 완료·실패 알림을 구성하는 기본안이며 SSE·스트리밍을 추가하지 않는다.
 
 쿠키·CSRF와 프런트의 알림·입력 보존·날짜 변환은 FE/BE 상세 계약 확인이 필요하다. 이 문서 작성만으로 FE를 변경하거나 최종 연동을 완료한 것으로 간주하지 않는다.
+
+### 인증 현재 구현 범위 (2026-11-20)
+
+- 구현: `POST /auth/login`, `GET /auth/me`
+- 비밀번호: Argon2id 해시(`argon2-cffi`). 사번이 없어도 같은 비용의 더미 해시를 검증해 응답 시간 차이를 줄인다
+- 잠금: 같은 계정 5회 연속 실패 시 5분 제한(설정값). 잠긴 동안 올바른 비밀번호도 거부하고 `Retry-After`를 반환한다
+- 쿠키: `imleader_access_token`(Path `/`), `imleader_refresh_token`(Path `/api/v1/auth`), 둘 다 HttpOnly·SameSite=Lax. Secure는 `APP_AUTH_COOKIE_SECURE`
+- 토큰: 액세스 JWT 15분, 리프레시 JWT 7일(최초 로그인 기준). 리프레시 원문은 저장하지 않고 SHA-256 digest만 `refresh_credential`에 저장
+- 미구현: `POST /auth/refresh`, `POST /auth/logout`, CSRF 검증, 비밀번호 변경·초기화, 근무 종료 시각 응답
+- 오류: 공통 오류 응답(`{code,message,request_id}`) 핸들러가 아직 없어 FastAPI 기본 `detail` 래퍼로 반환한다. `detail.code`는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`를 사용한다
 
 ## 구현 시 상세 확인
 

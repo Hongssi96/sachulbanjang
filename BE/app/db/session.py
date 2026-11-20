@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 
+from fastapi import Request
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -13,6 +14,15 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def session_scope(factory: sessionmaker[Session]) -> Iterator[Session]:
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_db_session(request: Request) -> Iterator[Session]:
+    factory: sessionmaker[Session] = request.app.state.session_factory
     session = factory()
     try:
         yield session
