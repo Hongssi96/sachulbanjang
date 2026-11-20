@@ -17,9 +17,6 @@ export default function QualityTrendChart({ points }: { points: TrendPoint[] }) 
     points.length === 1 ? 375 : 52 + (index * 646) / (points.length - 1);
   const y = (value: number) => 210 - (value / max) * 174;
   const line = points.map((point, index) => `${x(index)},${y(point.rate ?? 0)}`).join(' ');
-  const area = points.length
-    ? `M${x(0)},210 L${line.replaceAll(' ', ' L')} L${x(points.length - 1)},210 Z`
-    : '';
   return (
     <svg
       className="qr-trend-svg"
@@ -27,12 +24,6 @@ export default function QualityTrendChart({ points }: { points: TrendPoint[] }) 
       role="img"
       aria-label={`선택 기간 검사 불량률 추이. 점검 기준 ${inspectionThreshold}%. ${points.map((point) => `${point.date} ${point.rate?.toFixed(2)}%`).join(', ')}`}
     >
-      <defs>
-        <linearGradient id="quality-trend-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#635B85" stopOpacity=".18" />
-          <stop offset="100%" stopColor="#635B85" stopOpacity=".02" />
-        </linearGradient>
-      </defs>
       {[0, 1, 2, 3, 4].map((index) => (
         <g key={index}>
           <line
@@ -56,7 +47,6 @@ export default function QualityTrendChart({ points }: { points: TrendPoint[] }) 
         stroke="#D6A14D"
         strokeDasharray="5 5"
       />
-      <path d={area} fill="url(#quality-trend-fill)" />
       <polyline
         points={line}
         stroke="var(--primary)"

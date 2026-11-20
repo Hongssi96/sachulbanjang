@@ -25,8 +25,8 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ProductionChart from '../components/ProductionChart';
-import { calendarEvents, equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
-import { useCustomCalendarEvents } from '../services/calendarStore';
+import { equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
+import { useCalendarEvents } from '../services/calendarStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { HandoverNote, Report } from '../types';
 
@@ -77,19 +77,19 @@ interface HomePageProps {
   onToggleExtended: () => void;
 }
 export default function HomePage({ onToast, extended, onToggleExtended }: HomePageProps) {
+  // 일정관리 탭과 같이 오늘 날짜를 기본으로 보여준다.
+  const today = new Date();
   const [period, setPeriod] = useState<'today' | 'week'>('today');
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [month, setMonth] = useState(10);
-  const [year, setYear] = useState(2026);
-  const [selectedDay, setSelectedDay] = useState(17);
+  const [month, setMonth] = useState(today.getMonth());
+  const [year, setYear] = useState(today.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [notes, setNotes] = useState<HandoverNote[]>(loadNotes);
   const [noteText, setNoteText] = useState('');
   const [reportFilter, setReportFilter] = useState('전체');
-  const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [announcementRead, setAnnouncementRead] = useState(false);
   useReportStatusVersion();
-  const customEvents = useCustomCalendarEvents();
-  const allEvents = [...calendarEvents, ...customEvents];
+  const allEvents = useCalendarEvents();
   const unreadNotes = notes.filter((note) => !note.checked).length;
   const latestReports = sortedReportPosts.slice(0, 3);
   const visibleReports = latestReports.filter(
@@ -109,6 +109,10 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
     year === 2026
       ? allEvents.filter((event) => (event.month ?? 10) === month && event.day === day)
       : [];
+  // 선택한 날짜의 일정은 시간순으로 보여준다.
+  const selectedEvents = eventsForDay(selectedDay)
+    .slice()
+    .sort((a, b) => a.time.localeCompare(b.time));
   const saveNotes = (next: HandoverNote[]) => {
     setNotes(next);
     try {
@@ -499,14 +503,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           <section className="card calendar-card">
             <div className="card-heading">
               <h2>근무 일정</h2>
-              <button
-                className="icon-button"
-                onClick={() => setCalendarExpanded(!calendarExpanded)}
-                aria-label={calendarExpanded ? '일정 요약 접기' : '선택 날짜 일정 펼치기'}
-                aria-expanded={calendarExpanded}
-              >
-                <CalendarDays size={19} />
-              </button>
             </div>
             <div className="calendar-month">
               <strong>
@@ -537,13 +533,16 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => (
                 <button
                   key={day}
-                  className={`calendar-day ${day === selectedDay ? 'chosen' : ''} ${year === 2026 && month === 10 && day === 17 ? 'today' : ''}`}
+                  className={`calendar-day ${day === selectedDay ? 'chosen' : ''} ${
+                    year === today.getFullYear() &&
+                    month === today.getMonth() &&
+                    day === today.getDate()
+                      ? 'today'
+                      : ''
+                  }`}
                   aria-label={`${month + 1}월 ${day}일, 일정 ${eventsForDay(day).length}건`}
                   aria-pressed={day === selectedDay}
-                  onClick={() => {
-                    setSelectedDay(day);
-                    setOverlay({ kind: 'schedule', day });
-                  }}
+                  onClick={() => setSelectedDay(day)}
                 >
                   <span>{day}</span>
                   {eventsForDay(day).length > 0 && <i />}
@@ -557,30 +556,27 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                     `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`,
                   )}{' '}
                   <span>
-                    {year === 2026 && month === 10 && selectedDay === 17 ? '오늘' : '선택일'}
+                    {year === today.getFullYear() &&
+                    month === today.getMonth() &&
+                    selectedDay === today.getDate()
+                      ? '오늘'
+                      : '선택일'}
                   </span>
                 </strong>
-                <span className="muted">{eventsForDay(selectedDay).length}건</span>
+                <span className="muted">{selectedEvents.length}건</span>
               </div>
-              {eventsForDay(selectedDay).length ? (
-                eventsForDay(selectedDay)
-                  .slice(0, calendarExpanded ? 10 : 2)
-                  .map((event) => (
-                    <button
-                      className="schedule-row"
-                      key={`${event.time}-${event.title}`}
-                      onClick={() => setOverlay({ kind: 'schedule', day: selectedDay })}
-                    >
-                      <span className={`schedule-line ${event.kind === '점검' ? 'mint' : ''}`} />
-                      <span>
-                        <small>
-                          {event.time} · {event.kind}
-                        </small>
-                        <strong>{event.title}</strong>
-                      </span>
-                      <ChevronRight size={15} />
-                    </button>
-                  ))
+              {selectedEvents.length ? (
+                selectedEvents.map((event) => (
+                  <div className="schedule-row" key={`${event.time}-${event.title}`}>
+                    <span className={`schedule-line ${event.kind === '점검' ? 'mint' : ''}`} />
+                    <span>
+                      <small>
+                        {event.time} · {event.kind}
+                      </small>
+                      <strong>{event.title}</strong>
+                    </span>
+                  </div>
+                ))
               ) : (
                 <p className="empty-text">등록된 일정이 없어요.</p>
               )}

@@ -1585,6 +1585,44 @@ main {
 .modal-body .button {
   margin-top: 16px;
 }
+/* 삭제 확인: 내용은 최소로 두고 폭을 줄인 단정한 모달 */
+.modal:has(.confirm-dialog) {
+  width: min(360px, calc(100% - 32px));
+}
+.modal:has(.confirm-dialog) .modal-heading {
+  padding: 16px 20px;
+}
+.modal:has(.confirm-dialog) .modal-body {
+  padding: 8px 20px 20px;
+}
+.confirm-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.confirm-dialog p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--muted);
+}
+.confirm-dialog strong {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.confirm-actions .button {
+  min-height: 38px;
+  padding: 8px 16px;
+  margin-top: 0;
+}
 .modal-callout {
   background: var(--soft);
   border: 1px solid var(--border);
@@ -2740,11 +2778,31 @@ textarea {
   border-radius: 10px;
   box-shadow: 0 16px 40px rgba(41, 38, 63, 0.14);
   animation: rt-select-open 0.16s ease;
+  /* 목록이 길어도 채팅창까지 내려가지 않도록 높이를 제한한다. */
+  max-height: min(300px, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.rt-select-menu.drop-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation-name: rt-select-open-up;
 }
 @keyframes rt-select-open {
   from {
     opacity: 0;
     transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rt-select-open-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -3355,7 +3413,16 @@ textarea {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  align-items: center;
   gap: 4px;
+  /* 점이 많아도 칸 밖으로 넘치지 않도록 폭을 제한한다. */
+  max-width: calc(100% - 12px);
+}
+.sc-dot-more {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
 }
 .sc-dot {
   width: 6px;
@@ -3464,6 +3531,25 @@ textarea {
   font-size: 17px;
   font-weight: 650;
   line-height: 24px;
+}
+.sc-item-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.sc-item-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+.sc-item-actions button:hover {
+  background: var(--soft);
+  color: var(--ink);
 }
 .sc-add {
   margin-top: auto;
