@@ -5,7 +5,7 @@ from typing import Literal, cast
 from sqlalchemy.orm import Session
 
 from app.models.process import ProcessReplay
-from app.repositories.process_replay import ProcessReplayRepository
+from app.repositories.process_replay import CurrentProcessRecord, ProcessReplayRepository
 
 ReplayState = Literal["ready", "running", "completed", "failed"]
 ReplayDisplayState = Literal["ready", "running", "delayed", "completed", "failed"]
@@ -24,6 +24,14 @@ class ReplayAdvanceResult:
     data_time: datetime | None
     last_advanced_at: datetime | None
     next_due_at: datetime | None
+
+
+@dataclass(frozen=True)
+class CurrentProcessResult:
+    queried_at: datetime
+    replay: ProcessReplay | None
+    replay_state: ReplayDisplayState | None
+    records: list[CurrentProcessRecord]
 
 
 def derive_replay_display_state(
@@ -119,4 +127,47 @@ class ProcessReplayService:
             data_time=replay.data_time,
             last_advanced_at=replay.last_advanced_at,
             next_due_at=next_due_at,
+        )
+
+
+class CurrentProcessService:
+    """Reads the latest published record for each equipment in the newest replay."""
+
+    def __init__(
+        self,
+        repository: ProcessReplayRepository,
+        *,
+        delay_threshold: timedelta = timedelta(seconds=15),
+    ) -> None:
+        if delay_threshold <= timedelta(0):
+            raise ValueError("delay_threshold must be positive")
+        self._repository = repository
+        self._delay_threshold = delay_threshold
+
+    def get_current(
+        self, *, equipment_id: int | None = None, queried_at: datetime | None = None
+    ) -> CurrentProcessResult:
+        now = queried_at or datetime.now(UTC)
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("queried_at must be timezone-aware")
+
+        replay = self._repository.find_latest_replay()
+        if replay is None:
+            return CurrentProcessResult(
+                queried_at=now,
+                replay=None,
+                replay_state=None,
+                records=[],
+            )
+
+        records = self._repository.find_current_records(
+            replay.source_import_id,
+            available_at=now,
+            equipment_id=equipment_id,
+        )
+        return CurrentProcessResult(
+            queried_at=now,
+            replay=replay,
+            replay_state=derive_replay_display_state(replay, now, self._delay_threshold),
+            records=records,
         )

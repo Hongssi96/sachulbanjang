@@ -12,6 +12,7 @@ from app.db.session import create_database_engine, create_session_factory
 from app.middleware import RequestContextMiddleware
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
+from app.routers.process import router as process_router
 
 MigrationChecker = Callable[[Engine, Path], None]
 
@@ -36,6 +37,7 @@ def create_app(
     application.add_middleware(RequestContextMiddleware)
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(process_router, prefix="/api/v1")
     return application
 
 

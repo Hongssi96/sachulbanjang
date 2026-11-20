@@ -2,9 +2,11 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from app.models.master import Equipment, Product
 from app.models.process import ProcessRecord, ProcessReplay
-from app.repositories.process_replay import ProcessReplayRepository
+from app.repositories.process_replay import CurrentProcessRecord, ProcessReplayRepository
 from app.services.process_replay import (
+    CurrentProcessService,
     ProcessReplayNotFoundError,
     ProcessReplayService,
     derive_replay_display_state,
@@ -171,3 +173,38 @@ def test_naive_advance_time_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="timezone-aware"):
         service.advance_once(1, now=datetime(2026, 11, 20, 3, 0))
+
+
+def test_current_process_reads_latest_replay_records() -> None:
+    replay = make_replay(state="running", last_advanced_at=NOW - timedelta(seconds=5))
+    record = make_record(1)
+    record.available_at = NOW - timedelta(seconds=5)
+    equipment = Equipment(id=20, equipment_code="S01", name="사출기 1")
+    product = Product(id=30, product_code="P01", name="제품 1")
+    current = CurrentProcessRecord(record=record, equipment=equipment, product=product)
+    repository = MagicMock(spec=ProcessReplayRepository)
+    repository.find_latest_replay.return_value = replay
+    repository.find_current_records.return_value = [current]
+
+    result = CurrentProcessService(repository).get_current(equipment_id=20, queried_at=NOW)
+
+    assert result.replay is replay
+    assert result.replay_state == "running"
+    assert result.records == [current]
+    repository.find_current_records.assert_called_once_with(
+        10,
+        available_at=NOW,
+        equipment_id=20,
+    )
+
+
+def test_current_process_returns_empty_result_without_replay() -> None:
+    repository = MagicMock(spec=ProcessReplayRepository)
+    repository.find_latest_replay.return_value = None
+
+    result = CurrentProcessService(repository).get_current(queried_at=NOW)
+
+    assert result.replay is None
+    assert result.replay_state is None
+    assert result.records == []
+    repository.find_current_records.assert_not_called()
