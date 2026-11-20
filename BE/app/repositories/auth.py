@@ -36,5 +36,25 @@ class AuthRepository:
         self._session.add(auth_session)
         self._session.flush()
 
+    def find_session_for_update(self, session_id: int) -> AuthSession | None:
+        return self._session.scalar(
+            select(AuthSession).where(AuthSession.id == session_id).with_for_update()
+        )
+
+    def find_credential_for_update(self, token_digest: str) -> RefreshCredential | None:
+        return self._session.scalar(
+            select(RefreshCredential)
+            .where(RefreshCredential.token_digest == token_digest)
+            .with_for_update()
+        )
+
+    def find_credential(self, session_id: int, generation: int) -> RefreshCredential | None:
+        return self._session.scalar(
+            select(RefreshCredential).where(
+                RefreshCredential.session_id == session_id,
+                RefreshCredential.generation == generation,
+            )
+        )
+
     def add_refresh_credential(self, credential: RefreshCredential) -> None:
         self._session.add(credential)
