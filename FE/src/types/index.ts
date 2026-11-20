@@ -13,7 +13,7 @@ export interface ReportPost extends Report {
   date: string;
   views: number;
   body: string;
-  nextAction: string;
+  checklist: string[];
 }
 export interface HandoverNote {
   id: string;
