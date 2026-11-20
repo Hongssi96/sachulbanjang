@@ -1505,7 +1505,7 @@
   grid-template-columns: minmax(0, 1fr);
 }
 .quality-report-page .qr-donut {
-  width: 310px;
+  width: 270px;
   height: auto;
   max-width: 100%;
   justify-self: center;
@@ -1579,7 +1579,7 @@
 }
 @media (max-width: 650px) {
   .quality-report-page .qr-donut {
-    width: 280px;
+    width: 250px;
   }
   .quality-report-page .qr-period-buttons {
     width: 228px;
@@ -1624,4 +1624,26 @@
 .quality-report-page .qr-filter-card {
   position: relative;
   z-index: 2;
+}
+
+/* 분석 근거 팝업의 내용 접근은 유지하고 스크롤바를 숨긴다. */
+.modal:has(.qr-basis) {
+  scrollbar-width: none;
+}
+.modal:has(.qr-basis)::-webkit-scrollbar {
+  display: none;
+}
+
+/* 원형 그래프 크기는 유지하고 분포 카드의 가로 폭만 제한한다. */
+.quality-report-page .qr-distribution-card {
+  width: 100%;
+  max-width: 360px;
+  justify-self: start;
+}
+
+/* 분포 카드가 줄어든 공간을 품질 추이에 배분한다. */
+@media (min-width: 1051px) {
+  .quality-report-page .qr-analysis-grid {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
 }
