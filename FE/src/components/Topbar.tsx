@@ -74,7 +74,7 @@ export default function Topbar({
           className="button button-white topbar-extend"
           onClick={sessionEnded ? onRelogin : extended ? onLogout : onToggleExtended}
         >
-          {sessionEnded ? '다시 로그인' : extended ? '로그아웃' : '오늘 야근'}
+          {sessionEnded ? '다시 로그인' : extended ? '퇴근하기' : '오늘 야근'}
         </button>
       </div>
     </header>
