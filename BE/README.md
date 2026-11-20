@@ -22,7 +22,8 @@ Copy-Item .env.example .env
 32자 이상이어야 한다. `APP_AI_API_KEY`는 선택값이며 비어 있어도 일반 기능은 실행된다.
 `APP_ACCESS_TOKEN_TTL_SECONDS`, `APP_REFRESH_TOKEN_TTL_SECONDS`, `APP_LOGIN_MAX_FAILURES`,
 `APP_LOGIN_LOCK_SECONDS`로 인증 기본값을 조정한다. 실제 HTTPS 배포에서는
-`APP_AUTH_COOKIE_SECURE=true`로 설정한다. 실제 `.env`와 비밀값은 커밋하지 않는다.
+`APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON 배열로
+나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다. 실제 `.env`와 비밀값은 커밋하지 않는다.
 
 ## 2. PostgreSQL과 마이그레이션
 
@@ -49,6 +50,20 @@ uvicorn app.main:app --reload
 - 로그인: `POST http://localhost:8000/api/v1/auth/login` (`employee_no`, `password`)
 - 현재 사용자: `GET http://localhost:8000/api/v1/auth/me` (로그인 응답의 액세스 쿠키 필요)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
+
+### 초기 계정 준비
+
+마이그레이션 적용 후 관리자·고용자 계정을 만든다. 비밀번호는 `--password`를 생략하면 화면에
+남지 않게 입력받는다. 같은 사번이 이미 있으면 덮어쓰지 않고 실패한다.
+
+```powershell
+python -m app.commands.seed_accounts `
+  --employee-no A9001 --display-name "관리자" --role admin `
+  --shift-start 08:30 --shift-end 17:30
+```
+
+기본값은 근무 시작 `09:00`, 종료 `18:00`이고 최초 로그인 시 비밀번호 변경이 필요하다
+(`--no-must-change-password`로 해제).
 
 ### 공정 CSV 적재
 

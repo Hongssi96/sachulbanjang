@@ -61,7 +61,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 영역 | 상태 | 검증 근거 | 갱신일 |
 | --- | --- | --- | --- |
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
-| 인증 | 구현 중 | 사번 로그인·현재 사용자 조회·Argon2id 검증·5회 실패 잠금·HttpOnly 쿠키·액세스 15분/리프레시 7일 토큰 발급 구현. pytest 인증 22건·PostgreSQL 18 로그인/잠금 통합 확인. 갱신·로그아웃·CSRF·비밀번호 변경·초기화 미구현 | 2026-11-20 |
+| 인증 | 구현 중 | 사번 로그인·현재 사용자 조회·Argon2id 검증·5회 실패 잠금·HttpOnly 쿠키·액세스 15분/리프레시 7일 토큰 발급, 초기 계정 시드 CLI, FE 출처 CORS 구현. pytest 34건·PostgreSQL 18 로그인/잠금/시드/CORS 통합 확인. 갱신·로그아웃·CSRF·비밀번호 변경·초기화 미구현 | 2026-11-20 |
 | 근무 | 미착수 | - | 2026-11-20 |
 | 공정 | 구현 중 | 핵심 스키마·원자적 CSV 적재·중복/충돌·한국시간 매핑 구현, pytest 15건·실제 CSV 808,543행 검증·PostgreSQL 18 migration 검증. 5초 재생과 조회 API 미구현 | 2026-11-20 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
@@ -169,6 +169,17 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 - 토큰: 액세스 JWT 15분, 리프레시 JWT 7일(최초 로그인 기준). 리프레시 원문은 저장하지 않고 SHA-256 digest만 `refresh_credential`에 저장
 - 미구현: `POST /auth/refresh`, `POST /auth/logout`, CSRF 검증, 비밀번호 변경·초기화, 근무 종료 시각 응답
 - 오류: 공통 오류 응답(`{code,message,request_id}`) 핸들러가 아직 없어 FastAPI 기본 `detail` 래퍼로 반환한다. `detail.code`는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`를 사용한다
+- 초기 계정: `python -m app.commands.seed_accounts --employee-no ... --display-name ... --role admin|worker`로 준비한다. 같은 사번이 있으면 덮어쓰지 않고 종료 코드 1로 알린다
+
+### FE 연동 계약 (인증)
+
+- base URL은 `/api/v1`, 요청은 `credentials: "include"`로 보내야 쿠키가 오간다
+- CORS: `APP_CORS_ORIGINS`에 나열한 출처만 허용하고 자격 증명을 허용한다. 개발 기본값은 `http://localhost:5173`, `http://localhost:5174`
+- 쿠키: `imleader_access_token`(Path `/`, 액세스 JWT), `imleader_refresh_token`(Path `/api/v1/auth`). 둘 다 HttpOnly·SameSite=Lax이며 JS에서 읽지 않는다
+- 로그인 응답은 사용자 객체만 반환하고 토큰 원문을 JSON에 넣지 않는다. `Cache-Control: no-store`가 붙는다
+- 인증 실패는 `401` + `detail.code`: 잘못된 자격 증명 `INVALID_CREDENTIALS`, 잠금 `ACCOUNT_LOCKED`(`Retry-After` 헤더), 쿠키 없음·만료 `AUTHENTICATION_REQUIRED`
+- CSRF(예정, DEC-106): 더블 서브밋 쿠키 방식으로 구현한다. 로그인 시 JS가 읽을 수 있는 `imleader_csrf_token` 쿠키를 발급하고, 쿠키 인증을 사용하는 상태 변경 요청은 `X-CSRF-Token` 헤더로 같은 값을 보낸다. 검증은 `POST /auth/refresh`, `POST /auth/logout` 구현 MR부터 적용한다
+- 액세스 만료 시 FE는 현재 `401 AUTHENTICATION_REQUIRED`를 받으면 재로그인으로 안내한다. 갱신 API가 구현되면 그 전에 `POST /auth/refresh`를 호출하는 흐름으로 교체한다
 
 ## 구현 시 상세 확인
 
