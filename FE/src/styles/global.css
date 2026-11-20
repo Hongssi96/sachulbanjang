@@ -4225,3 +4225,11 @@ textarea {
     margin-left: 0;
   }
 }
+
+/* 홈 공장 배치 팝업에만 적용한다. */
+.modal:has(.factory-map) {
+  scrollbar-width: none;
+}
+.modal:has(.factory-map)::-webkit-scrollbar {
+  display: none;
+}

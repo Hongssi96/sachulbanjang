@@ -1,6 +1,6 @@
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   ArrowDownToLine,
@@ -62,6 +62,14 @@ export default function InventoryPage() {
   const warehouse =
     ['A창고', 'B창고', 'C창고'].find((value) => value === params.get('warehouse')) ?? '';
   const onlyLow = params.get('status') === 'low';
+  const revealLowStock = useRef(false);
+  useEffect(() => {
+    if (!onlyLow || isPending || !revealLowStock.current) return;
+    revealLowStock.current = false;
+    document
+      .getElementById('inventory-table-heading')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [onlyLow, isPending, params]);
   const order = params.get('sort');
   const summary = inventorySummary(inventory.items);
   const rows = inventory.items.filter(
@@ -256,10 +264,8 @@ export default function InventoryPage() {
         {lowItems.length > 0 && (
           <button
             onClick={() => {
+              revealLowStock.current = true;
               setParams({ status: 'low' });
-              document
-                .getElementById('inventory-table-heading')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }}
           >
             부족 재고 확인
@@ -441,6 +447,18 @@ export default function InventoryPage() {
             </button>
           </div>
         </div>
+        {onlyLow && (
+          <div className="inv-shortage-summary" role="status">
+            <strong>부족·품절 품목 {rows.length}개 표시 중</strong>
+            {rows.map((item) => (
+              <span key={item.id}>
+                {item.name} · 가용 {availableStock(item).toLocaleString()}개 / 안전{' '}
+                {item.safety.toLocaleString()}개 · 부족{' '}
+                {Math.max(0, item.safety - availableStock(item)).toLocaleString()}개
+              </span>
+            ))}
+          </div>
+        )}
         <div
           className="inv-table-scroll"
           style={{ height: `${56 + inventory.items.length * 81}px` }}

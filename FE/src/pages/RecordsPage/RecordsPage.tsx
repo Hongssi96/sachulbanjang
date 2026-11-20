@@ -437,6 +437,9 @@ export function RecordDetailPage() {
   const rate = percentage(count, record.inspected);
   return (
     <section className="records-page">
+      <Link className="rd-back" to={back}>
+        <ArrowLeft size={17} /> 생산·검사 기록으로 돌아가기
+      </Link>
       <div className="rd-heading">
         <div>
           <span className="rd-eyebrow">RECORD DETAIL · 생산·검사 상세</span>
@@ -457,9 +460,6 @@ export function RecordDetailPage() {
           <button className="rd-button" onClick={() => download([record])}>
             <Download size={16} /> 이력 다운로드
           </button>
-          <Link className="rd-button rd-primary" to={back}>
-            <ArrowLeft size={16} /> 목록으로 돌아가기
-          </Link>
         </div>
       </div>
       <div className="rd-demo">
