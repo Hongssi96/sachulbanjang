@@ -6,8 +6,15 @@ from app.dependencies.auth import get_auth_service, get_current_user
 from app.main import create_app
 from app.models.master import AppUser
 from app.schemas.auth import AuthenticatedUser
+from app.security.cookies import CSRF_HEADER_NAME
 from app.security.passwords import hash_password
-from app.services.auth import AccountLockedError, AuthService, InvalidCredentialsError, LoginResult
+from app.services.auth import (
+    AccountLockedError,
+    AuthService,
+    InvalidCredentialsError,
+    LoginResult,
+    SessionRevokedError,
+)
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -85,6 +92,9 @@ def test_login_sets_http_only_auth_cookies() -> None:
         and "Path=/api/v1/auth" in item
         for item in cookies
     )
+    csrf_cookie = next(item for item in cookies if item.startswith(settings.csrf_cookie_name))
+    assert "HttpOnly" not in csrf_cookie
+    assert "Path=/" in csrf_cookie
 
 
 def test_login_failure_returns_contract_error_code() -> None:
@@ -159,3 +169,115 @@ def test_login_rejects_empty_fields() -> None:
         response = client.post("/api/v1/auth/login", json={"employee_no": "", "password": ""})
 
     assert response.status_code == 422
+
+
+def make_app_with_settings() -> tuple[FastAPI, Settings]:
+    settings = make_settings()
+    return (
+        create_app(settings=settings, migration_checker=lambda engine, path: None),
+        settings,
+    )
+
+
+def refresh_service(user: AppUser) -> AuthService:
+    service = MagicMock(spec=AuthService)
+    service.refresh.return_value = LoginResult(
+        user=user,
+        session_id=1,
+        access_token="rotated-access-token",
+        refresh_token="rotated-refresh-token",
+    )
+    return service
+
+
+def test_refresh_requires_matching_csrf_header() -> None:
+    application, settings = make_app_with_settings()
+    service = refresh_service(make_user())
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.refresh_cookie_name, "refresh-token")
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        rejected = client.post("/api/v1/auth/refresh")
+
+        assert rejected.status_code == 403
+        assert rejected.json()["detail"]["code"] == "CSRF_VALIDATION_FAILED"
+
+        accepted = client.post(
+            "/api/v1/auth/refresh",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+        )
+
+    assert accepted.status_code == 200
+    assert accepted.json()["employee_no"] == "E001"
+    assert accepted.headers["cache-control"] == "no-store"
+    cookies = accepted.headers.get_list("set-cookie")
+    assert any(
+        item.startswith(settings.access_cookie_name) and "rotated-access-token" in item
+        for item in cookies
+    )
+    assert any(
+        item.startswith(settings.refresh_cookie_name) and "rotated-refresh-token" in item
+        for item in cookies
+    )
+
+
+def test_refresh_without_refresh_cookie_requests_login() -> None:
+    application, settings = make_app_with_settings()
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        response = client.post(
+            "/api/v1/auth/refresh",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def test_refresh_rejection_clears_auth_cookies() -> None:
+    application, settings = make_app_with_settings()
+    service = MagicMock(spec=AuthService)
+    service.refresh.side_effect = SessionRevokedError("revoked")
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.refresh_cookie_name, "refresh-token")
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        response = client.post(
+            "/api/v1/auth/refresh",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "SESSION_REVOKED"
+    assert settings.refresh_cookie_name in response.headers["set-cookie"]
+
+
+def test_logout_requires_csrf_and_clears_cookies() -> None:
+    application, settings = make_app_with_settings()
+    service = MagicMock(spec=AuthService)
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.access_cookie_name, "access-token")
+        client.cookies.set(settings.refresh_cookie_name, "refresh-token")
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+
+        rejected = client.post("/api/v1/auth/logout")
+        assert rejected.status_code == 403
+        service.logout.assert_not_called()
+
+        response = client.post(
+            "/api/v1/auth/logout",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+        )
+
+    assert response.status_code == 204
+    service.logout.assert_called_once_with(
+        access_token="access-token", refresh_token="refresh-token"
+    )
+    cleared = response.headers.get_list("set-cookie")
+    assert len(cleared) == 3
+    assert all("Max-Age=0" in item for item in cleared)
