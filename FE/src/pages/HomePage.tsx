@@ -128,13 +128,9 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
     <>
       <section className="page-intro">
         <div>
-          <div className="eyebrow">
-            <span /> FACTORY AT A GLANCE
-          </div>
           <h1>
             좋은 하루예요, 민규님<span className="greeting-dot">.</span>
           </h1>
-          <p>공정부터 인수인계까지, 오늘의 공장을 한눈에 확인하세요.</p>
         </div>
         <div className="intro-actions">
           <span className="date-label">

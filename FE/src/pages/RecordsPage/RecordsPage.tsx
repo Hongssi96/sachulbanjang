@@ -117,16 +117,7 @@ export default function RecordsPage() {
   return (
     <section className="records-page" aria-busy={isPending}>
       {isPending && <LoadingState compact label="검사 데이터를 조회하는 중이에요" />}
-      <div className="rd-heading">
-        <div>
-          <span className="rd-eyebrow">PRODUCTION & INSPECTION</span>
-          <h1 className="sr-only">생산·검사 이력</h1>
-          <p>생산부터 검사까지, 현장의 기록을 한곳에서 확인하세요.</p>
-        </div>
-        <button className="rd-button" disabled={!rows.length} onClick={() => download(rows)}>
-          <Download size={16} /> 이력 다운로드
-        </button>
-      </div>
+      <h1 className="sr-only">생산·검사 이력</h1>
       <div className="rd-demo">
         <span /> 예시 데이터 <span className="rd-demo-divider">|</span> 2026.11.04–2026.11.17 · 생산
         수량은 시연용이며, 검사 불량률은 검사한 표본 기준입니다.
@@ -225,16 +216,21 @@ export default function RecordsPage() {
             </h2>
             <p>상세 보기 버튼을 누르면 해당 배치의 생산 정보와 검사 결과가 열려요.</p>
           </div>
-          {rows.length > 0 ? (
-            <Link
-              className="rd-button rd-primary"
-              to={`/records/${rows[(page - 1) * 8].id}/precision-inspection${params.size ? `?${params}` : ''}`}
-            >
-              정밀기계검사 <ArrowUpRight size={16} />
-            </Link>
-          ) : (
-            <History size={22} />
-          )}
+          <div className="rd-heading-actions">
+            <button className="rd-button" disabled={!rows.length} onClick={() => download(rows)}>
+              <Download size={16} /> 이력 다운로드
+            </button>
+            {rows.length > 0 ? (
+              <Link
+                className="rd-button rd-primary"
+                to={`/records/${rows[(page - 1) * 8].id}/precision-inspection${params.size ? `?${params}` : ''}`}
+              >
+                정밀기계검사 <ArrowUpRight size={16} />
+              </Link>
+            ) : (
+              <History size={22} />
+            )}
+          </div>
         </div>
         <div className="rd-tabs" aria-label="이력 종류">
           <button

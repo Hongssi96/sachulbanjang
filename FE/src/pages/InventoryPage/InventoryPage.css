@@ -1383,3 +1383,17 @@
   color: #982e42;
   font-size: 13px;
 }
+
+.inventory-page .inv-compact-intro {
+  margin-bottom: 16px;
+  min-height: 0;
+  padding-top: 0;
+}
+.inventory-page .inv-compact-intro .section-top {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.inventory-page .inv-stock-alert {
+  margin-bottom: 16px;
+}
