@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, ClipboardList, Eye, FileText } from 'lucide-react';
-import { reportPosts } from '../../constants/demoData';
+import { sortedReportPosts } from '../../constants/demoData';
 import { setReportChecklist, useReportChecklist } from '../../services/reportChecklist';
 import { setReportStatus, useReportStatus } from '../../services/reportStatus';
 import type { ReportStatus } from '../../types';
@@ -12,9 +12,6 @@ const statusPill: Record<ReportStatus, string> = {
   '진행 중': 'pill-violet',
   완료: 'pill-green',
 };
-const sortedPosts = [...reportPosts].sort((a, b) =>
-  `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
-);
 // 저장된 체크 상태가 없으면 처리 상태에 맞는 기본값으로 시작한다.
 function defaultChecklist(status: ReportStatus, length: number): boolean[] {
   if (status === '완료') return Array.from({ length }, () => true);
@@ -23,8 +20,8 @@ function defaultChecklist(status: ReportStatus, length: number): boolean[] {
 }
 export default function ReportDetailPage() {
   const { reportId } = useParams();
-  const index = sortedPosts.findIndex((post) => post.id === reportId);
-  const post = index >= 0 ? sortedPosts[index] : null;
+  const index = sortedReportPosts.findIndex((post) => post.id === reportId);
+  const post = index >= 0 ? sortedReportPosts[index] : null;
   const currentStatus = useReportStatus(post ?? { id: '', status: '대기' });
   const storedChecklist = useReportChecklist(reportId ?? '');
   if (!post) {
@@ -41,8 +38,8 @@ export default function ReportDetailPage() {
       </section>
     );
   }
-  const newer = index > 0 ? sortedPosts[index - 1] : null;
-  const older = index < sortedPosts.length - 1 ? sortedPosts[index + 1] : null;
+  const newer = index > 0 ? sortedReportPosts[index - 1] : null;
+  const older = index < sortedReportPosts.length - 1 ? sortedReportPosts[index + 1] : null;
   const checked =
     storedChecklist?.length === post.checklist.length
       ? storedChecklist

@@ -1,6 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ClipboardList, Eye, Search, X } from 'lucide-react';
-import { reportPosts } from '../../constants/demoData';
+import { sortedReportPosts } from '../../constants/demoData';
 import { getReportStatus, useReportStatusVersion } from '../../services/reportStatus';
 import type { ReportPost } from '../../types';
 import './ReportsPage.css';
@@ -12,11 +13,8 @@ const statusPill: Record<ReportPost['status'], string> = {
   '진행 중': 'pill-violet',
   완료: 'pill-green',
 };
-const sortedPosts = [...reportPosts].sort((a, b) =>
-  `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
-);
 // 최신 글 3건에만 N 표식을 붙인다. 사이드바 배지 수와 맞춘다.
-const newPostIds = new Set(sortedPosts.slice(0, 3).map((post) => post.id));
+const newPostIds = new Set(sortedReportPosts.slice(0, 3).map((post) => post.id));
 // 페이지 번호를 앞뒤 1개씩만 두고 나머지는 말줄임으로 줄인다.
 function pageWindow(current: number, total: number): (number | '…')[] {
   if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
@@ -35,6 +33,8 @@ export default function ReportsPage() {
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const status = params.get('status') ?? '전체';
+  const [searchInput, setSearchInput] = useState(query);
+  const composingRef = useRef(false);
   const update = (key: string, value: string) =>
     setParams((previous) => {
       const next = new URLSearchParams(previous);
@@ -44,12 +44,20 @@ export default function ReportsPage() {
       if (key !== 'page') next.delete('page');
       return next;
     });
+  // URL의 검색어가 바뀌면(뒤로 가기·필터 초기화) 입력값도 맞춘다.
+  useEffect(() => {
+    if (!composingRef.current) setSearchInput(query);
+  }, [query]);
+  const changeSearch = (value: string) => {
+    setSearchInput(value);
+    if (!composingRef.current) update('q', value);
+  };
   const keyword = query.trim().toLowerCase();
-  const posts = sortedPosts.filter(
+  const posts = sortedReportPosts.filter(
     (post) =>
       (status === '전체' || getReportStatus(post) === status) &&
       (!keyword ||
-        `${post.title} ${post.description} ${post.author} ${post.equipment} ${post.category}`
+        `${post.title} ${post.description} ${post.body} ${post.author} ${post.equipment} ${post.category} ${post.checklist.join(' ')}`
           .toLowerCase()
           .includes(keyword)),
   );
@@ -57,8 +65,8 @@ export default function ReportsPage() {
     label,
     count:
       label === '전체'
-        ? sortedPosts.length
-        : sortedPosts.filter((post) => getReportStatus(post) === label).length,
+        ? sortedReportPosts.length
+        : sortedReportPosts.filter((post) => getReportStatus(post) === label).length,
   }));
   const pageCount = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
   const requested = Number(params.get('page'));
@@ -88,11 +96,25 @@ export default function ReportsPage() {
           <input
             aria-label="보고 검색"
             placeholder="제목·내용·설비·작성자 검색"
-            value={query}
-            onChange={(event) => update('q', event.target.value)}
+            value={searchInput}
+            onChange={(event) => changeSearch(event.target.value)}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={(event) => {
+              composingRef.current = false;
+              changeSearch(event.currentTarget.value);
+            }}
           />
-          {query && (
-            <button type="button" aria-label="검색어 지우기" onClick={() => update('q', '')}>
+          {searchInput && (
+            <button
+              type="button"
+              aria-label="검색어 지우기"
+              onClick={() => {
+                setSearchInput('');
+                update('q', '');
+              }}
+            >
               <X size={15} />
             </button>
           )}
