@@ -66,9 +66,6 @@
 .inventory-page .kpi .kpi-value {
   white-space: nowrap;
 }
-.inventory-page .kpi .kpi-bottom {
-  font-size: 12px;
-}
 .inventory-page .kpi-value .pill {
   font-size: 11px;
 }
@@ -104,8 +101,8 @@
   padding: 24px 24px 16px;
 }
 .inv-stock-header h2 {
-  font-size: 24px;
-  line-height: 32px;
+  font-size: 18px;
+  line-height: 26px;
 }
 .inv-stock-header > .text-link {
   font-size: 14px;
@@ -124,7 +121,7 @@
   position: relative;
   padding: 12px 0 16px;
   color: var(--primary);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 650;
 }
 .inv-category:after {
@@ -154,7 +151,7 @@
   opacity: 0.8;
 }
 .inv-category-future small {
-  font-size: 10px;
+  font-size: 11px;
   border: 1px solid var(--border);
   padding: 0 4px;
   border-radius: 6px;
@@ -261,7 +258,7 @@
   box-shadow: 0 1px 3px #29263f08;
 }
 .inv-status-filters > button span {
-  font-size: 10px;
+  font-size: 11px;
   color: #996a24;
   background: #fff0d6;
   padding: 0 6px;
@@ -277,8 +274,8 @@
   width: 100%;
   border-collapse: collapse;
   min-width: 980px;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 14px;
+  line-height: 22px;
   text-align: left;
   font-variant-numeric: tabular-nums;
 }
@@ -295,9 +292,8 @@
   white-space: nowrap;
 }
 .inv-stock-table td {
-  padding: 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border);
-  height: 80px;
 }
 .inv-stock-table th:first-child,
 .inv-stock-table td:first-child {
@@ -356,13 +352,13 @@
 }
 .inv-product-cell strong {
   display: block;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 14px;
+  line-height: 22px;
   font-weight: 600;
   white-space: nowrap;
 }
 .inv-product-cell small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   display: block;
   line-height: 20px;
@@ -384,7 +380,7 @@
   grid-template-columns: 14px 1fr;
   align-items: center;
   column-gap: 4px;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 20px;
   white-space: nowrap;
 }
@@ -451,8 +447,8 @@
   min-width: 0;
 }
 .inv-bottom-grid h2 {
-  font-size: 24px;
-  line-height: 32px;
+  font-size: 18px;
+  line-height: 26px;
 }
 .inv-bottom-grid .card-heading {
   margin-bottom: 16px;
@@ -988,8 +984,13 @@
     font-size: 14px;
     line-height: 20px;
   }
+  .inv-stock-table {
+    font-size: 16px;
+    line-height: 24px;
+  }
   .inv-product-cell strong {
-    font-size: 18px;
+    font-size: 16px;
+    line-height: 24px;
   }
   .inv-stock-table th,
   .inv-stock-table th > button {
@@ -1040,7 +1041,7 @@
   }
   .inv-bottom-grid h2,
   .inv-stock-header h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
   .inv-intro-actions {
     gap: 8px;
@@ -1050,7 +1051,7 @@
     padding: 10px 12px;
   }
   .inv-last-update {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-table-footer > span:nth-child(2) {
     display: none;
@@ -1082,7 +1083,7 @@
     gap: 12px;
   }
   .inventory-page .section-top > .muted {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-category-future {
     font-size: 12px;
@@ -1164,7 +1165,7 @@
     font-size: 18px;
   }
   .inv-stock-header .pill {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-table-footer {
     padding: 12px 16px;
@@ -1184,7 +1185,7 @@
     font-size: 13px;
   }
   .inv-movement-row small {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-movement-quantity {
     font-size: 16px;
@@ -1197,10 +1198,10 @@
     font-size: 11px;
   }
   .inv-bottom-grid h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
   .inv-page-footer {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-feedback {
     font-size: 12px;
@@ -1218,16 +1219,16 @@
     font-size: 22px;
   }
   .inv-detail-title p {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-detail-quantities small {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-detail-history > div {
     gap: 8px;
   }
   .inv-detail-history > div > span:nth-child(2) {
-    font-size: 10px;
+    font-size: 11px;
   }
   .inv-detail-history strong {
     font-size: 12px;
@@ -1260,7 +1261,7 @@
   white-space: nowrap;
 }
 .inv-product-bars > button > b > small {
-  font-size: 10px;
+  font-size: 11px;
   margin-left: 4px;
   color: var(--muted);
 }

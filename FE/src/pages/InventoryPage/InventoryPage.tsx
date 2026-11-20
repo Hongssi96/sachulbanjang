@@ -14,7 +14,6 @@ import {
   CircleHelp,
   Download,
   FilterX,
-  Info,
   MapPin,
   Package,
   PackageCheck,
@@ -214,13 +213,7 @@ export default function InventoryPage() {
       {isPending && <LoadingState compact label="재고 데이터를 조회하는 중이에요" />}
       <section className="page-intro inv-compact-intro">
         <div className="section-top">
-          <h2 id="inventory-summary-title">
-            전체 재고 요약{' '}
-            <span className="live-label">
-              <i />
-              DEMO
-            </span>
-          </h2>
+          <h2 id="inventory-summary-title">전체 재고 요약 </h2>
           <span className="muted">전체 완제품 {inventory.items.length}개 품목 기준</span>
         </div>
         <div className="inv-intro-actions">
@@ -577,7 +570,6 @@ export default function InventoryPage() {
           <span>
             전체 {inventory.items.length}개 중 <strong>{rows.length}개</strong> 품목
           </span>
-          <span>수량 단위: 개 · 품목을 선택하면 상세 내역을 확인할 수 있어요.</span>
           <button
             className="text-link"
             style={{ visibility: params.size > 0 ? 'visible' : 'hidden' }}
@@ -622,7 +614,6 @@ export default function InventoryPage() {
           <div className="card-heading">
             <div>
               <h2>제품군별 재고</h2>
-              <p>보관 중인 재고의 구성을 확인하세요.</p>
             </div>
             <span className="inv-bar-unit">단위: 개</span>
           </div>
@@ -683,19 +674,10 @@ export default function InventoryPage() {
               </button>
             ))}
           </div>
-          <div className="inv-summary-note">
-            <Info size={17} />
-            <p>
-              출고 예약은 가용재고에서 제외돼요.
-              <br />
-              <strong>실제로 출고할 수 있는 수량</strong>을 먼저 확인해 주세요.
-            </p>
-          </div>
         </section>
       </div>
       <footer className="page-footer inv-page-footer">
         <span>가용재고 = 현재고 − 출고 예약 · 부족 기준 = 가용재고 &lt; 안전재고</span>
-        <span>예시 데이터 · 변경사항은 현재 브라우저에 저장</span>
       </footer>
       {dialog && (
         <Modal

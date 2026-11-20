@@ -8,14 +8,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 42px;
-  padding: 11px 13px;
+  min-height: 44px;
+  padding: 10px 12px;
   width: 100%;
   background: var(--rd-surface, var(--surface, #fff));
   border: 1px solid var(--rd-border, var(--border, #e2e2e8));
-  border-radius: 8px;
+  border-radius: var(--radius-control, 10px);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--rd-ink, var(--ink, #29263f));
   text-align: left;
   cursor: pointer;
@@ -59,10 +59,10 @@
   justify-content: space-between;
   gap: 10px;
   padding: 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-small, 6px);
   cursor: pointer;
   color: var(--rd-ink, var(--ink, #29263f));
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.6;
 }
 .filter-select-options > [role='option'].highlighted {

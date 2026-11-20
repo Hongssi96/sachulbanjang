@@ -118,10 +118,6 @@ export default function RecordsPage() {
     <section className="records-page" aria-busy={isPending}>
       {isPending && <LoadingState compact label="검사 데이터를 조회하는 중이에요" />}
       <h1 className="sr-only">생산·검사 이력</h1>
-      <div className="rd-demo">
-        <span /> 예시 데이터 <span className="rd-demo-divider">|</span> 2026.11.04–2026.11.17 · 생산
-        수량은 시연용이며, 검사 불량률은 검사한 표본 기준입니다.
-      </div>
       <div className="rd-panel rd-filter">
         <div className="rd-filter-title">
           <strong>조회 조건</strong>
@@ -195,7 +191,10 @@ export default function RecordsPage() {
       </div>
       <div className="rd-summary">
         {cards.map(({ label, value, unit, note, icon: Icon }) => (
-          <div className="rd-panel" key={label}>
+          <div
+            className={label === '검사 불량률' ? 'rd-panel rd-stat-rate' : 'rd-panel'}
+            key={label}
+          >
             <span className="rd-stat-label">
               {label}
               <Icon size={17} />
@@ -204,7 +203,7 @@ export default function RecordsPage() {
               {value}
               <small>{unit}</small>
             </strong>
-            <p>{note}</p>
+            {note && <p>{note}</p>}
           </div>
         ))}
       </div>
@@ -214,7 +213,6 @@ export default function RecordsPage() {
             <h2>
               생산·검사 기록 <span>{rows.length}</span>
             </h2>
-            <p>상세 보기 버튼을 누르면 해당 배치의 생산 정보와 검사 결과가 열려요.</p>
           </div>
           <div className="rd-heading-actions">
             <button className="rd-button" disabled={!rows.length} onClick={() => download(rows)}>
@@ -405,10 +403,6 @@ export default function RecordsPage() {
           </div>
         </div>
       </div>
-      <p className="rd-footnote">
-        검사 결과는 생산 배치에서 추출한 표본 기준입니다. ‘불량 포함’은 불량이 1개 이상 있는
-        배치이며, ‘기준 초과’는 검사 불량률이 3%를 넘는 배치입니다.
-      </p>
     </section>
   );
 }
@@ -438,7 +432,6 @@ export function RecordDetailPage() {
       </Link>
       <div className="rd-heading">
         <div>
-          <span className="rd-eyebrow">RECORD DETAIL · 생산·검사 상세</span>
           <h1>
             {record.product} <Verdict record={record} />
           </h1>
@@ -458,9 +451,6 @@ export function RecordDetailPage() {
           </button>
         </div>
       </div>
-      <div className="rd-demo">
-        <span /> 예시 데이터 · 생산 정보는 시연용이며 실제 설비 가동 상태를 나타내지 않습니다.
-      </div>
       <div className="rd-summary">
         {[
           ['생산 수량', number(record.produced), '개'],
@@ -468,7 +458,10 @@ export function RecordDetailPage() {
           ['검사 양품', number(record.inspected - count), '개'],
           ['검사 불량률', formatRate(rate), `불량 ${count}개`],
         ].map(([label, value, note]) => (
-          <div className="rd-panel" key={label}>
+          <div
+            className={label === '검사 불량률' ? 'rd-panel rd-stat-rate' : 'rd-panel'}
+            key={label}
+          >
             <span className="rd-stat-label">{label}</span>
             {note === '개' ? (
               <strong className="rd-detail-value-row">

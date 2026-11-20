@@ -534,7 +534,6 @@ export default function QualityReportPage() {
               ]}
             />
           </div>
-          <span>표 검색·결과 필터는 요약 지표에 영향을 주지 않습니다.</span>
         </div>
         <div className="qr-table-scroll" role="region" tabIndex={0} aria-label="최근 검사 이력 표">
           <table className="qr-history-table">

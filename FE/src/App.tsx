@@ -1,7 +1,7 @@
 import LoadingState from './components/LoadingState';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router';
-import { Bell, Check, ChevronRight, Factory, LogOut, PanelLeftOpen, Maximize2 } from 'lucide-react';
+import { Bell, Check, ChevronRight, Factory, PanelLeftOpen, Maximize2 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import Modal from './components/Modal';
@@ -280,17 +280,18 @@ export default function App() {
         </Modal>
       )}
       {offWorkModalOpen && (
-        <Modal title="퇴근 시간 알림" onClose={() => setOffWorkModalOpen(false)}>
-          <div className="empty-state">
-            <LogOut size={36} />
-            <h3>퇴근시간이에요!</h3>
-            <p>오늘 근무가 끝났어요. 야근이 필요하면 연장 근무를 시작해 주세요.</p>
-            <button className="button button-primary" onClick={startOvertime}>
-              오늘 야근
-            </button>
-            <button className="button button-white" onClick={() => setOffWorkModalOpen(false)}>
-              닫기
-            </button>
+        <Modal title="퇴근 시간 알림" plain onClose={() => setOffWorkModalOpen(false)}>
+          <div className="confirm-dialog">
+            <p>오늘 근무가 끝났어요.</p>
+            <strong>야근이 필요하면 연장 근무를 시작해 주세요.</strong>
+            <div className="confirm-actions">
+              <button className="button button-white" onClick={() => setOffWorkModalOpen(false)}>
+                닫기
+              </button>
+              <button className="button button-primary" onClick={startOvertime}>
+                오늘 야근
+              </button>
+            </div>
           </div>
         </Modal>
       )}
