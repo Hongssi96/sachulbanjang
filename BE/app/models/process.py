@@ -55,6 +55,9 @@ class ProcessRecord(TimestampMixin, SoftDeleteMixin, Base):
         UniqueConstraint(
             "source_import_id", "source_row_number", name="uq_process_record_import_row"
         ),
+        UniqueConstraint(
+            "source_namespace", "source_record_key", name="uq_process_record_source_key"
+        ),
         Index("ix_process_record_equipment_occurred", "equipment_id", "occurred_at", "id"),
         Index("ix_process_record_product_occurred", "product_id", "occurred_at", "id"),
     )

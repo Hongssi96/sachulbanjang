@@ -71,7 +71,7 @@ erDiagram
         timestamptz available_at "nullable"
         numeric cycle_time_seconds "nullable"
         varchar source_namespace
-        varchar source_record_key
+        varchar source_record_key UK
         jsonb source_payload
         boolean is_demo
         integer version
@@ -108,8 +108,9 @@ erDiagram
   중복을 허용하지 않는다.
 - `cycle_time_seconds`는 단위를 컬럼명에 명시한다. 프론트 목업의 분 단위 이름을 DB 계약으로
   사용하지 않는다.
-- `(source_import_id, source_row_number)`는 파일 안의 행 위치를 유일하게 식별한다. 원본 전체 값은
-  `source_payload`에 보존하며 CSV 행 수를 생산 수량으로 해석하지 않는다.
+- `(source_import_id, source_row_number)`는 파일 안의 행 위치를 유일하게 식별하고,
+  `(source_namespace, source_record_key)`는 여러 파일에 중복된 같은 `_id` 적재를 방지한다. 원본
+  전체 값은 `source_payload`에 보존하며 CSV 행 수를 생산 수량으로 해석하지 않는다.
 - `available_at`은 재생 중 해당 행이 조회 가능해진 시각이다. 아직 공개되지 않은 적재 행은 null이다.
 - 설비 상태, 목표 생산량, 실제 생산 수량, 가동률은 확인한 CSV에 없으므로 현재 스키마에서 추론하지
   않는다.
