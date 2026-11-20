@@ -1,0 +1,32 @@
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.auth import AuthSession, RefreshCredential
+from app.models.master import AppUser
+
+
+class AuthRepository:
+    """Data access used by login and token refresh."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find_active_user_for_login(self, employee_no: str) -> AppUser | None:
+        """Lock the account row so concurrent failures cannot lose lock counts."""
+        return self._session.scalar(
+            select(AppUser)
+            .where(AppUser.employee_no == employee_no, AppUser.deleted_at.is_(None))
+            .with_for_update()
+        )
+
+    def find_active_user_by_id(self, user_id: int) -> AppUser | None:
+        return self._session.scalar(
+            select(AppUser).where(AppUser.id == user_id, AppUser.deleted_at.is_(None))
+        )
+
+    def add_session(self, auth_session: AuthSession) -> None:
+        self._session.add(auth_session)
+        self._session.flush()
+
+    def add_refresh_credential(self, credential: RefreshCredential) -> None:
+        self._session.add(credential)
