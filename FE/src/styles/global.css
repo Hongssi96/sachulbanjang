@@ -4233,3 +4233,52 @@ textarea {
 .modal:has(.factory-map)::-webkit-scrollbar {
   display: none;
 }
+
+/* 실시간 공정: 설비 목록 드래그 및 하단 이동 버튼 */
+.rt-band-controls {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.rt-band-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.rt-band-nav:hover:not(:disabled) {
+  color: var(--primary);
+}
+.rt-band-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rt-band-nav:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.rt-card-grid.is-scrollable,
+.rt-card-grid.is-scrollable .rt-machine > button {
+  cursor: grab;
+  user-select: none;
+}
+.rt-card-grid.is-dragging,
+.rt-card-grid.is-dragging .rt-machine > button {
+  cursor: grabbing;
+}
+.rt-card-grid.is-dragging {
+  scroll-snap-type: none;
+}
+.dark .rt-band-nav {
+  background: transparent;
+  color: var(--ink);
+}
+.dark .rt-band-nav:hover:not(:disabled) {
+  color: var(--primary);
+}
