@@ -66,11 +66,11 @@ export default function App() {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const routePath = location.pathname.replace(/\/$/, '') || '/';
   const isChat = routePath === '/chat';
-  const chatFocus = isChat && new URLSearchParams(location.search).get('menu') !== 'show';
+  const chatFocus = isChat && new URLSearchParams(location.search).get('menu') === 'hide';
   const toggleChatMenu = () => {
     const query = new URLSearchParams(location.search);
-    if (chatFocus) query.set('menu', 'show');
-    else query.delete('menu');
+    if (chatFocus) query.delete('menu');
+    else query.set('menu', 'hide');
     navigate({ pathname: location.pathname, search: query.toString() }, { replace: true });
   };
   const activeMenu =

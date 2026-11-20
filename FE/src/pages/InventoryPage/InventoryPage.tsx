@@ -212,16 +212,16 @@ export default function InventoryPage() {
   return (
     <div className="inventory-page">
       {isPending && <LoadingState compact label="재고 데이터를 조회하는 중이에요" />}
-      <section className="page-intro">
-        <div>
-          <div className="eyebrow">
-            <span />
-            INVENTORY AT A GLANCE
-          </div>
-          <h1 className="sr-only">
-            재고 관리<span className="greeting-dot">.</span>
-          </h1>
-          <p>완제품의 입고부터 출고까지, 필요한 재고를 한눈에 확인하세요.</p>
+      <section className="page-intro inv-compact-intro">
+        <div className="section-top">
+          <h2 id="inventory-summary-title">
+            전체 재고 요약{' '}
+            <span className="live-label">
+              <i />
+              DEMO
+            </span>
+          </h2>
+          <span className="muted">전체 완제품 {inventory.items.length}개 품목 기준</span>
         </div>
         <div className="inv-intro-actions">
           <button className="button button-white" onClick={download} disabled={!rows.length}>
@@ -274,16 +274,6 @@ export default function InventoryPage() {
         )}
       </div>
       <section aria-labelledby="inventory-summary-title">
-        <div className="section-top">
-          <h2 id="inventory-summary-title">
-            전체 재고 요약{' '}
-            <span className="live-label">
-              <i />
-              DEMO
-            </span>
-          </h2>
-          <span className="muted">전체 완제품 {inventory.items.length}개 품목 기준</span>
-        </div>
         <div className="kpi-grid">
           <article className="kpi">
             <div className="kpi-label">

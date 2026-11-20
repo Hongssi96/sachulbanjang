@@ -172,36 +172,8 @@ export default function QualityReportPage() {
   return (
     <div className="quality-report-page" aria-busy={isPending}>
       {isPending && <LoadingState compact label="품질 데이터를 조회하는 중이에요" />}
-      <section className="page-intro">
-        <div>
-          <div className="eyebrow">
-            <span />
-            QUALITY AT A GLANCE
-          </div>
-          <h1 className="sr-only">
-            품질 리포트<span className="greeting-dot">.</span>
-          </h1>
-          <p>검사 기록을 바탕으로, 품질의 흐름과 다음 확인 사항을 정리하세요.</p>
-        </div>
-        <div className="qr-intro-actions">
-          <button
-            className="button button-white"
-            onClick={downloadCsv}
-            disabled={!rows.length || !!rangeError}
-          >
-            <Download size={18} />
-            CSV 다운로드
-          </button>
-          <button
-            className="button button-primary"
-            onClick={() => setDialog({ kind: 'preview' })}
-            disabled={!records.length || !!rangeError}
-          >
-            <FileChartColumn size={18} />
-            리포트 미리보기
-          </button>
-        </div>
-      </section>
+      <h1 className="sr-only">품질 리포트</h1>
+
       {feedback && (
         <div className="qr-feedback" role="status">
           <Check size={18} />
@@ -320,11 +292,31 @@ export default function QualityReportPage() {
               DEMO
             </span>
           </h2>
-          <span className="muted">
-            {rangeError
-              ? '조회 기간 확인 필요'
-              : `${qualityDateLabel(filters.from)}–${qualityDateLabel(filters.to)}`}
-          </span>
+          <div className="qr-summary-actions">
+            <span className="muted">
+              {rangeError
+                ? '조회 기간 확인 필요'
+                : `${qualityDateLabel(filters.from)}–${qualityDateLabel(filters.to)}`}
+            </span>
+            <div className="qr-intro-actions">
+              <button
+                className="button button-white"
+                onClick={downloadCsv}
+                disabled={!rows.length || !!rangeError}
+              >
+                <Download size={18} />
+                CSV 다운로드
+              </button>
+              <button
+                className="button button-primary"
+                onClick={() => setDialog({ kind: 'preview' })}
+                disabled={!records.length || !!rangeError}
+              >
+                <FileChartColumn size={18} />
+                리포트 미리보기
+              </button>
+            </div>
+          </div>
         </div>
         <div className="kpi-grid">
           <article className="kpi">
