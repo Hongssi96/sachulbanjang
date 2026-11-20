@@ -48,13 +48,12 @@ uvicorn app.main:app --reload
 
 ### 공정 CSV 적재
 
-마이그레이션 적용 후 공정 CSV의 원본 시간대를 명시해 적재한다. 현재 원본 TimeStamp의 시간대는
-업무 확인 전이므로 명령에 기본값을 두지 않는다.
+마이그레이션 적용 후 공정 CSV를 적재한다. 원본 `TimeStamp`는 한국시간(`Asia/Seoul`)으로
+해석하며 다른 원천만 `--source-timezone`으로 덮어쓴다.
 
 ```powershell
 python -m app.commands.import_process_csv `
-  "C:\path\to\molding.csv" `
-  --source-timezone Asia/Seoul
+  "C:\path\to\molding.csv"
 ```
 
 DB에 연결하거나 저장하지 않고 전체 행만 검증하려면 `--validate-only`를 추가한다.

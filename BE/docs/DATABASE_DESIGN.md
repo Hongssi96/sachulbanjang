@@ -115,6 +115,6 @@ product → stock_balance / stock_movement → original stock_movement
 
 ## 보류와 검증 근거
 
-CSV TimeStamp의 원본 시간대, 실제 검사 연결, 운영 조직·라인 데이터는 아직 확정하지 않는다. 품목 코드는 존재할 때 유일하게 관리하되 코드가 없는 품목의 동일성 판정은 적재 구현에서 추가 검증한다. AI 모델·승인된 전송 필드, 배포 출처·운영 백업도 기존 보류다.
+CSV TimeStamp는 한국시간(Asia/Seoul)으로 해석해 UTC timestamptz로 저장한다(DEC-202). 실제 검사 연결, 운영 조직·라인 데이터는 아직 확정하지 않는다. 품목 코드는 존재할 때 유일하게 관리하되 코드가 없는 품목의 동일성 판정은 적재 구현에서 추가 검증한다. AI 모델·승인된 전송 필드, 배포 출처·운영 백업도 기존 보류다.
 
 동시성 설계는 PostgreSQL의 [명시적 잠금](https://www.postgresql.org/docs/18/explicit-locking.html)을 참고했다. 실제 적용·성능·교착 검증은 미실행이다.

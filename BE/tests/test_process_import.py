@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from app.commands.import_process_csv import build_parser
 from app.repositories.process_import import ProcessImportRepository
 from app.services.process_import import (
     ProcessImportError,
@@ -114,3 +115,9 @@ def test_calculate_sha256_is_stable(tmp_path: Path) -> None:
     path.write_bytes(b"molding-data")
 
     assert calculate_sha256(path) == calculate_sha256(path)
+
+
+def test_import_command_defaults_source_timezone_to_korea() -> None:
+    args = build_parser().parse_args(["process.csv", "--validate-only"])
+
+    assert args.source_timezone == "Asia/Seoul"

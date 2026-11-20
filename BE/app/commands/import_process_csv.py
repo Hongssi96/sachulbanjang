@@ -15,8 +15,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("csv_path", type=Path)
     parser.add_argument(
         "--source-timezone",
-        required=True,
-        help="IANA timezone of naive TimeStamp values, for example Asia/Seoul",
+        default="Asia/Seoul",
+        help="IANA timezone of naive TimeStamp values (default: Asia/Seoul)",
     )
     parser.add_argument("--source-namespace", default="molding_csv")
     parser.add_argument("--batch-size", type=int, default=1_000)
