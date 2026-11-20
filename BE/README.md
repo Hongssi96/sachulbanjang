@@ -21,9 +21,9 @@ Copy-Item .env.example .env
 `.env`의 `APP_DATABASE_URL`, `APP_JWT_SECRET`을 개인 개발 값으로 변경한다. JWT 비밀값은
 32자 이상이어야 한다. `APP_AI_API_KEY`는 선택값이며 비어 있어도 일반 기능은 실행된다.
 `APP_ACCESS_TOKEN_TTL_SECONDS`, `APP_REFRESH_TOKEN_TTL_SECONDS`, `APP_LOGIN_MAX_FAILURES`,
-`APP_LOGIN_LOCK_SECONDS`로 인증 기본값을 조정한다. 실제 HTTPS 배포에서는
-`APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON 배열로
-나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다. 실제 `.env`와 비밀값은 커밋하지 않는다.
+`APP_LOGIN_LOCK_SECONDS`, `APP_REFRESH_REUSE_GRACE_SECONDS`로 인증 기본값을 조정한다. 실제 HTTPS
+배포에서는 `APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON
+배열로 나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다. 실제 `.env`와 비밀값은 커밋하지 않는다.
 
 ## 2. PostgreSQL과 마이그레이션
 
@@ -49,6 +49,8 @@ uvicorn app.main:app --reload
 - liveness: `GET http://localhost:8000/api/v1/health/live`
 - 로그인: `POST http://localhost:8000/api/v1/auth/login` (`employee_no`, `password`)
 - 현재 사용자: `GET http://localhost:8000/api/v1/auth/me` (로그인 응답의 액세스 쿠키 필요)
+- 토큰 갱신: `POST http://localhost:8000/api/v1/auth/refresh` (리프레시 쿠키 + `X-CSRF-Token` 헤더)
+- 로그아웃: `POST http://localhost:8000/api/v1/auth/logout` (인증 쿠키 + `X-CSRF-Token` 헤더)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비
