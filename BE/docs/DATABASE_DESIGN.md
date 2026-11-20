@@ -1,6 +1,6 @@
 # DB 설계 초안
 
-기준일: 2026-11-19. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 구현 전 설계다. 아래 테이블·필드·인덱스는 AI의 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다. CSV 식별자·시간대·조직 관계는 데이터 확인 전 가정으로 남긴다.
+기준일: 2026-11-20. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목과 CSV 공정 재생의 핵심 테이블은 Alembic `20261120_0003`까지 구현했으며 [ERD](ERD.md)에 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
 
@@ -18,8 +18,8 @@
 | app_user | employee_no UNIQUE(삭제 계정 포함), display_name, password_hash, role(admin/worker), must_change_password, shift_start_local, shift_end_local, failed_login_count, locked_until?, deleted_at |
 | department | code UNIQUE 범위 검증 필요, name, deleted_at |
 | production_line | department_id FK, code, name, deleted_at. 부서 내 코드 UNIQUE는 데이터 확인 후 결정 |
-| equipment | production_line_id? FK, equipment_code, name, deleted_at. 단일 현재 소속 라인은 DEC-129의 가정 |
-| product | product_code?, name, minimum_stock? >= 0, deleted_at. 코드가 없는 CSV 품목의 중복 식별은 데이터 확인 후 결정 |
+| equipment | production_line_id? FK, equipment_code UNIQUE, name, deleted_at. CSV에 라인 값이 없어 현재 소속은 비울 수 있음 |
+| product | product_code? UNIQUE, name, minimum_stock? >= 0, deleted_at. PART_NO가 없는 CSV 품목도 허용 |
 | user_assignment | user_id FK, department_id?·production_line_id?·equipment_id? FK. 세 대상 중 정확히 하나만 NOT NULL. 대상별 활성 배정 중복 방지 |
 | auth_session | user_id FK, absolute_expires_at, revoked_at?, current_refresh_generation. 최초 로그인 기준 7일 상한 |
 | refresh_credential | session_id FK, token_digest UNIQUE, generation, expires_at, consumed_at?, revoked_at?. 재사용 감지를 위해 사용된 토큰의 식별 정보를 보존하고 토큰 원문은 저장하지 않음 |
@@ -32,14 +32,16 @@
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| source_import | source_name, source_fingerprint, status, started_at, finished_at?, error_code?. 파일 해시만으로 행의 업무 식별자를 대체하지 않음 |
-| process_record | equipment_id FK, product_id? FK, occurred_at, available_at, cycle_time?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at |
+| source_import | source_name, source_fingerprint UNIQUE, status, started_at, finished_at?, error_code?. 파일 해시만으로 행의 업무 식별자를 대체하지 않음 |
+| process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number) UNIQUE |
 | inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at, verdict, defect_type?, reason?, is_demo, version, deleted_at |
 | operation_day | equipment_id FK, local_date, planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, local_date) UNIQUE |
 | record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation, before_value, after_value, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나 |
 | process_replay | source_import_id FK, cursor, data_time?, last_advanced_at?, state. 재시작 절차는 Q-167 보류 |
 
-source_record_key의 유일성은 CSV 확인 후 정한다. 같은 키·같은 내용은 건너뛰고 다른 내용은 충돌로 보존·안내한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.
+확인한 CSV에는 별도 행 ID가 없으므로 원본 파일과 1부터 시작하는 행 번호를 조합해 중복 적재를 막는다. source_record_key는 원천별 추적 키로 보존하되 현재 전역 UNIQUE로 가정하지 않는다. 같은 파일 fingerprint의 재적재는 거부하고 원본 행 전체를 source_payload에 보존한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.
+
+확인한 공정 CSV에는 EQUIP_CD·EQUIP_NAME·PART_NO(일부 파일)·PART_NAME·TimeStamp·Cycle_Time이 있다. 설비 코드는 실제 값(S01, S02, S04, S06~S15)을 사용하고 프론트 목업의 사출 1~10호기를 마스터 근거로 사용하지 않는다. 같은 품목이 여러 설비에서 생산되므로 설비와 품목을 고정 1:1로 연결하지 않는다. Cycle_Time은 초 단위 `cycle_time_seconds`로 저장한다. CSV에 없는 라인·설비 상태·목표 생산량·실제 생산 수량은 추론하지 않는다.
 
 검사 데이터에 공정과 연결할 키가 없으면 process_record_id는 비워 두며 시간·설비가 비슷하다는 이유로 억지 연결하지 않는다. verdict는 시연 데이터에 양품/불량을 명시한다. 불량 유형 누락은 표시·집계에서 ‘미분류’로 처리한다. 실제 수집 필드·판정 매핑은 미확정이다.
 
@@ -109,10 +111,10 @@ app_user → conversation → chat_turn → answer_evidence
 
 product → stock_balance / stock_movement → original stock_movement
 
-관계 개요는 논리 모델이며 전체 FK는 위 표를 따른다. 실제 DDL·ERD 렌더링은 스키마 구현과 함께 확인한다.
+관계 개요는 전체 논리 모델이며 전체 FK는 위 표를 따른다. 현재 구현된 DDL은 [ERD.md](ERD.md)를 기준으로 확인한다.
 
 ## 보류와 검증 근거
 
-CSV 선택·키·시간대·공정 수치 컬럼, 실제 검사 연결, 조직·품목 코드 유일성은 데이터 확인 전 확정하지 않는다. AI 모델·승인된 전송 필드, 배포 출처·운영 백업도 기존 보류다.
+CSV TimeStamp의 원본 시간대, 실제 검사 연결, 운영 조직·라인 데이터는 아직 확정하지 않는다. 품목 코드는 존재할 때 유일하게 관리하되 코드가 없는 품목의 동일성 판정은 적재 구현에서 추가 검증한다. AI 모델·승인된 전송 필드, 배포 출처·운영 백업도 기존 보류다.
 
 동시성 설계는 PostgreSQL의 [명시적 잠금](https://www.postgresql.org/docs/18/explicit-locking.html)을 참고했다. 실제 적용·성능·교착 검증은 미실행이다.
