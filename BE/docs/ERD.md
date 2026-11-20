@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-20. 이 문서는 Alembic `20261120_0003` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-20. 이 문서는 Alembic `20261120_0005` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -18,6 +18,24 @@ erDiagram
         timestamptz locked_until "nullable"
         integer version
         timestamptz deleted_at "nullable"
+    }
+
+    AUTH_SESSION {
+        bigint id PK
+        bigint user_id FK
+        timestamptz absolute_expires_at
+        timestamptz revoked_at "nullable"
+        integer current_refresh_generation
+    }
+
+    REFRESH_CREDENTIAL {
+        bigint id PK
+        bigint session_id FK
+        varchar token_digest UK
+        integer generation
+        timestamptz expires_at
+        timestamptz consumed_at "nullable"
+        timestamptz revoked_at "nullable"
     }
 
     DEPARTMENT {
@@ -94,6 +112,8 @@ erDiagram
     SOURCE_IMPORT ||--o| PROCESS_REPLAY : controls
     EQUIPMENT ||--o{ PROCESS_RECORD : produces
     PRODUCT o|--o{ PROCESS_RECORD : identifies
+    APP_USER ||--o{ AUTH_SESSION : owns
+    AUTH_SESSION ||--o{ REFRESH_CREDENTIAL : rotates
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -114,9 +134,14 @@ erDiagram
 - `available_at`은 재생 중 해당 행이 조회 가능해진 시각이다. 아직 공개되지 않은 적재 행은 null이다.
 - 설비 상태, 목표 생산량, 실제 생산 수량, 가동률은 확인한 CSV에 없으므로 현재 스키마에서 추론하지
   않는다.
+- `refresh_credential`은 토큰 원문 대신 SHA-256 digest만 저장한다. 재사용 감지를 위해 사용된
+  자격 증명 행은 삭제하지 않고 `consumed_at`·`revoked_at`으로 상태를 남긴다.
+- `auth_session.absolute_expires_at`은 최초 로그인부터 7일 상한이며, 리프레시를 교체해도 늘어나지
+  않는다. 액세스 토큰 만료는 DB에 저장하지 않고 JWT claim으로 관리한다.
 
 ## 구현 위치
 
-- ORM: `BE/app/models/master.py`, `BE/app/models/process.py`
-- 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`
+- ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`
+- 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
+  `20261120_0005_auth_session.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

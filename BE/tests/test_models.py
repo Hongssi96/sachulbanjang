@@ -6,12 +6,14 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 def test_core_schema_registers_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
         "app_user",
+        "auth_session",
         "department",
         "equipment",
         "process_record",
         "process_replay",
         "product",
         "production_line",
+        "refresh_credential",
         "source_import",
     }
 
