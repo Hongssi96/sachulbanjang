@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
 
 from app.core.config import Settings, get_settings
@@ -34,6 +35,14 @@ def create_app(
 
     application = FastAPI(title="imleader API", version="0.1.0", lifespan=lifespan)
     application.state.session_factory = create_session_factory(engine)
+    if app_settings.cors_origins:
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=app_settings.cors_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "X-CSRF-Token", "X-Request-ID"],
+        )
     application.add_middleware(RequestContextMiddleware)
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")

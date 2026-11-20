@@ -1575,7 +1575,15 @@
 - 토큰은 HS256 JWT(`PyJWT`)를 사용하고 `APP_JWT_SECRET`(32자 이상)으로 서명한다. 리프레시 토큰도 JWT로 발급하되 원문은 저장하지 않고 SHA-256 digest만 DB에 남긴다. 재사용 감지와 세대 교체는 후속 갱신 API에서 구현한다.
 - Python 3.14 기준 `argon2-cffi` 25.1.0, `PyJWT` 2.15.1을 고정 설치했고, Windows 로컬 3.12 환경에서도 동작을 확인했다.
 
-## TECH-009 — 공정 CSV 5초 재생 구현
+## TECH-009 — 초기 계정 준비 방식과 FE 연동 출처·CSRF 방식
+
+- FE 연동을 앞두고 초기 계정 준비 방식, CORS 허용 출처, CSRF 방식을 요청자와 확정했다.
+- 초기 계정은 Alembic 데이터 마이그레이션이 아니라 CLI(`python -m app.commands.seed_accounts`)로 만든다. 비밀번호는 인자로 넘기거나 화면에 남지 않게 입력받아 저장소에 남기지 않는다. 같은 사번이 있으면 덮어쓰지 않고 실패시켜 비밀번호가 조용히 교체되는 일을 막는다. 초기 계정은 `must_change_password=true`로 만들어 최초 로그인 후 변경을 요구한다.
+- FE 개발 출처는 `http://localhost:5173`, `http://localhost:5174`를 `APP_CORS_ORIGINS` 설정으로 허용한다. 자격 증명을 허용해야 하므로 와일드카드 출처를 사용하지 않고 명시한 출처만 허용한다. 목록이 비어 있으면 CORS 미들웨어를 추가하지 않는다.
+- CSRF는 더블 서브밋 쿠키 방식으로 구현한다. 로그인 시 JS가 읽는 `imleader_csrf_token` 쿠키를 발급하고, 쿠키 인증 상태 변경 요청은 `X-CSRF-Token` 헤더로 같은 값을 보낸다. 실제 검증은 리프레시·로그아웃 API를 구현하는 다음 MR부터 적용한다.
+- CSRF 방식을 확정하기 전까지는 로그인·현재 사용자 조회만 제공하므로 상태 변경 쿠키 요청 자체가 없다. FE 연동 문서는 `API_SPEC.md`의 인증 연동 계약에 둔다.
+
+## TECH-010 — 공정 CSV 5초 재생 구현
 
 - DEC-006·DEC-166·DEC-202에 따라 적재된 CSV 레코드를 첫 실행 시 즉시, 이후 5초마다 하나씩 공개하는 재생 Service와 CLI worker를 구현했다.
 - `ProcessReplayService`가 트랜잭션을 소유하고 Repository의 `SELECT ... FOR UPDATE`로 replay 행을 잠근다. 같은 replay를 여러 worker가 실행해도 cursor와 공개 시각을 한 worker만 변경한다.
@@ -1585,7 +1593,7 @@
 - Ruff, mypy, 전체 pytest와 PostgreSQL 18에서 두 레코드 replay가 5초 간격으로 진행되어 마지막에 종료되는 동작을 검증했다.
 - 기록일: 2026-11-20.
 
-## TECH-010 — 현재 공정 조회 API 계약
+## TECH-011 — 현재 공정 조회 API 계약
 
 - 후속 우선순위에 따라 인증된 관리자·고용자가 사용하는 `GET /api/v1/process/current`를 구현했다. 별도 역할 제한 없이 기존 DEC-152 조회 권한을 적용한다.
 - 현재 시연은 ID가 가장 큰 최신 replay를 기준으로 한다. 해당 import에서 조회 시각까지 공개된 레코드만 대상으로 설비별 source 행 순서가 가장 뒤인 1건을 반환하며, 선택 `equipment_id` 필터를 지원한다.

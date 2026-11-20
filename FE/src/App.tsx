@@ -90,6 +90,13 @@ export default function App() {
     workspaceRef.current?.scrollTo(0, 0);
   }, [location.pathname, pageTitle]);
 
+  // 토스트는 2초 뒤 자동으로 사라진다.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(''), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   const toggleDark = () => {
     // 주간 모드로 돌아오면 연장 근무를 해제해 17시 자동 로그아웃이 다시 동작하도록 한다.
     if (dark) setExtended(false);

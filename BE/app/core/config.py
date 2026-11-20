@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     access_cookie_name: str = Field(default="imleader_access_token", min_length=1)
     refresh_cookie_name: str = Field(default="imleader_refresh_token", min_length=1)
     auth_cookie_secure: bool = False
+    cors_origins: list[str] = Field(default_factory=list)
 
 
 @lru_cache
