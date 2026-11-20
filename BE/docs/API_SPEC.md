@@ -63,7 +63,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
 | 인증 | 구현 중 | 사번 로그인·현재 사용자 조회·Argon2id 검증·5회 실패 잠금·HttpOnly 쿠키·액세스 15분/리프레시 7일 토큰 발급, 초기 계정 시드 CLI, FE 출처 CORS 구현. pytest 34건·PostgreSQL 18 로그인/잠금/시드/CORS 통합 확인. 갱신·로그아웃·CSRF·비밀번호 변경·초기화 미구현 | 2026-11-20 |
 | 근무 | 미착수 | - | 2026-11-20 |
-| 공정 | 구현 중 | 핵심 스키마·원자적 CSV 적재·중복/충돌·한국시간 매핑 구현, pytest 15건·실제 CSV 808,543행 검증·PostgreSQL 18 migration 검증. 5초 재생과 조회 API 미구현 | 2026-11-20 |
+| 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정과 인증된 현재 공정 조회 구현. 전체 pytest 및 PostgreSQL 18 replay 검증. FE polling 연동 미확인 | 2026-11-20 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
 | 검사·품질 | 미착수 | - | 2026-11-20 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
@@ -86,8 +86,8 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 - [x] 설비·제품 마스터 연결, 전체 원자적 적재, 초기 `ready` replay 생성
 - [x] 파일 fingerprint 재적재 차단과 원천 `_id` 중복·충돌 처리
 - [x] DB에 저장하지 않는 전체 CSV `--validate-only` 검증 명령
-- [ ] 5초 간격 공정 레코드 재생과 정상 종료·15초 지연 판정
-- [ ] 인증·권한이 적용된 `GET /process/current` 응답과 OpenAPI 계약
+- [x] 5초 간격 공정 레코드 재생과 정상 종료·15초 지연 판정
+- [x] 인증·권한이 적용된 `GET /process/current` 응답과 OpenAPI 계약
 - [ ] FE polling 연동과 시연·기준 시각·조회 시각·오류 상태 표시 확인
 
 상위 공정 상태는 위 필수 항목이 일부 남아 있으므로 `구현 중`이다. 체크된 하위 항목만 완료로
@@ -145,6 +145,28 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | PATCH /products/{id}/minimum-stock | minimum_stock nullable | 관리자만 |
 
 신규 사용자 생성·마스터 편집·검사 수동 등록·재고 원장 삭제·예약 보고·복구 API는 추가하지 않는다. 실제 검사 수집 API는 원천·인증 규격 확보 후 별도 설계한다.
+
+### GET /process/current
+
+인증된 관리자와 고용자가 가장 최근에 적재된 CSV replay의 현재 공정을 조회한다. 선택 query
+`equipment_id`는 1 이상의 설비 ID이며 생략하면 replay에 공개된 전체 설비를 반환한다. 아직
+replay가 없거나 공개된 레코드가 없으면 200과 빈 `items`를 반환한다.
+
+| 응답 필드 | 형식·의미 |
+| --- | --- |
+| queried_at | 서버가 조회한 UTC RFC 3339 시각 |
+| replay_id | 최신 replay ID. replay가 없으면 null |
+| replay_state | `ready`, `running`, `delayed`, `completed`, `failed`. replay가 없으면 null |
+| data_time | replay에서 마지막으로 공개한 원본 데이터 시각. 공개 전이면 null |
+| last_advanced_at | 마지막 정상 공개 시각. 공개 전이면 null |
+| items | 설비별 공개된 최신 레코드 목록. `equipment_code` 오름차순 |
+
+각 item은 `equipment_id`, `equipment_code`, `equipment_name`, `equipment_status`,
+`product_id`, `product_code`, `product_name`, `cycle_time_seconds`, `occurred_at`,
+`available_at`, `is_demo`를 포함한다. 품목이 없으면 품목 세 필드는 null이며 CSV에 설비 상태가
+없으므로 현재 `equipment_status`는 `unknown`이다. `cycle_time_seconds`는 정밀도 보존을 위해
+JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하지 않으면 401
+`AUTHENTICATION_REQUIRED`, `equipment_id`가 1 미만이면 422를 반환한다.
 
 ### 필드·응답 기술 기본안
 

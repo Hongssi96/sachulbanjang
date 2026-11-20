@@ -1583,4 +1583,23 @@
 - CSRF는 더블 서브밋 쿠키 방식으로 구현한다. 로그인 시 JS가 읽는 `imleader_csrf_token` 쿠키를 발급하고, 쿠키 인증 상태 변경 요청은 `X-CSRF-Token` 헤더로 같은 값을 보낸다. 실제 검증은 리프레시·로그아웃 API를 구현하는 다음 MR부터 적용한다.
 - CSRF 방식을 확정하기 전까지는 로그인·현재 사용자 조회만 제공하므로 상태 변경 쿠키 요청 자체가 없다. FE 연동 문서는 `API_SPEC.md`의 인증 연동 계약에 둔다.
 
+## TECH-010 — 공정 CSV 5초 재생 구현
+
+- DEC-006·DEC-166·DEC-202에 따라 적재된 CSV 레코드를 첫 실행 시 즉시, 이후 5초마다 하나씩 공개하는 재생 Service와 CLI worker를 구현했다.
+- `ProcessReplayService`가 트랜잭션을 소유하고 Repository의 `SELECT ... FOR UPDATE`로 replay 행을 잠근다. 같은 replay를 여러 worker가 실행해도 cursor와 공개 시각을 한 worker만 변경한다.
+- 마지막 레코드를 공개한 트랜잭션에서 상태를 `completed`로 바꾸며 마지막 `data_time`과 공개 값을 유지한다. 빈 replay도 `completed`로 종료하고 자동 반복하지 않는다.
+- 조회용 상태 계산은 실행 상태가 `running`이고 마지막 정상 갱신 후 15초 이상 지났을 때만 `delayed`를 반환한다. 정상 종료 `completed`와 명시적 실패 `failed`는 지연 상태로 덮어쓰지 않는다.
+- 별도 스키마·API 계약 변경은 없다. 현재 공정 조회 API와 FE polling 연동은 후속 작업으로 남긴다.
+- Ruff, mypy, 전체 pytest와 PostgreSQL 18에서 두 레코드 replay가 5초 간격으로 진행되어 마지막에 종료되는 동작을 검증했다.
+- 기록일: 2026-11-20.
+
+## TECH-011 — 현재 공정 조회 API 계약
+
+- 후속 우선순위에 따라 인증된 관리자·고용자가 사용하는 `GET /api/v1/process/current`를 구현했다. 별도 역할 제한 없이 기존 DEC-152 조회 권한을 적용한다.
+- 현재 시연은 ID가 가장 큰 최신 replay를 기준으로 한다. 해당 import에서 조회 시각까지 공개된 레코드만 대상으로 설비별 source 행 순서가 가장 뒤인 1건을 반환하며, 선택 `equipment_id` 필터를 지원한다.
+- 응답에 서버 `queried_at`, replay의 `data_time`·`last_advanced_at`·상태, 설비·품목·최근 사이클 시간·공개 시각·시연 여부를 명시한다. replay가 없거나 공개 전이면 polling 가능한 200 빈 목록을 반환한다.
+- CSV에 없는 설비 상태·생산량·진행률을 추론하지 않는다. DEC-007에 따라 설비 상태는 `unknown`으로 제공하고, 작업 진행률은 DEC-006에 따라 응답에서 제외했다.
+- `cycle_time_seconds`는 PostgreSQL numeric 정밀도를 잃지 않도록 JSON 문자열로 전송한다. 날짜·시각은 공통 계약대로 UTC RFC 3339를 사용한다.
+- DB 스키마와 마이그레이션 변경은 없다. FE polling과 화면의 시연·기준·조회·오류 상태 표시는 후속 확인으로 남긴다.
+- 기록일: 2026-11-20.
 
