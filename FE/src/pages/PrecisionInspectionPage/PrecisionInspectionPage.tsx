@@ -78,7 +78,6 @@ export default function PrecisionInspectionPage() {
     <section className="records-page precision-page">
       <div className="rd-heading">
         <div>
-          <span className="rd-eyebrow">PRECISION MACHINE INSPECTION</span>
           <h1>정밀기계검사</h1>
           <p>
             {record.equipment} · {record.product} · {record.lotId}
@@ -92,10 +91,6 @@ export default function PrecisionInspectionPage() {
             <ArrowLeft size={16} /> 목록으로 돌아가기
           </Link>
         </div>
-      </div>
-      <div className="rd-demo">
-        <span /> 시연용 검사표 · 측정값과 허용 범위는 화면 구성을 위한 예시이며 실제 설비 기준이
-        아닙니다.
       </div>
       <div className="pi-overview rd-panel">
         <div className="pi-machine">
@@ -134,7 +129,6 @@ export default function PrecisionInspectionPage() {
           <div className="rd-list-heading">
             <div>
               <h2>정밀 검사 결과</h2>
-              <p>측정 항목별 결과와 점검 내용을 확인하세요.</p>
             </div>
             <ClipboardCheck size={22} />
           </div>

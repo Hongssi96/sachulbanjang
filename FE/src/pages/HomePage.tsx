@@ -178,12 +178,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
       </div>
       <section className="overview" aria-labelledby="overview-heading">
         <div className="section-top">
-          <h2 id="overview-heading">
-            오늘의 공정 요약{' '}
-            <span className="live-label">
-              <i /> DEMO
-            </span>
-          </h2>
+          <h2 id="overview-heading">오늘의 공정 요약 </h2>
           <span className="muted">예시 기준 시각 16:42</span>
         </div>
         <div className="kpi-grid">
@@ -282,7 +277,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <div className="card-heading">
               <div>
                 <h2>생산 현황</h2>
-                <p>시간에 따른 생산량 흐름을 확인하세요.</p>
               </div>
               <div className="segmented-control" aria-label="생산 조회 기간">
                 <button
@@ -458,7 +452,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
         <div className="side-column">
           <section className="insight-card">
             <div className="insight-label">
-              <Sparkles size={17} /> 사출반장의 품질 인사이트<span>예시</span>
+              <Sparkles size={17} /> 사출반장의 품질 인사이트
             </div>
             <h2>
               오늘은 이 부분을
@@ -596,7 +590,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
       </div>
       <footer className="page-footer">
         <span>© 2026 사출반장. 더 나은 현장을 함께 만듭니다.</span>
-        <span>예시 화면 · 실제 공정 및 서버 미연동</span>
       </footer>
       {overlay && (
         <Modal
@@ -664,9 +657,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                   <p>다른 날짜를 선택해 확인해 보세요.</p>
                 </div>
               )}
-              <p className="demo-disclaimer">
-                일정은 2026.11 기준의 시연용 데이터와 이 브라우저에서 추가한 일정입니다.
-              </p>
             </>
           )}
           {overlay.kind === 'note' && (
@@ -764,7 +754,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               </div>
               <div className="modal-callout">
                 <TriangleAlert size={18} />
-                <p>사출 3호기 압력 변동 확인 필요 · 설비 상태와 배치는 시연용입니다.</p>
+                <p>사출 3호기 압력 변동 확인이 필요합니다.</p>
               </div>
             </>
           )}

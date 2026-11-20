@@ -21,6 +21,13 @@
   --muted: #777583;
   --soft: #f8f8fa;
   --metric-reference: #dd8296;
+  --warning: #f2bb69;
+  --danger: #d95f70;
+  --danger-text: #a53849;
+  --idle: #a9aab5;
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --radius-small: 6px;
 }
 * {
   box-sizing: border-box;
@@ -77,10 +84,10 @@ h1 {
   letter-spacing: -1.1px;
 }
 h2 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 650;
-  line-height: 28px;
-  letter-spacing: -0.5px;
+  line-height: 26px;
+  letter-spacing: -0.4px;
 }
 h3 {
   font-size: 24px;
@@ -494,7 +501,7 @@ svg {
   right: 8px;
   width: 5px;
   height: 5px;
-  background: #d95f70;
+  background: var(--danger);
   border-radius: 50%;
   border: 1px solid var(--surface);
 }
@@ -525,7 +532,7 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin: 8px 0 24px;
+  margin: 0 0 24px;
 }
 .eyebrow {
   display: flex;
@@ -751,11 +758,11 @@ main {
   width: 60%;
 }
 .segmented-progress span:nth-child(2) {
-  background: #a9aab5;
+  background: var(--idle);
   width: 20%;
 }
 .segmented-progress span:nth-child(3) {
-  background: #d95f70;
+  background: var(--danger);
   width: 20%;
 }
 .kpi-caption {
@@ -779,7 +786,7 @@ main {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   padding: 24px;
   min-width: 0;
 }
@@ -876,7 +883,7 @@ main {
 }
 .legend-dashed {
   width: 12px;
-  border-top: 2px dashed #a9aab5;
+  border-top: 2px dashed var(--idle);
 }
 .chart-wrap {
   margin: 12px -8px 8px -24px;
@@ -1009,7 +1016,7 @@ main {
   border-radius: 6px;
 }
 .equipment-warning .equipment-progress span {
-  background: #f2bb69;
+  background: var(--warning);
 }
 .equipment-meta {
   width: 100%;
@@ -1086,7 +1093,7 @@ main {
 .report-copy small {
   display: flex;
   gap: 8px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
 }
@@ -1207,8 +1214,8 @@ main {
   margin-top: 4px;
 }
 .insight-card {
-  border: 1px solid #dad5e7;
-  background: #efedf5;
+  border: 1px solid #c9ecda;
+  background: #e9f9f0;
   border-radius: 16px;
   padding: 24px;
 }
@@ -1216,7 +1223,7 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--primary);
+  color: var(--mint-dark);
   font-size: 11px;
   font-weight: 650;
   margin-bottom: 20px;
@@ -1224,7 +1231,7 @@ main {
 .insight-label > span {
   margin-left: auto;
   font-size: 9px;
-  color: #817991;
+  color: #5f8a76;
   font-weight: 400;
 }
 .insight-card h2 {
@@ -1255,7 +1262,7 @@ main {
 .insight-card > p {
   font-size: 12px;
   line-height: 22px;
-  color: #716b80;
+  color: #4a6659;
   word-break: keep-all;
 }
 .insight-numbers {
@@ -1266,12 +1273,12 @@ main {
   margin-top: 4px;
 }
 .insight-numbers > div + div {
-  border-left: 1px solid #d8d2e4;
+  border-left: 1px solid #c9e6d6;
   padding-left: 20px;
 }
 .insight-numbers small {
   display: block;
-  color: #817991;
+  color: #5f8a76;
   font-size: 10px;
   line-height: 16px;
 }
@@ -1285,7 +1292,7 @@ main {
 .insight-numbers strong span {
   font-size: 13px;
   font-weight: 400;
-  color: #817991;
+  color: #5f8a76;
   margin-left: 4px;
 }
 .insight-button {
@@ -1294,13 +1301,18 @@ main {
   width: 100%;
   font-size: 12px;
   min-height: 44px;
+  background: var(--mint);
+  color: var(--ink);
+}
+.insight-button:hover {
+  background: #4ed99a;
 }
 .insight-disclaimer {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 9px;
-  color: #817991;
+  color: #5f8a76;
   margin-top: 12px;
   white-space: nowrap;
 }
@@ -1455,7 +1467,7 @@ main {
   padding: 16px;
 }
 .note-preview > p {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 22px;
   margin: 8px 0;
   color: #625e67;
@@ -1575,8 +1587,8 @@ main {
   font-size: 24px;
 }
 .modal-body > p {
-  font-size: 16px;
-  line-height: 28px;
+  font-size: 14px;
+  line-height: 24px;
   margin: 16px 0;
 }
 .modal-body > .muted {
@@ -1878,24 +1890,31 @@ textarea {
   color: #99dfbd;
 }
 .dark .insight-card {
-  background: #322c43;
-  border-color: #4c435d;
+  background: #1f3a2e;
+  border-color: #2f5c47;
 }
 .dark .insight-card > p,
 .dark .insight-label > span,
 .dark .insight-disclaimer,
 .dark .insight-numbers small,
 .dark .insight-numbers strong span {
-  color: #b9b0c7;
+  color: #a8c4b4;
 }
 .dark .insight-numbers > div + div {
-  border-color: #51465f;
+  border-color: #2f5c47;
 }
 .dark .insight-button,
 .dark .button-primary,
 .dark .question-form button {
   background: #635b85;
   color: #fff;
+}
+.dark .insight-button {
+  background: var(--mint);
+  color: #10241b;
+}
+.dark .insight-label {
+  color: #7fe0b0;
 }
 .dark .equipment-warning {
   background: #393126;
@@ -2474,18 +2493,18 @@ textarea {
     font-size: 14px;
   }
   .page-intro p {
-    font-size: 18px;
-    line-height: 28px;
+    font-size: 14px;
+    line-height: 22px;
   }
   .button {
     font-size: 18px;
   }
   .notice-strip {
-    font-size: 16px;
-    line-height: 24px;
+    font-size: 14px;
+    line-height: 22px;
   }
   .notice-strip button {
-    font-size: 14px;
+    font-size: 13px;
   }
   .section-top h2 {
     font-size: 24px;
@@ -2517,8 +2536,8 @@ textarea {
     min-height: 184px;
   }
   .card-heading h2 {
-    font-size: 24px;
-    line-height: 32px;
+    font-size: 18px;
+    line-height: 26px;
   }
   .card-heading p {
     font-size: 14px;
@@ -2562,15 +2581,17 @@ textarea {
     line-height: 24px;
   }
   .report-copy strong {
-    font-size: 18px;
-    line-height: 24px;
+    font-size: 14px;
+    line-height: 20px;
   }
   .report-copy small {
+    font-size: 12px;
+  }
+  .report-tabs {
     font-size: 14px;
   }
-  .report-tabs,
   .pill {
-    font-size: 14px;
+    font-size: 11px;
   }
   .question-chips button {
     font-size: 14px;
@@ -2639,19 +2660,19 @@ textarea {
     font-size: 14px;
   }
   .schedule-row strong {
-    font-size: 16px;
-    line-height: 24px;
+    font-size: 14px;
+    line-height: 22px;
   }
   .schedule-row small {
-    font-size: 14px;
+    font-size: 12px;
     line-height: 20px;
   }
   .note-preview > p {
-    font-size: 16px;
-    line-height: 24px;
+    font-size: 14px;
+    line-height: 22px;
   }
   .note-preview > small {
-    font-size: 14px;
+    font-size: 12px;
   }
   .note-confirm {
     font-size: 18px;
@@ -2685,7 +2706,7 @@ textarea {
     font-size: 12px;
   }
   .card-heading h2 {
-    font-size: 20px;
+    font-size: 18px;
   }
   .intro-actions .button {
     font-size: 14px;
@@ -2726,7 +2747,7 @@ textarea {
 /* ===== 실시간 공정 페이지 (/realtime) ===== */
 .pill-red {
   background: rgba(217, 95, 112, 0.14);
-  color: #d95f70;
+  color: var(--danger);
 }
 .rt-filters {
   display: flex;
@@ -2747,9 +2768,9 @@ textarea {
   height: 44px;
   padding: 0 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   background: var(--surface);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ink);
   cursor: pointer;
@@ -2984,7 +3005,7 @@ textarea {
   background: rgba(217, 95, 112, 0.08);
 }
 .rt-table .focus-row td:first-child {
-  border-left: 3px solid #d95f70;
+  border-left: 3px solid var(--danger);
 }
 .rt-table td .pill {
   margin-left: 8px;
@@ -3043,7 +3064,7 @@ textarea {
   background-image: linear-gradient(rgba(217, 95, 112, 0.1), rgba(217, 95, 112, 0.1));
 }
 .rt-machine-broken:hover {
-  border-color: #d95f70;
+  border-color: var(--danger);
 }
 .rt-machine > button {
   display: block;
@@ -3454,8 +3475,8 @@ textarea {
 }
 /* 일정 목록 제목: 월과 날짜 숫자 사이 단계(월 > 일별 일정 제목 > 일 = 일정 항목) */
 .sc-detail .card-heading h2 {
-  font-size: 22px;
-  line-height: 30px;
+  font-size: 18px;
+  line-height: 26px;
 }
 .sc-list {
   list-style: none;
@@ -3525,10 +3546,10 @@ textarea {
 }
 /* 일정 제목은 일정추가 버튼 글자(14px)보다 한 단계 위 */
 .sc-item-head .pill {
-  font-size: 13px;
+  font-size: 12px;
 }
 .sc-item-head strong {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 650;
   line-height: 24px;
 }
@@ -3690,10 +3711,10 @@ textarea {
   background: #8c91a5;
 }
 .machine-state-fault .equipment-progress > span {
-  background: #d95f70;
+  background: var(--danger);
 }
 .machine-state-rest .equipment-progress > span {
-  background: #a9aab5;
+  background: var(--idle);
 }
 .dark .machine.machine-state-normal,
 .dark .equipment-tile.machine-state-normal {
@@ -4114,7 +4135,7 @@ textarea {
   color: var(--muted);
 }
 .metric-state-note.is-alert {
-  color: #d95f70;
+  color: var(--danger);
 }
 .metric-gauge {
   position: relative;
@@ -4367,4 +4388,12 @@ textarea {
 }
 .dark .rt-band-nav:hover:not(:disabled) {
   color: var(--primary);
+}
+/* 1920 기준에서도 섹션 제목(24) > 카드 제목(20) > 본문 순서가 유지되도록 한다. */
+@media (min-width: 1700px) {
+  .card h2,
+  .card-heading h2 {
+    font-size: 20px;
+    line-height: 28px;
+  }
 }

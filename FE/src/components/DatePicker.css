@@ -11,13 +11,13 @@
   gap: 12px;
   border: 1px solid var(--border, #e2e2e8);
   background: var(--surface, #fff);
-  border-radius: 8px;
-  padding: 11px 13px;
+  border-radius: var(--radius-control, 10px);
+  padding: 10px 12px;
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -42,7 +42,7 @@
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e2e2e8);
   box-shadow: 0 12px 36px #29263f24;
-  border-radius: 12px;
+  border-radius: var(--radius-card, 16px);
 }
 .date-picker-month {
   display: flex;

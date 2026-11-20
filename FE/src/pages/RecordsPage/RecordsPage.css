@@ -1,12 +1,12 @@
 .records-page {
-  --rd-ink: #29263f;
-  --rd-muted: #858195;
-  --rd-border: #e8e6ed;
-  --rd-surface: #fff;
+  --rd-ink: var(--ink);
+  --rd-muted: var(--muted);
+  --rd-border: var(--border);
+  --rd-surface: var(--surface);
   color: var(--rd-ink);
   max-width: 1600px;
   margin: 0 auto;
-  padding: 4px 0 24px;
+  padding: 0 0 24px;
 }
 .rd-heading {
   display: flex;
@@ -16,13 +16,14 @@
   margin-bottom: 21px;
 }
 .rd-eyebrow {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 2px;
   color: #928ca5;
   font-weight: 700;
 }
 .rd-heading h1 {
-  font-size: 29px;
+  font-size: 28px;
+  line-height: 38px;
   letter-spacing: -1.1px;
   margin: 10px 0;
 }
@@ -33,7 +34,7 @@
 }
 .rd-heading p,
 .rd-list-heading p {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--rd-muted);
   margin: 0;
   line-height: 1.8;
@@ -47,10 +48,11 @@
   border: 1px solid var(--rd-border);
   background: var(--rd-surface);
   color: var(--rd-ink);
-  padding: 11px 15px;
-  border-radius: 8px;
-  font-size: 12px !important;
-  font-weight: 650 !important;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  font-size: 18px !important;
+  font-weight: 600 !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -71,9 +73,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--rd-muted);
-  margin: 0 0 20px;
+  margin: 0 0 24px;
   line-height: 1.8;
   flex-wrap: wrap;
 }
@@ -90,18 +92,18 @@
 .rd-panel {
   background: var(--rd-surface);
   border: 1px solid var(--rd-border);
-  border-radius: 13px;
+  border-radius: var(--radius-card);
 }
 .rd-filter {
-  padding: 19px 22px;
-  margin-bottom: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
 }
 .rd-filter-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
-  margin-bottom: 17px;
+  font-size: 14px;
+  margin-bottom: 16px;
 }
 .rd-text-button {
   display: flex;
@@ -111,29 +113,30 @@
   background: transparent;
   color: var(--rd-muted);
   cursor: pointer;
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 .rd-filter-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 .rd-filter-grid label {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--rd-muted);
 }
 .records-page input,
 .records-page select {
   min-width: 0;
+  min-height: 44px;
   border: 1px solid var(--rd-border);
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--rd-surface);
   color: var(--rd-ink);
   padding: 10px 12px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .records-page input:focus-visible,
 .records-page select:focus-visible,
@@ -146,18 +149,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 14px;
+  margin-top: 16px;
   color: var(--rd-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .rd-presets button {
   border: 1px solid var(--rd-border);
   background: transparent;
-  padding: 5px 10px;
-  border-radius: 5px;
+  padding: 6px 10px;
+  border-radius: var(--radius-small);
   color: var(--rd-muted);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 .rd-presets button:first-child {
   margin-left: 5px;
@@ -176,14 +179,14 @@
 .rd-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 23px;
+  gap: 16px;
+  margin-bottom: 24px;
 }
 .rd-summary > .rd-panel {
-  padding: 21px;
+  padding: 24px;
 }
 .rd-stat-label {
-  font-size: 11px;
+  font-size: 16px;
   color: var(--rd-muted);
   display: flex;
   justify-content: space-between;
@@ -194,25 +197,26 @@
 }
 .rd-summary strong {
   display: block;
-  font-size: 28px;
-  letter-spacing: -0.8px;
-  margin-top: 15px;
-  font-weight: 750;
+  font-size: 36px;
+  line-height: 44px;
+  letter-spacing: -1.1px;
+  margin-top: 8px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .rd-summary strong small {
-  font-size: 12px;
-  font-weight: 400;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--rd-muted);
-  margin-left: 5px;
+  margin-left: 4px;
 }
 .rd-summary p {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--rd-muted);
   margin: 8px 0 0;
 }
-.rd-summary > .rd-panel:last-child strong {
-  color: #a95c77;
+.rd-summary > .rd-panel.rd-stat-rate strong {
+  color: var(--danger-text);
 }
 .rd-list {
   overflow: hidden;
@@ -221,13 +225,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 23px 20px;
+  padding: 24px 24px 20px;
 }
 .rd-list-heading h2,
 .rd-detail-card h2 {
-  font-size: 16px;
+  font-size: 18px;
+  line-height: 26px;
   margin: 0 0 7px;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.4px;
 }
 .rd-list-heading h2 span {
   font-size: 12px;
@@ -243,11 +248,11 @@
 .rd-tabs {
   display: flex;
   border-bottom: 1px solid var(--rd-border);
-  padding: 0 23px;
+  padding: 0 24px;
   gap: 25px;
 }
 .rd-tabs button {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -263,7 +268,7 @@
 .rd-toolbar {
   display: flex;
   gap: 9px;
-  padding: 18px 23px;
+  padding: 18px 24px;
 }
 .rd-search {
   display: flex;
@@ -282,7 +287,7 @@
   padding-left: 36px;
 }
 .rd-toolbar select {
-  font-size: 11px;
+  font-size: 14px;
 }
 .rd-table-wrap {
   overflow: auto;
@@ -293,36 +298,40 @@
   border-collapse: collapse;
   text-align: left;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 22px;
 }
 .records-page th {
-  background: #f8f7fa;
-  font-size: 10px;
-  color: #918b9f;
+  background: var(--soft);
+  font-size: 12px;
+  color: var(--muted);
   font-weight: 550;
-  padding: 13px 16px;
+  padding: 12px 16px;
   border-block: 1px solid var(--rd-border);
 }
 .records-page th:first-child,
 .records-page td:first-child {
-  padding-left: 23px;
+  padding-left: 24px;
 }
 .records-page td {
-  padding: 16px;
-  border-bottom: 1px solid #f0eef3;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--rd-border);
   font-variant-numeric: tabular-nums;
 }
 .records-page tbody tr:hover {
-  background: #faf9fc;
+  background: var(--soft);
 }
 .records-page td strong {
-  font-size: 12px;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 600;
 }
 .records-page td small {
   display: block;
   color: var(--rd-muted);
-  font-size: 9px;
-  margin-top: 5px;
+  font-size: 12px;
+  line-height: 20px;
+  margin-top: 4px;
 }
 .rd-equipment {
   background: #f3f1f7;
@@ -330,11 +339,11 @@
   color: #72678e;
   border-radius: 5px;
   padding: 4px 7px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
 }
 .rd-pill {
-  font-size: 10px;
+  font-size: 11px;
   border-radius: 5px;
   padding: 5px 8px;
   display: inline-block;
@@ -368,7 +377,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 17px 23px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--rd-muted);
 }
 .rd-pagination > div {
@@ -391,7 +400,8 @@
   color: var(--rd-muted);
 }
 .rd-empty h3 {
-  font-size: 15px;
+  font-size: 18px;
+  line-height: 26px;
   color: var(--rd-ink);
 }
 .rd-empty p {
@@ -401,7 +411,7 @@
   margin-top: 10px;
 }
 .rd-footnote {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.8;
   color: var(--rd-muted);
   margin-top: 15px;
@@ -431,7 +441,7 @@
   margin: 25px 0 0;
 }
 .rd-detail-card dt {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--rd-muted);
   margin-bottom: 8px;
 }
@@ -476,7 +486,7 @@
   padding: 15px;
 }
 .rd-defect-grid span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--rd-muted);
 }
 .rd-defect-grid strong {
@@ -485,7 +495,7 @@
   margin-top: 12px;
 }
 .rd-defect-grid small {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--rd-muted);
   margin-left: 4px;
 }
@@ -519,7 +529,7 @@
 .rd-timeline time {
   display: block;
   color: var(--rd-muted);
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 8px;
 }
 .rd-related {
@@ -561,7 +571,7 @@
 .dark .rd-button:hover {
   background: #443d53;
 }
-.dark .rd-summary > .rd-panel:last-child strong {
+.dark .rd-summary > .rd-panel.rd-stat-rate strong {
   color: #e5a1b4;
 }
 @media (min-width: 1500px) {
@@ -572,7 +582,7 @@
     padding-block: 19px;
   }
   .rd-summary > .rd-panel {
-    padding: 25px;
+    padding: 24px;
   }
 }
 @media (max-width: 1100px) {
@@ -626,7 +636,7 @@
     padding: 16px;
   }
   .rd-list-heading p {
-    font-size: 10px;
+    font-size: 11px;
   }
   .rd-tabs {
     padding-inline: 16px;
@@ -648,7 +658,7 @@
     grid-template-columns: 1fr;
   }
   .rd-demo {
-    font-size: 10px;
+    font-size: 11px;
   }
   .rd-heading h1 .rd-pill {
     margin-left: 5px;
@@ -690,7 +700,7 @@
     font-size: 22px;
   }
   .rd-stat-label {
-    font-size: 10px;
+    font-size: 11px;
   }
 }
 @media (max-width: 450px) {
@@ -716,7 +726,7 @@
 .rd-detail-link {
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: 12px;
   text-decoration: none;
   padding: 8px 10px;
   white-space: nowrap;
@@ -725,7 +735,7 @@
   gap: 18px;
 }
 .rd-heading-actions .rd-button {
-  min-height: 40px;
+  min-height: 44px;
 }
 @media (max-width: 650px) {
   .rd-list-heading {
@@ -760,7 +770,7 @@
   font-weight: 750;
 }
 .rd-defective {
-  color: #bf314a;
+  color: var(--danger-text);
   font-weight: 700;
 }
 .rd-pill.defect:before {
@@ -774,7 +784,7 @@
   height: 13px;
   border-radius: 50%;
   margin-right: 5px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .rd-detail-card dl {
   align-items: stretch;
@@ -787,11 +797,12 @@
   min-width: 0;
 }
 .rd-detail-card dd {
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   line-height: 1.8;
 }
 .rd-detail-card dt {
-  font-size: 11px;
+  font-size: 12px;
 }
 .rd-summary > .rd-panel {
   display: flex;
@@ -840,12 +851,6 @@
 }
 .rd-pill {
   line-height: 1.5;
-}
-.rd-summary > .rd-panel:last-child strong {
-  color: #b82f47;
-}
-.dark .rd-summary > .rd-panel:last-child strong {
-  color: #f49aae;
 }
 .rd-completed-at > span,
 .rd-completed-at > small {
@@ -911,5 +916,23 @@
   .rd-toolbar > .filter-select {
     flex-basis: 40%;
     min-width: 0;
+  }
+}
+
+/* 1920 이상에서도 표 글자 크기를 재고·품질 표와 동일하게 맞춘다. */
+@media (min-width: 1700px) {
+  .records-page table {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .records-page th {
+    font-size: 14px;
+  }
+  .records-page td strong {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .records-page td small {
+    font-size: 14px;
   }
 }

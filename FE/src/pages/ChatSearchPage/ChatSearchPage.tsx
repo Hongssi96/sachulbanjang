@@ -133,16 +133,7 @@ export default function ChatSearchPage() {
   return (
     <section className="records-page chat-page">
       {isPending && <LoadingState compact label="기록을 검색하는 중이에요" />}
-      <div className="rd-heading">
-        <div>
-          <span className="rd-eyebrow">YOUR FACTORY PARTNER</span>
-          <h1 className="sr-only">대화·검색</h1>
-          <p>궁금한 공정 정보부터 지난 기록까지, 사출반장과 함께 찾아보세요.</p>
-        </div>
-        <span className="cs-mode">
-          <span /> 예시 데이터 모드
-        </span>
-      </div>
+      <h1 className="sr-only">대화·검색</h1>
       <div className="cs-layout">
         <aside className="rd-panel cs-history">
           <div className="cs-history-heading">
@@ -188,15 +179,6 @@ export default function ChatSearchPage() {
               </button>
             ))}
             {!visibleHistory.length && <p className="cs-muted">일치하는 대화가 없어요.</p>}
-          </div>
-          <div className="cs-history-note">
-            <ChevronsUp size={18} />
-            <strong>기록이 다음 업무의 힌트가 돼요.</strong>
-            <p>
-              대화는 이 브라우저에 저장돼요.
-              <br />
-              예시 답변은 실제 AI 분석이 아닙니다.
-            </p>
           </div>
         </aside>
         <div className="rd-panel cs-main">
@@ -429,10 +411,6 @@ export default function ChatSearchPage() {
                   </button>
                 </div>
               </form>
-              <p className="cs-disclaimer">
-                AI 미연결 · 2026.11.11–2026.11.17 예시 검사 데이터로 답변합니다. 실제 설비 상태나
-                불량 원인을 판단하지 않습니다.
-              </p>
             </>
           )}
           {notice && (
