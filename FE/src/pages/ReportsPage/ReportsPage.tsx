@@ -66,28 +66,22 @@ export default function ReportsPage() {
   const visiblePosts = posts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return (
     <section className="reports-page">
-      <div className="rp-heading">
-        <div>
-          <span className="rp-eyebrow">FIELD REPORTS</span>
-          <h1>올라온 보고</h1>
-          <p>현장에서 올라온 보고를 확인하고 처리 상태를 살펴보세요.</p>
-        </div>
-        <span className="rp-count">총 {posts.length}건</span>
-      </div>
       <section className="rp-toolbar" aria-label="보고 조회 조건">
-        <div className="rp-tabs" role="group" aria-label="처리 상태">
-          {counts.map(({ label, count }) => (
-            <button
-              key={label}
-              type="button"
-              className={status === label ? 'current' : ''}
-              aria-pressed={status === label}
-              onClick={() => update('status', label === '전체' ? '' : label)}
-            >
-              {label}
-              <span>{count}</span>
-            </button>
-          ))}
+        <div className="rp-filter-group">
+          <div className="rp-tabs" role="group" aria-label="처리 상태">
+            {counts.map(({ label, count }) => (
+              <button
+                key={label}
+                type="button"
+                className={status === label ? 'current' : ''}
+                aria-pressed={status === label}
+                onClick={() => update('status', label === '전체' ? '' : label)}
+              >
+                {label}
+                <span>{count}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="rp-search" role="search">
           <Search size={16} />
