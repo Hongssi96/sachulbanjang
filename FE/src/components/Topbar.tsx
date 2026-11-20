@@ -21,6 +21,7 @@ interface TopbarProps {
   sessionEnded: boolean;
   sessionFired: boolean;
   onSessionEnd: () => void;
+  onLogout: () => void;
   onRelogin: () => void;
 }
 export default function Topbar({
@@ -33,6 +34,7 @@ export default function Topbar({
   sessionEnded,
   sessionFired,
   onSessionEnd,
+  onLogout,
   onRelogin,
 }: TopbarProps) {
   const [now, setNow] = useState(() => new Date());
@@ -42,8 +44,8 @@ export default function Topbar({
   }, []);
   useEffect(() => {
     const remaining = WORK_END_MINUTES - (now.getHours() * 60 + now.getMinutes());
-    if (remaining <= 0 && !sessionFired) onSessionEnd();
-  }, [now, sessionFired, onSessionEnd]);
+    if (remaining <= 0 && !sessionFired && !extended) onSessionEnd();
+  }, [now, sessionFired, extended, onSessionEnd]);
   return (
     <header className="topbar">
       <strong className="topbar-title">{title}</strong>
@@ -66,17 +68,13 @@ export default function Topbar({
         <span className="avatar">민</span>
         <span className="user-greeting">
           박민규 님{' '}
-          {sessionEnded
-            ? '자동 로그아웃됨'
-            : extended
-              ? '오늘 야근 중이에요'
-              : offWorkCountdown(now)}
+          {sessionEnded ? '로그아웃됨' : extended ? '오늘 야근 중이에요' : offWorkCountdown(now)}
         </span>
         <button
           className="button button-white topbar-extend"
-          onClick={sessionEnded ? onRelogin : onToggleExtended}
+          onClick={sessionEnded ? onRelogin : extended ? onLogout : onToggleExtended}
         >
-          {sessionEnded ? '다시 로그인' : extended ? '오늘 야근' : '로그인 연장'}
+          {sessionEnded ? '다시 로그인' : extended ? '퇴근하기' : '오늘 야근'}
         </button>
       </div>
     </header>

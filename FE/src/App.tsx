@@ -90,6 +90,11 @@ export default function App() {
     workspaceRef.current?.scrollTo(0, 0);
   }, [location.pathname, pageTitle]);
 
+  const toggleDark = () => {
+    // 주간 모드로 돌아오면 연장 근무를 해제해 17시 자동 로그아웃이 다시 동작하도록 한다.
+    if (dark) setExtended(false);
+    setDark(!dark);
+  };
   const toggleExtended = () => {
     if (sessionEnded) {
       setToast('퇴근 시간 이후에는 연장할 수 없어요. 다시 로그인해 주세요.');
@@ -109,8 +114,16 @@ export default function App() {
     setOffWorkModalOpen(true);
     setExtended(false);
   };
+  const logout = () => {
+    setSessionFired(true);
+    setSessionEnded(true);
+    setExtended(false);
+    setDark(false);
+    setToast('로그아웃되었습니다. 오늘 하루 수고하셨어요!');
+  };
   const relogin = () => {
     setSessionEnded(false);
+    setSessionFired(false);
     setOffWorkModalOpen(false);
     setExtended(true);
     setDark(true);
@@ -157,13 +170,14 @@ export default function App() {
         <Topbar
           title={pageTitle}
           dark={dark}
-          onToggleDark={() => setDark(!dark)}
+          onToggleDark={toggleDark}
           onBell={() => setNotificationsOpen(true)}
           extended={extended}
           onToggleExtended={toggleExtended}
           sessionEnded={sessionEnded}
           sessionFired={sessionFired}
           onSessionEnd={endSession}
+          onLogout={logout}
           onRelogin={relogin}
         />
         <main id="main-content">
@@ -269,7 +283,7 @@ export default function App() {
           <div className="empty-state">
             <LogOut size={36} />
             <h3>퇴근시간이에요!</h3>
-            <p>오늘 근무가 끝났어요. 로그인 세션이 자동으로 종료되었어요.</p>
+            <p>오늘 근무가 끝났어요. 로그인 세션이 종료되었어요.</p>
             <button className="button button-primary" onClick={relogin}>
               다시 로그인
             </button>

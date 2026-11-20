@@ -584,7 +584,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
             <p>{extended ? '데모 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
           </div>
-          <button onClick={onToggleExtended}>{extended ? '취소' : '로그인 연장'}</button>
+          <button onClick={onToggleExtended}>{extended ? '취소' : '오늘 야근'}</button>
         </div>
       </div>
       <footer className="page-footer">
