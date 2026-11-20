@@ -30,6 +30,12 @@ def test_process_record_preserves_source_identity_and_explicit_cycle_unit() -> N
         for constraint in table.constraints
     )
     assert any(
+        isinstance(constraint, UniqueConstraint)
+        and {column.name for column in constraint.columns}
+        == {"source_namespace", "source_record_key"}
+        for constraint in table.constraints
+    )
+    assert any(
         isinstance(constraint, CheckConstraint)
         and constraint.name == "ck_process_record_cycle_time_seconds"
         for constraint in table.constraints
