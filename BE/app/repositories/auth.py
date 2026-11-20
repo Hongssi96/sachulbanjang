@@ -24,6 +24,14 @@ class AuthRepository:
             select(AppUser).where(AppUser.id == user_id, AppUser.deleted_at.is_(None))
         )
 
+    def find_user_by_employee_no(self, employee_no: str) -> AppUser | None:
+        """Include soft-deleted accounts because employee_no stays unique with them."""
+        return self._session.scalar(select(AppUser).where(AppUser.employee_no == employee_no))
+
+    def add_user(self, user: AppUser) -> None:
+        self._session.add(user)
+        self._session.flush()
+
     def add_session(self, auth_session: AuthSession) -> None:
         self._session.add(auth_session)
         self._session.flush()
