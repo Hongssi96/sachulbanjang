@@ -22,7 +22,6 @@ interface TopbarProps {
   sessionFired: boolean;
   onSessionEnd: () => void;
   onLogout: () => void;
-  onRelogin: () => void;
 }
 export default function Topbar({
   title,
@@ -35,7 +34,6 @@ export default function Topbar({
   sessionFired,
   onSessionEnd,
   onLogout,
-  onRelogin,
 }: TopbarProps) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -68,13 +66,13 @@ export default function Topbar({
         <span className="avatar">민</span>
         <span className="user-greeting">
           박민규 님{' '}
-          {sessionEnded ? '로그아웃됨' : extended ? '오늘 야근 중이에요' : offWorkCountdown(now)}
+          {sessionEnded ? '퇴근 완료' : extended ? '오늘 야근 중이에요' : offWorkCountdown(now)}
         </span>
         <button
           className="button button-white topbar-extend"
-          onClick={sessionEnded ? onRelogin : extended ? onLogout : onToggleExtended}
+          onClick={extended ? onLogout : onToggleExtended}
         >
-          {sessionEnded ? '다시 로그인' : extended ? '퇴근하기' : '오늘 야근'}
+          {extended ? '퇴근하기' : '오늘 야근'}
         </button>
       </div>
     </header>
