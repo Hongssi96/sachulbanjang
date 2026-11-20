@@ -84,7 +84,22 @@ function FilterDropdown({
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // 목록이 아래쪽 채팅창을 가릴 만큼 길면 위로 펼친다. 채팅창이 없으면 화면 아래를 기준으로 한다.
+  const openMenu = () => {
+    const element = rootRef.current;
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      const menuHeight = Math.min(options.length * 38 + 12, 300);
+      const chat = document.querySelector('.rt-ask');
+      const boundary = chat ? chat.getBoundingClientRect().top : window.innerHeight;
+      const spaceBelow = boundary - rect.bottom;
+      setDropUp(spaceBelow < menuHeight && rect.top > spaceBelow);
+    }
+    setOpen(true);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -109,13 +124,20 @@ function FilterDropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={label}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (open) setOpen(false);
+          else openMenu();
+        }}
       >
         {value}
         <ChevronDown size={16} className="rt-select-chevron" />
       </button>
       {open && (
-        <ul className="rt-select-menu" role="listbox" aria-label={label}>
+        <ul
+          className={`rt-select-menu${dropUp ? ' drop-up' : ''}`}
+          role="listbox"
+          aria-label={label}
+        >
           {options.map((option) => (
             <li key={option}>
               <button

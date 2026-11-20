@@ -1,10 +1,15 @@
 import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
 import FilterSelect from '../components/FilterSelect';
-import { calendarEvents } from '../constants/demoData';
-import { addCalendarEvent, useCustomCalendarEvents } from '../services/calendarStore';
+import Modal from '../components/Modal';
+import {
+  addCalendarEvent,
+  removeCalendarEvent,
+  updateCalendarEvent,
+  useCalendarEvents,
+} from '../services/calendarStore';
 import type { CalendarEvent } from '../types';
 
 interface SchedulePageProps {
@@ -37,6 +42,8 @@ const DEFAULT_HOUR = '09';
 const DEFAULT_MINUTE = '00';
 const filterOptions: Array<CalendarEvent['kind'] | '전체'> = ['전체', ...kindOptions];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+// 달력 칸에는 점을 최대 3개만 그리고 나머지는 +N으로 접는다.
+const MAX_DAY_DOTS = 3;
 
 export default function SchedulePage({ onToast }: SchedulePageProps) {
   const today = new Date();
@@ -44,14 +51,15 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [filter, setFilter] = useState('전체');
-  const customEvents = useCustomCalendarEvents();
+  const allEvents = useCalendarEvents();
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newHour, setNewHour] = useState(DEFAULT_HOUR);
   const [newMinute, setNewMinute] = useState(DEFAULT_MINUTE);
   const [newKind, setNewKind] = useState<CalendarEvent['kind']>('점검');
 
-  const allEvents = [...calendarEvents, ...customEvents];
   const monthEvents = allEvents.filter((event) => (event.month ?? 10) === month && year === 2026);
   const dayEvents = (day: number) =>
     monthEvents.filter(
@@ -84,26 +92,57 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
     if (selectedDay > maxDay) setSelectedDay(maxDay);
   };
 
-  const handleAdd = (event: FormEvent<HTMLFormElement>) => {
+  const resetForm = () => {
+    setNewTitle('');
+    setNewHour(DEFAULT_HOUR);
+    setNewMinute(DEFAULT_MINUTE);
+    setNewKind('점검');
+    setEditingId(null);
+    setShowForm(false);
+  };
+  const startAdd = () => {
+    resetForm();
+    setShowForm(true);
+  };
+  const startEdit = (event: CalendarEvent) => {
+    setEditingId(event.id);
+    setNewTitle(event.title);
+    setNewHour(event.time.slice(0, 2));
+    setNewMinute(event.time.slice(3, 5));
+    setNewKind(event.kind);
+    setShowForm(true);
+  };
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = newTitle.trim();
     if (!title) {
       onToast('일정 제목을 입력해 주세요.');
       return;
     }
-    addCalendarEvent({
-      day: selectedDay,
-      time: `${newHour}:${newMinute}`,
-      title,
-      kind: newKind,
-      month,
-      description: '이 브라우저 세션에 추가한 예시 일정이에요.',
-    });
-    onToast(`${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 이 브라우저 세션에 유지됩니다.`);
-    setNewTitle('');
-    setNewHour(DEFAULT_HOUR);
-    setNewMinute(DEFAULT_MINUTE);
-    setShowForm(false);
+    const time = `${newHour}:${newMinute}`;
+    if (editingId) {
+      const target = allEvents.find((item) => item.id === editingId);
+      if (target) updateCalendarEvent({ ...target, title, time, kind: newKind });
+    } else {
+      addCalendarEvent({
+        day: selectedDay,
+        time,
+        title,
+        kind: newKind,
+        month,
+        description: '이 브라우저 세션에 추가한 예시 일정이에요.',
+      });
+      onToast(
+        `${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 이 브라우저 세션에 유지됩니다.`,
+      );
+    }
+    resetForm();
+  };
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    removeCalendarEvent(deleteTarget.id);
+    if (editingId === deleteTarget.id) resetForm();
+    setDeleteTarget(null);
   };
 
   return (
@@ -164,24 +203,27 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                   </span>
                 );
               }
+              const eventsOfDay = dayEventList(day);
               return (
                 <button
                   key={day}
                   type="button"
                   className={`sc-day ${day === selectedDay ? 'selected' : ''}`}
-                  aria-label={`${month + 1}월 ${day}일, 일정 ${dayEvents(day).length}건`}
+                  aria-label={`${month + 1}월 ${day}일, 일정 ${eventsOfDay.length}건`}
                   aria-pressed={day === selectedDay}
                   onClick={() => setSelectedDay(day)}
                 >
                   {day}
-                  <span className="sc-dots">
-                    {dayEventList(day).map((event, index) => (
-                      <i
-                        key={`${event.time}-${event.title}-${index}`}
-                        className={`sc-dot ${kindDot[event.kind]}`}
-                      />
-                    ))}
-                  </span>
+                  {eventsOfDay.length > 0 && (
+                    <span className="sc-dots">
+                      {eventsOfDay.slice(0, MAX_DAY_DOTS).map((event) => (
+                        <i key={event.id} className={`sc-dot ${kindDot[event.kind]}`} />
+                      ))}
+                      {eventsOfDay.length > MAX_DAY_DOTS && (
+                        <span className="sc-dot-more">+{eventsOfDay.length - MAX_DAY_DOTS}</span>
+                      )}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -205,8 +247,8 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
             <p className="rt-empty">이 날은 예정된 일정이 없어요.</p>
           ) : (
             <ul className="sc-list">
-              {selectedEvents.map((event, index) => (
-                <li key={`${event.day}-${event.time}-${event.title}-${index}`}>
+              {selectedEvents.map((event) => (
+                <li key={event.id}>
                   <span className="sc-timeline-time">{event.time}</span>
                   <i className={`sc-node ${kindDot[event.kind]}`} />
                   <div className="sc-item-main">
@@ -215,13 +257,29 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                       <strong>{event.title}</strong>
                     </div>
                   </div>
+                  <div className="sc-item-actions">
+                    <button
+                      type="button"
+                      aria-label={`${event.title} 수정`}
+                      onClick={() => startEdit(event)}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${event.title} 삭제`}
+                      onClick={() => setDeleteTarget(event)}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
           <div className="sc-add">
             {showForm ? (
-              <form className="sc-add-form" onSubmit={handleAdd}>
+              <form className="sc-add-form" onSubmit={handleSubmit}>
                 <input
                   value={newTitle}
                   onChange={(event) => setNewTitle(event.target.value)}
@@ -254,29 +312,40 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                 />
                 <div className="sc-add-actions">
                   <button type="submit" className="button button-primary">
-                    추가
+                    {editingId ? '수정' : '추가'}
                   </button>
-                  <button
-                    type="button"
-                    className="button button-white"
-                    onClick={() => setShowForm(false)}
-                  >
+                  <button type="button" className="button button-white" onClick={resetForm}>
                     취소
                   </button>
                 </div>
               </form>
             ) : (
-              <button
-                type="button"
-                className="button button-white"
-                onClick={() => setShowForm(true)}
-              >
+              <button type="button" className="button button-white" onClick={startAdd}>
                 <Plus size={15} /> 일정 추가
               </button>
             )}
           </div>
         </aside>
       </div>
+
+      {deleteTarget && (
+        <Modal title="일정 삭제" plain onClose={() => setDeleteTarget(null)}>
+          <div className="confirm-dialog">
+            <p>이 일정을 삭제할까요?</p>
+            <strong>
+              {deleteTarget.time} · {deleteTarget.title}
+            </strong>
+            <div className="confirm-actions">
+              <button className="button button-white" onClick={() => setDeleteTarget(null)}>
+                취소
+              </button>
+              <button className="button button-primary" onClick={confirmDelete}>
+                삭제
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { ShieldCheck } from 'lucide-react';
 import type { DefectType } from '../../services/inspectionData';
-const colors = ['#635B85', '#61E2A6', '#DD8296', '#A9AAB5'];
+// 불량 유형별 색: 가스(주의) · 찍힘(고장) · 휘어짐(Primary) · 미성형(미가동)
+const colors = ['#F2BB69', '#D95F70', '#635B85', '#A9AAB5'];
 export default function DefectBreakdown({
   items,
 }: {

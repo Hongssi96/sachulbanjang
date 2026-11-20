@@ -22,6 +22,7 @@ export interface HandoverNote {
   checked: boolean;
 }
 export interface CalendarEvent {
+  id: string;
   day: number;
   time: string;
   title: string;
