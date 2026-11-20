@@ -182,8 +182,12 @@ export const reportPosts: ReportPost[] = [
     checklist: ['주간 근무 시 펜스 전체 체결 상태 재확인', '체결 볼트 재조임 필요 여부 확인'],
   },
 ];
-// 홈 요약 카드·알림·검색은 기존 3건을 그대로 사용한다.
-export const reports: Report[] = reportPosts.slice(0, 3);
+// 목록·상세·홈 카드가 같은 순서를 쓰도록 최신순으로 한 번만 정렬한다.
+export const sortedReportPosts = [...reportPosts].sort((a, b) =>
+  `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
+);
+// 홈 요약 카드·알림·검색은 최신 3건을 사용한다.
+export const reports: Report[] = sortedReportPosts.slice(0, 3);
 export const calendarEvents: CalendarEvent[] = [
   {
     day: 12,

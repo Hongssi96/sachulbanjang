@@ -4,6 +4,7 @@ import type { FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import FilterSelect from '../components/FilterSelect';
 import { calendarEvents } from '../constants/demoData';
+import { addCalendarEvent, useCustomCalendarEvents } from '../services/calendarStore';
 import type { CalendarEvent } from '../types';
 
 interface SchedulePageProps {
@@ -43,7 +44,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [filter, setFilter] = useState('전체');
-  const [customEvents, setCustomEvents] = useState<CalendarEvent[]>([]);
+  const customEvents = useCustomCalendarEvents();
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newHour, setNewHour] = useState(DEFAULT_HOUR);
@@ -90,18 +91,15 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
       onToast('일정 제목을 입력해 주세요.');
       return;
     }
-    setCustomEvents((prev) => [
-      ...prev,
-      {
-        day: selectedDay,
-        time: `${newHour}:${newMinute}`,
-        title,
-        kind: newKind,
-        month,
-        description: '이 브라우저 세션에 추가한 예시 일정이에요.',
-      },
-    ]);
-    onToast(`${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 새로고침하면 사라져요.`);
+    addCalendarEvent({
+      day: selectedDay,
+      time: `${newHour}:${newMinute}`,
+      title,
+      kind: newKind,
+      month,
+      description: '이 브라우저 세션에 추가한 예시 일정이에요.',
+    });
+    onToast(`${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 이 브라우저 세션에 유지됩니다.`);
     setNewTitle('');
     setNewHour(DEFAULT_HOUR);
     setNewMinute(DEFAULT_MINUTE);

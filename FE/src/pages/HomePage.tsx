@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ProductionChart from '../components/ProductionChart';
-import { calendarEvents, equipment, reports } from '../constants/demoData';
+import { calendarEvents, equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
+import { useCustomCalendarEvents } from '../services/calendarStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { HandoverNote, Report } from '../types';
 
@@ -87,15 +88,26 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [announcementRead, setAnnouncementRead] = useState(false);
   useReportStatusVersion();
+  const customEvents = useCustomCalendarEvents();
+  const allEvents = [...calendarEvents, ...customEvents];
   const unreadNotes = notes.filter((note) => !note.checked).length;
-  const visibleReports = reports.filter(
+  const latestReports = sortedReportPosts.slice(0, 3);
+  const visibleReports = latestReports.filter(
     (report) => reportFilter === '전체' || getReportStatus(report) !== '완료',
   );
+  const reportStatuses = reportPosts.map((report) => getReportStatus(report));
+  const pendingCount = reportStatuses.filter((status) => status !== '완료').length;
+  const waitingCount = reportStatuses.filter((status) => status === '대기').length;
+  const inProgressCount = reportStatuses.filter((status) => status === '진행 중').length;
+  const demoToday = sortedReportPosts[0]?.date;
+  const todayReportCount = demoToday
+    ? reportPosts.filter((report) => report.date === demoToday).length
+    : 0;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
   const eventsForDay = (day: number) =>
     year === 2026
-      ? calendarEvents.filter((event) => (event.month ?? 10) === month && event.day === day)
+      ? allEvents.filter((event) => (event.month ?? 10) === month && event.day === day)
       : [];
   const saveNotes = (next: HandoverNote[]) => {
     setNotes(next);
@@ -235,11 +247,14 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               <ClipboardIcon />
             </div>
             <div className="kpi-value">
-              2<span>건</span>
+              {pendingCount}
+              <span>건</span>
               <span className="pill pill-amber">확인 필요</span>
             </div>
             <div className="kpi-bottom">
-              <span>접수 대기 1건 · 조치 중 1건</span>
+              <span>
+                접수 대기 {waitingCount}건 · 조치 중 {inProgressCount}건
+              </span>
               <button
                 className="text-link"
                 onClick={() => {
@@ -253,7 +268,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                 <ArrowRight size={17} />
               </button>
             </div>
-            <div className="kpi-caption">오늘 올라온 보고 3건</div>
+            <div className="kpi-caption">오늘 올라온 보고 {todayReportCount}건</div>
           </article>
         </div>
       </section>
@@ -321,7 +336,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <div className="card-heading">
               <div className="heading-inline">
                 <h2>올라온 보고</h2>
-                <span className="pill pill-neutral">3</span>
+                <span className="pill pill-neutral">{latestReports.length}</span>
               </div>
               <div className="report-tabs">
                 <button
@@ -553,7 +568,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                   .map((event) => (
                     <button
                       className="schedule-row"
-                      key={event.time}
+                      key={`${event.time}-${event.title}`}
                       onClick={() => setOverlay({ kind: 'schedule', day: selectedDay })}
                     >
                       <span className={`schedule-line ${event.kind === '점검' ? 'mint' : ''}`} />
@@ -638,7 +653,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <>
               {eventsForDay(overlay.day).length ? (
                 eventsForDay(overlay.day).map((event) => (
-                  <div className="modal-event" key={event.time}>
+                  <div className="modal-event" key={`${event.time}-${event.title}`}>
                     <span className="pill pill-violet">{event.kind}</span>
                     <div>
                       <strong>{event.title}</strong>
@@ -653,7 +668,9 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                   <p>다른 날짜를 선택해 확인해 보세요.</p>
                 </div>
               )}
-              <p className="demo-disclaimer">일정은 2026.11 기준의 시연용 데이터입니다.</p>
+              <p className="demo-disclaimer">
+                일정은 2026.11 기준의 시연용 데이터와 이 브라우저에서 추가한 일정입니다.
+              </p>
             </>
           )}
           {overlay.kind === 'note' && (
