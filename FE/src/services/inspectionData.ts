@@ -1,4 +1,4 @@
-import { formatDateTime } from '../utils/dateFormat';
+import { formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
 export const qualityProducts = ['CN7 LH', 'CN7 RH', 'RG3 LH', 'RG3 RH'] as const;
 export const qualityEquipment = ['S01', 'S02', 'S03', 'S04'] as const;
 export const defectTypes = ['가스', '찍힘', '휘어짐', '미성형'] as const;
@@ -19,9 +19,12 @@ export interface QualityFilters {
   product: string;
   equipment: string;
 }
+// 시연 데이터도 실제 오늘을 기준으로 최근 2주를 만든다.
+const DATA_END = todayISO();
+const DATA_START = shiftDateISO(DATA_END, -13);
 export const defaultQualityFilters: QualityFilters = {
-  from: '2026-11-11',
-  to: '2026-11-17',
+  from: shiftDateISO(DATA_END, -6),
+  to: DATA_END,
   product: '',
   equipment: '',
 };
@@ -45,7 +48,7 @@ export const inspectionBatches: InspectionBatch[] = [0, 1]
   .flatMap((week) =>
     Array.from({ length: 7 }, (_, day) =>
       qualityProducts.map((product, index) => {
-        const date = `2026-11-${String(4 + week * 7 + day).padStart(2, '0')}`;
+        const date = shiftDateISO(DATA_START, week * 7 + day);
         const inspected = index < 2 ? 100 : index === 2 ? 60 : day < 4 ? 90 : 100;
         const count =
           week === 0 && index === 3 ? [5, 6, 8, 12, 14, 12, 13][day] : currentDefects[index][day];
@@ -82,6 +85,10 @@ export const inspectionBatches: InspectionBatch[] = [0, 1]
     ),
   )
   .flat();
+export const inspectionDataRange = {
+  from: inspectionBatches[0].date,
+  to: inspectionBatches[inspectionBatches.length - 1].date,
+};
 export const defectCount = (record: InspectionBatch) =>
   defectTypes.reduce((sum, type) => sum + record.defects[type], 0);
 export const percentage = (part: number, total: number) =>
