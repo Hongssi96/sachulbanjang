@@ -1,5 +1,5 @@
 import LoadingState from '../../components/LoadingState';
-import { useEffect, useCallback, useRef, useState, useTransition } from 'react';
+import { useEffect, useCallback, useLayoutEffect, useRef, useState, useTransition } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   ArrowUpRight,
@@ -10,14 +10,18 @@ import {
   Plus,
   Search,
   ChevronsUp,
+  UserRound,
   X,
 } from 'lucide-react';
 import { reports } from '../../constants/demoData';
 import { productionInspectionRecords, formatRecordTimestamp } from '../../services/inspectionData';
+import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
 import { loadConversations, storageKey } from './chatData';
 import type { Conversation } from './chatData';
 import '../RecordsPage/RecordsPage.css';
 import './ChatSearchPage.css';
+
+const COMPOSER_MAX_HEIGHT = 140;
 export default function ChatSearchPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -29,11 +33,19 @@ export default function ChatSearchPage() {
     [rawSetParams, startTransition],
   );
   const messageList = useRef<HTMLDivElement>(null);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
   const [answerPending, setAnswerPending] = useState(false);
   const searching = params.get('view') === 'search';
   const query = params.get('q') ?? '';
   const [conversations, setConversations] = useState(loadConversations);
   const [draft, setDraft] = useState('');
+  // 입력창은 한 줄로 시작해 내용만큼 늘어난다(최대 COMPOSER_MAX_HEIGHT, 그 이상은 안에서 스크롤).
+  useLayoutEffect(() => {
+    const input = composerInput.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+  }, [draft]);
   const [historyQuery, setHistoryQuery] = useState('');
   const [notice, setNotice] = useState('');
   const selected = conversations.find((item) => item.id === params.get('chat'));
@@ -54,6 +66,24 @@ export default function ChatSearchPage() {
       }),
     [setParams],
   );
+  // 기록 통합 검색은 입력이 멈춘 뒤 URL에 반영한다. 추천 검색어·지우기는 즉시 반영한다.
+  const {
+    input: searchInput,
+    setInput: setSearchInput,
+    searchNow: applyQuery,
+    compositionHandlers,
+  } = useDebouncedSearch({
+    value: query,
+    onSearch: (value) => update({ q: value }),
+  });
+  const {
+    input: historyInput,
+    setInput: setHistoryInput,
+    compositionHandlers: historyCompositionHandlers,
+  } = useDebouncedSearch({
+    value: historyQuery,
+    onSearch: setHistoryQuery,
+  });
   const save = useCallback((next: Conversation[]) => {
     setConversations(next);
     try {
@@ -156,8 +186,9 @@ export default function ChatSearchPage() {
             <input
               aria-label="대화 이력 검색"
               placeholder="지난 대화 검색"
-              value={historyQuery}
-              onChange={(e) => setHistoryQuery(e.target.value)}
+              value={historyInput}
+              onChange={(e) => setHistoryInput(e.target.value)}
+              {...historyCompositionHandlers}
             />
           </label>
           <span className="cs-section-label">저장된 대화</span>
@@ -172,10 +203,13 @@ export default function ChatSearchPage() {
                 }}
               >
                 <MessageSquare size={16} />
-                <span>
+                <span className="cs-history-title" title={item.title}>
                   {item.title}
-                  <small>{item.messages.length}개 메시지</small>
                 </span>
+                <small>
+                  {item.messages.length}
+                  <span className="sr-only">개 메시지</span>
+                </small>
               </button>
             ))}
             {!visibleHistory.length && <p className="cs-muted">일치하는 대화가 없어요.</p>}
@@ -207,11 +241,12 @@ export default function ChatSearchPage() {
                 <input
                   aria-label="기록 통합 검색"
                   placeholder="제품, 설비, 검사 번호, 키워드 입력"
-                  value={query}
-                  onChange={(e) => update({ q: e.target.value })}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  {...compositionHandlers}
                 />
-                {query && (
-                  <button aria-label="검색어 지우기" onClick={() => update({ q: '' })}>
+                {searchInput && (
+                  <button aria-label="검색어 지우기" onClick={() => applyQuery('')}>
                     <X size={16} />
                   </button>
                 )}
@@ -223,7 +258,7 @@ export default function ChatSearchPage() {
                   <p>추천 검색어</p>
                   <div className="cs-chips">
                     {['RG3 RH', 'S04', '점검', '불량률'].map((text) => (
-                      <button key={text} onClick={() => update({ q: text })}>
+                      <button key={text} onClick={() => applyQuery(text)}>
                         {text}
                       </button>
                     ))}
@@ -349,7 +384,7 @@ export default function ChatSearchPage() {
                 {active?.messages.map((message, index) => (
                   <article key={`${active.id}-${index}`} className={`cs-message ${message.role}`}>
                     <span className="cs-avatar">
-                      {message.role === 'assistant' ? <ChevronsUp size={17} /> : '나'}
+                      {message.role === 'assistant' ? <UserRound size={16} /> : '나'}
                     </span>
                     <div>
                       <span className="cs-message-author">
@@ -381,12 +416,13 @@ export default function ChatSearchPage() {
                   사출반장에게 질문
                 </label>
                 <textarea
+                  ref={composerInput}
                   id="chat-question"
                   placeholder="궁금한 내용을 입력하세요. 예: RG3 RH 검사 기록 찾아줘"
                   maxLength={1000}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  rows={2}
+                  rows={1}
                   onKeyDown={(event) => {
                     if (
                       event.key === 'Enter' &&
@@ -399,18 +435,18 @@ export default function ChatSearchPage() {
                     }
                   }}
                 />
-                <div>
-                  <span>{draft.length}/1,000 · Enter 전송 · Shift+Enter 줄바꿈</span>
-                  <button
-                    className="rd-button rd-primary"
-                    disabled={!draft.trim() || answerPending}
-                    type="submit"
-                    aria-label="질문 보내기"
-                  >
-                    <ArrowUp size={18} />
-                  </button>
-                </div>
+                <button
+                  className="rd-button rd-primary"
+                  disabled={!draft.trim() || answerPending}
+                  type="submit"
+                  aria-label="질문 보내기"
+                >
+                  <ArrowUp size={18} />
+                </button>
               </form>
+              <p className="cs-composer-hint">
+                {draft.length}/1,000 · Enter 전송 · Shift+Enter 줄바꿈
+              </p>
             </>
           )}
           {notice && (
