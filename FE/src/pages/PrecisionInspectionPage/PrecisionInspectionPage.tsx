@@ -76,20 +76,22 @@ export default function PrecisionInspectionPage() {
   }
   return (
     <section className="records-page precision-page">
+      {/* 다른 상세 화면과 같은 위치·모양의 뒤로 가기 링크 */}
+      <Link className="rd-back" to={back}>
+        <ArrowLeft size={17} /> 생산·검사 기록으로 돌아가기
+      </Link>
       <div className="rd-heading">
         <div>
-          <h1>정밀기계검사</h1>
-          <p>
-            {record.equipment} · {record.product} · {record.lotId}
-          </p>
+          {/* "정밀기계검사"는 상단 바 제목에 있으므로 제목에는 검사 대상을 쓴다 */}
+          <h1>
+            {record.product} · {record.equipment}
+          </h1>
+          <p>{record.lotId}</p>
         </div>
         <div className="rd-heading-actions">
-          <button className="rd-button" onClick={exportInspection}>
+          <button className="rd-button button-sm" onClick={exportInspection}>
             <Download size={16} /> 검사표 다운로드
           </button>
-          <Link className="rd-button rd-primary" to={back}>
-            <ArrowLeft size={16} /> 목록으로 돌아가기
-          </Link>
         </div>
       </div>
       <div className="pi-overview rd-panel">
@@ -98,7 +100,7 @@ export default function PrecisionInspectionPage() {
             <Cpu size={30} />
           </span>
           <div>
-            <span className="rd-eyebrow">INSPECTION TARGET</span>
+            <span className="rd-eyebrow">검사 대상</span>
             <h2>{record.equipment} 사출 설비</h2>
             <p>연결 검사 번호 {record.id}</p>
           </div>

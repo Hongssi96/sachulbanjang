@@ -1,5 +1,8 @@
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
+import QueryFilterCard from '../../components/QueryFilterCard';
+import SegmentedControl from '../../components/SegmentedControl';
+import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
 import { useTransition } from 'react';
 import DatePicker from '../../components/DatePicker';
 import { Link, useParams, useSearchParams } from 'react-router';
@@ -11,7 +14,6 @@ import {
   Download,
   History,
   Search,
-  RotateCcw,
   ClipboardCheck,
   Package,
   Layers,
@@ -24,17 +26,28 @@ import {
   filterProductionRecords,
   formatRate,
   formatRecordTimestamp,
+  inspectionDataRange,
   inspectionStaff,
   percentage,
   productionInspectionRecords,
   productionRecordSummary,
+  qualityDateLabel,
   qualityEquipment,
   qualityProducts,
   qualityRangeError,
   qualityVerdict,
   recordsCsv,
 } from '../../services/inspectionData';
+import { shiftDateISO, todayISO } from '../../utils/dateFormat';
 import './RecordsPage.css';
+
+const PAGE_SIZE = 10;
+const PRESET_OPTIONS = [
+  { value: 'today', label: '오늘' },
+  { value: 'week', label: '최근 7일' },
+  { value: 'all', label: '전체 기간' },
+] as const;
+type PresetKey = (typeof PRESET_OPTIONS)[number]['value'];
 const number = (value: number) => value.toLocaleString('ko-KR');
 function download(records: typeof productionInspectionRecords) {
   const url = URL.createObjectURL(
@@ -77,11 +90,33 @@ export default function RecordsPage() {
       next.delete('page');
       return next;
     });
+  const {
+    input: queryInput,
+    setInput: setQueryInput,
+    compositionHandlers,
+  } = useDebouncedSearch({
+    value: filters.query,
+    onSearch: (value) => update({ q: value }),
+  });
   const production = params.get('view') === 'production';
   const rows = filterProductionRecords(filters);
   const summary = productionRecordSummary(rows);
   const error = qualityRangeError(filters);
-  const pages = Math.max(1, Math.ceil(rows.length / 8));
+  const today = todayISO();
+  const presets: Record<PresetKey, { from: string; to: string }> = {
+    today: { from: today, to: today },
+    week: { from: shiftDateISO(today, -6), to: today },
+    all: { from: inspectionDataRange.from, to: inspectionDataRange.to },
+  };
+  const presetKey: PresetKey | 'custom' =
+    filters.from === presets.today.from && filters.to === presets.today.to
+      ? 'today'
+      : filters.from === presets.week.from && filters.to === presets.week.to
+        ? 'week'
+        : filters.from === presets.all.from && filters.to === presets.all.to
+          ? 'all'
+          : 'custom';
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const requestedPage = Number(params.get('page'));
   const page = Math.min(pages, Math.max(1, Number.isInteger(requestedPage) ? requestedPage : 1));
   const cards = [
@@ -118,77 +153,65 @@ export default function RecordsPage() {
     <section className="records-page" aria-busy={isPending}>
       {isPending && <LoadingState compact label="검사 데이터를 조회하는 중이에요" />}
       <h1 className="sr-only">생산·검사 이력</h1>
-      <div className="rd-panel rd-filter">
-        <div className="rd-filter-title">
-          <strong>조회 조건</strong>
-          <button className="rd-text-button" onClick={() => setParams({})}>
-            <RotateCcw size={14} /> 초기화
-          </button>
-        </div>
-        <div className="rd-filter-grid">
-          <label>
-            조회 시작일
+      <QueryFilterCard
+        presets={
+          <SegmentedControl
+            label="빠른 기간 선택"
+            value={presetKey}
+            options={PRESET_OPTIONS}
+            onChange={(value) => {
+              if (value !== 'custom') {
+                const range = presets[value];
+                update({ from: range.from, to: range.to });
+              }
+            }}
+          />
+        }
+        onReset={() => setParams({})}
+        error={error}
+        caption={`시연 기준일 ${qualityDateLabel(today)} · 조회 가능한 예시 기록은 ${qualityDateLabel(inspectionDataRange.from)}–${qualityDateLabel(inspectionDataRange.to)}입니다.`}
+      >
+        <fieldset>
+          <legend>조회 기간</legend>
+          <div className="query-date-range">
             <DatePicker
               aria-label="조회 시작일"
               value={filters.from}
               onChange={(e) => update({ from: e.target.value })}
             />
-          </label>
-          <label>
-            조회 종료일
+            <span aria-hidden="true">—</span>
             <DatePicker
               aria-label="조회 종료일"
               value={filters.to}
               onChange={(e) => update({ to: e.target.value })}
             />
-          </label>
-          <label>
-            제품
-            <FilterSelect
-              label="제품 선택"
-              value={filters.product}
-              onChange={(value) => update({ product: value })}
-              options={[
-                { value: '', label: '전체 제품' },
-                ...qualityProducts.map((value) => ({ value, label: value })),
-              ]}
-            />
-          </label>
-          <label>
-            설비
-            <FilterSelect
-              label="설비 선택"
-              value={filters.equipment}
-              onChange={(value) => update({ equipment: value })}
-              options={[
-                { value: '', label: '전체 설비' },
-                ...qualityEquipment.map((value) => ({ value, label: value })),
-              ]}
-            />
-          </label>
+          </div>
+        </fieldset>
+        <div className="query-field">
+          <span>제품</span>
+          <FilterSelect
+            label="제품 선택"
+            value={filters.product}
+            onChange={(value) => update({ product: value })}
+            options={[
+              { value: '', label: '전체 제품' },
+              ...qualityProducts.map((value) => ({ value, label: value })),
+            ]}
+          />
         </div>
-        <div className="rd-presets">
-          빠른 기간 선택
-          {[
-            ['오늘', '2026-11-17'],
-            ['최근 7일', '2026-11-11'],
-            ['전체 기간', '2026-11-04'],
-          ].map(([label, from]) => (
-            <button
-              className={filters.from === from && filters.to === '2026-11-17' ? 'selected' : ''}
-              key={label}
-              onClick={() => update({ from, to: '2026-11-17' })}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="query-field">
+          <span>설비</span>
+          <FilterSelect
+            label="설비 선택"
+            value={filters.equipment}
+            onChange={(value) => update({ equipment: value })}
+            options={[
+              { value: '', label: '전체 설비' },
+              ...qualityEquipment.map((value) => ({ value, label: value })),
+            ]}
+          />
         </div>
-        {error && (
-          <p className="rd-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
+      </QueryFilterCard>
       <div className="rd-summary">
         {cards.map(({ label, value, unit, note, icon: Icon }) => (
           <div
@@ -215,13 +238,17 @@ export default function RecordsPage() {
             </h2>
           </div>
           <div className="rd-heading-actions">
-            <button className="rd-button" disabled={!rows.length} onClick={() => download(rows)}>
+            <button
+              className="rd-button button-sm"
+              disabled={!rows.length}
+              onClick={() => download(rows)}
+            >
               <Download size={16} /> 이력 다운로드
             </button>
             {rows.length > 0 ? (
               <Link
-                className="rd-button rd-primary"
-                to={`/records/${rows[(page - 1) * 8].id}/precision-inspection${params.size ? `?${params}` : ''}`}
+                className="rd-button rd-primary button-sm"
+                to={`/records/${rows[(page - 1) * PAGE_SIZE].id}/precision-inspection${params.size ? `?${params}` : ''}`}
               >
                 정밀기계검사 <ArrowUpRight size={16} />
               </Link>
@@ -252,8 +279,9 @@ export default function RecordsPage() {
             <input
               aria-label="이력 검색"
               placeholder="제품명, 생산 배치, 검사 번호 검색"
-              value={filters.query}
-              onChange={(e) => update({ q: e.target.value })}
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+              {...compositionHandlers}
             />
           </label>
           <FilterSelect
@@ -302,7 +330,7 @@ export default function RecordsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.slice((page - 1) * 8, page * 8).map((record) => (
+              {rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((record) => (
                 <tr key={record.id}>
                   <td className="rd-completed-at">
                     <span>
@@ -368,7 +396,8 @@ export default function RecordsPage() {
         <div className="rd-pagination">
           <span>
             총 {rows.length}건
-            {rows.length > 0 && ` 중 ${(page - 1) * 8 + 1}–${Math.min(page * 8, rows.length)}건`}
+            {rows.length > 0 &&
+              ` 중 ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, rows.length)}건`}
           </span>
           <div>
             <button
@@ -441,12 +470,12 @@ export function RecordDetailPage() {
         </div>
         <div className="rd-heading-actions">
           <Link
-            className="rd-button"
+            className="rd-button button-sm"
             to={`/records/${record.id}/precision-inspection${params.size ? `?${params}` : ''}`}
           >
             정밀기계검사 <ArrowUpRight size={16} />
           </Link>
-          <button className="rd-button" onClick={() => download([record])}>
+          <button className="rd-button button-sm" onClick={() => download([record])}>
             <Download size={16} /> 이력 다운로드
           </button>
         </div>

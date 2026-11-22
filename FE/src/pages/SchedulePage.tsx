@@ -4,6 +4,7 @@ import type { FormEvent } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
 import FilterSelect from '../components/FilterSelect';
 import Modal from '../components/Modal';
+import SegmentedControl from '../components/SegmentedControl';
 import {
   addCalendarEvent,
   removeCalendarEvent,
@@ -21,10 +22,10 @@ const kindPill: Record<CalendarEvent['kind'], string> = {
   납품: 'pill-green',
   회의: 'pill-violet',
 };
-const kindDot: Record<CalendarEvent['kind'], string> = {
-  점검: 'sc-dot-amber',
-  납품: 'sc-dot-green',
-  회의: 'sc-dot-violet',
+const kindDot: Record<CalendarEvent['kind'], 'amber' | 'green' | 'violet'> = {
+  점검: 'amber',
+  납품: 'green',
+  회의: 'violet',
 };
 const kindOptions: CalendarEvent['kind'][] = ['점검', '납품', '회의'];
 const kindSelectOptions = kindOptions.map((kind) => ({ value: kind, label: kind }));
@@ -148,20 +149,16 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   return (
     <>
       <section className="rt-filters" aria-label="일정 종류 필터">
-        <div className="segmented-control" role="group">
-          {filterOptions.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              className={filter === kind ? 'selected' : ''}
-              aria-pressed={filter === kind}
-              onClick={() => setFilter(kind)}
-            >
-              {kind !== '전체' && <i className={`sc-dot ${kindDot[kind]}`} />}
-              {kind}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="일정 종류 필터"
+          value={filter}
+          options={filterOptions.map((kind) => ({
+            value: kind,
+            label: kind,
+            dot: kind === '전체' ? undefined : kindDot[kind],
+          }))}
+          onChange={setFilter}
+        />
       </section>
 
       <div className="sc-grid">
@@ -217,7 +214,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                   {eventsOfDay.length > 0 && (
                     <span className="sc-dots">
                       {eventsOfDay.slice(0, MAX_DAY_DOTS).map((event) => (
-                        <i key={event.id} className={`sc-dot ${kindDot[event.kind]}`} />
+                        <i key={event.id} className={`sc-dot sc-dot-${kindDot[event.kind]}`} />
                       ))}
                       {eventsOfDay.length > MAX_DAY_DOTS && (
                         <span className="sc-dot-more">+{eventsOfDay.length - MAX_DAY_DOTS}</span>

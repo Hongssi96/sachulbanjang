@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import MetricTrendChart from '../components/MetricTrendChart';
+import SegmentedControl from '../components/SegmentedControl';
 import {
   defectRatePrevious,
   defectRateTrend,
@@ -350,6 +351,7 @@ export default function RealtimePage() {
 
   return (
     <>
+      <h1 className="sr-only">실시간 공정</h1>
       <div className="rt-summary">
         <article
           className="card rt-kpi rt-clickable"
@@ -358,35 +360,15 @@ export default function RealtimePage() {
         >
           <div className="card-heading">
             <h2>월 전체 생산량</h2>
-            <div
-              className="segmented-control"
-              role="group"
-              aria-label="생산 비교 기간 전환"
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className={trend === 'daily' ? 'selected' : ''}
-                aria-pressed={trend === 'daily'}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setTrend('daily');
-                }}
-              >
-                오늘
-              </button>
-              <button
-                type="button"
-                className={trend === 'weekly' ? 'selected' : ''}
-                aria-pressed={trend === 'weekly'}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setTrend('weekly');
-                }}
-              >
-                이번주
-              </button>
-            </div>
+            <SegmentedControl
+              label="생산 비교 기간 전환"
+              value={trend}
+              options={[
+                { value: 'daily', label: '오늘' },
+                { value: 'weekly', label: '이번주' },
+              ]}
+              onChange={setTrend}
+            />
           </div>
           <div className="kpi-value">
             {productionSummary.today.toLocaleString()}

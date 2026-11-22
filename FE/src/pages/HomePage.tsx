@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ProductionChart from '../components/ProductionChart';
-import { equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
+import SegmentedControl from '../components/SegmentedControl';
+import { demoAsOf, equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
 import { useCalendarEvents } from '../services/calendarStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { HandoverNote, Report } from '../types';
@@ -74,9 +75,10 @@ function loadNotes(): HandoverNote[] {
 interface HomePageProps {
   onToast: (message: string) => void;
   extended: boolean;
-  onToggleExtended: () => void;
+  onLogout: () => void;
+  loggingOut: boolean;
 }
-export default function HomePage({ onToast, extended, onToggleExtended }: HomePageProps) {
+export default function HomePage({ onToast, extended, onLogout, loggingOut }: HomePageProps) {
   // 일정관리 탭과 같이 오늘 날짜를 기본으로 보여준다.
   const today = new Date();
   const [period, setPeriod] = useState<'today' | 'week'>('today');
@@ -179,7 +181,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
       <section className="overview" aria-labelledby="overview-heading">
         <div className="section-top">
           <h2 id="overview-heading">오늘의 공정 요약 </h2>
-          <span className="muted">예시 기준 시각 16:42</span>
+          <span className="muted">예시 기준 시각 {demoAsOf}</span>
         </div>
         <div className="kpi-grid">
           <article className="kpi">
@@ -278,22 +280,15 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               <div>
                 <h2>생산 현황</h2>
               </div>
-              <div className="segmented-control" aria-label="생산 조회 기간">
-                <button
-                  className={period === 'today' ? 'selected' : ''}
-                  aria-pressed={period === 'today'}
-                  onClick={() => setPeriod('today')}
-                >
-                  오늘
-                </button>
-                <button
-                  className={period === 'week' ? 'selected' : ''}
-                  aria-pressed={period === 'week'}
-                  onClick={() => setPeriod('week')}
-                >
-                  최근 9일
-                </button>
-              </div>
+              <SegmentedControl
+                label="생산 조회 기간"
+                value={period}
+                options={[
+                  { value: 'today', label: '오늘' },
+                  { value: 'week', label: '최근 9일' },
+                ]}
+                onChange={setPeriod}
+              />
             </div>
             <div className="chart-summary">
               <div>
@@ -336,20 +331,15 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                 <h2>올라온 보고</h2>
                 <span className="pill pill-neutral">{latestReports.length}</span>
               </div>
-              <div className="report-tabs">
-                <button
-                  onClick={() => setReportFilter('전체')}
-                  className={reportFilter === '전체' ? 'current' : ''}
-                >
-                  전체
-                </button>
-                <button
-                  onClick={() => setReportFilter('미처리')}
-                  className={reportFilter === '미처리' ? 'current' : ''}
-                >
-                  미처리
-                </button>
-              </div>
+              <SegmentedControl
+                label="보고 처리 상태"
+                value={reportFilter}
+                options={[
+                  { value: '전체', label: '전체' },
+                  { value: '미처리', label: '미처리' },
+                ]}
+                onChange={setReportFilter}
+              />
             </div>
             <div className="report-list">
               {visibleReports.map((report) => {
@@ -585,7 +575,9 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
             <p>{extended ? '데모 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
           </div>
-          <button onClick={onToggleExtended}>{extended ? '취소' : '오늘 야근'}</button>
+          <button onClick={onLogout} disabled={loggingOut}>
+            로그아웃
+          </button>
         </div>
       </div>
       <footer className="page-footer">
