@@ -247,7 +247,7 @@
   align-items: center;
   gap: 20px;
   border: 1px solid #ded9eb;
-  background: #efedf5;
+  background: linear-gradient(120deg, var(--surface), #f3f0f9 55%, #e9e4f4);
   border-radius: var(--radius-card);
   padding: 24px;
   margin-bottom: 24px;
@@ -745,7 +745,7 @@
   color: #f0a2b3;
 }
 .dark .qr-observation {
-  background: #322c43;
+  background: linear-gradient(120deg, #2b2738, #322c43 55%, #3a3350);
   border-color: #4c435d;
 }
 .dark .qr-observation-icon {
