@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
-    "preview": "vite preview --host 127.0.0.1 --configLoader runner"
+    "preview": "vite preview --host 127.0.0.1 --configLoader runner",
+    "dev:tablet": "vite --config vite.tablet.config.ts --configLoader runner",
+    "build:tablet": "tsc -p tsconfig.tablet.json && vite build --config vite.tablet.config.ts --configLoader runner",
+    "preview:tablet": "vite preview --config vite.tablet.config.ts --configLoader runner"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
