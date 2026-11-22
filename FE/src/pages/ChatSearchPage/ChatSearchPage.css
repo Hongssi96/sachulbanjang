@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--rd-muted);
 }
 .cs-mode > span {
@@ -36,10 +36,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .cs-history-heading > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--rd-muted);
 }
 .cs-new {
@@ -61,10 +61,10 @@
   width: 100%;
   box-sizing: border-box;
   padding-left: 32px;
-  font-size: 11px;
+  font-size: 14px;
 }
 .cs-section-label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--rd-muted);
   padding-left: 8px;
 }
@@ -84,7 +84,7 @@
   padding: 13px 10px;
   color: var(--rd-ink);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   min-width: 0;
 }
 .cs-history-items button > span {
@@ -102,7 +102,7 @@
 }
 .cs-history-items small {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--rd-muted);
   margin-top: 7px;
 }
@@ -113,11 +113,11 @@
 }
 .cs-history-note strong {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 10px;
 }
 .cs-history-note p {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.9;
   color: var(--rd-muted);
 }
@@ -152,11 +152,11 @@
   flex-shrink: 0;
 }
 .cs-chat-heading strong {
-  font-size: 13px;
+  font-size: 15px;
   overflow-wrap: anywhere;
 }
 .cs-chat-heading p {
-  font-size: 10px;
+  font-size: 13px;
   color: var(--rd-muted);
   margin: 6px 0 0;
 }
@@ -186,7 +186,7 @@
   background: #f0edf7;
   color: #635b85;
   border-radius: 9px;
-  font-size: 10px;
+  font-size: 11px;
   flex-shrink: 0;
 }
 .cs-message > div {
@@ -195,7 +195,7 @@
 }
 .cs-message-author {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--rd-muted);
   margin-bottom: 8px;
 }
@@ -204,7 +204,7 @@
   background: var(--cs-soft);
   border: 1px solid var(--rd-border);
   border-radius: 0 12px 12px 12px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 2;
   overflow-wrap: anywhere;
 }
@@ -230,7 +230,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   text-decoration: none;
   color: #635b85;
   background: var(--rd-surface);
@@ -256,7 +256,7 @@
   min-height: 60px;
   max-height: 180px;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   color: var(--rd-ink);
   border: 0;
@@ -274,14 +274,14 @@
   gap: 10px;
 }
 .cs-composer > div > span {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--rd-muted);
 }
 .cs-composer button {
   padding: 8px;
 }
 .cs-disclaimer {
-  font-size: 9px;
+  font-size: 11px;
   text-align: center;
   color: var(--rd-muted);
   padding: 0 26px;
@@ -292,11 +292,11 @@
   padding: 27px;
 }
 .cs-search-content h2 {
-  font-size: 19px;
+  font-size: 18px;
   margin: 0 0 10px;
 }
 .cs-muted {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--rd-muted);
   line-height: 1.9;
 }
@@ -339,7 +339,7 @@
   margin-top: 22px;
 }
 .cs-search-empty p {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--rd-muted);
 }
 .cs-chips {
@@ -354,7 +354,7 @@
   border-radius: 18px;
   padding: 7px 13px;
   background: var(--rd-surface);
-  font-size: 11px;
+  font-size: 13px;
   color: #635b85;
   cursor: pointer;
 }
@@ -363,18 +363,18 @@
   justify-content: space-between;
   gap: 12px;
   margin: 28px 0 22px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .cs-results-title span {
   color: var(--rd-muted);
-  font-size: 11px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 .cs-result-group {
   margin-bottom: 25px;
 }
 .cs-result-group h3 {
-  font-size: 12px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -384,7 +384,7 @@
   background: #f0edf7;
   padding: 3px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .cs-result {
   display: flex;
@@ -412,11 +412,11 @@
   min-width: 0;
 }
 .cs-result strong {
-  font-size: 12px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 .cs-result p {
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.9;
   color: var(--rd-muted);
   margin: 6px 0 0;
@@ -424,7 +424,7 @@
 }
 .cs-result small {
   color: var(--rd-muted);
-  font-size: 10px;
+  font-size: 13px;
 }
 .cs-result:is(a, button):hover {
   background: var(--cs-soft);
@@ -442,7 +442,7 @@
   margin: 20px 0 10px;
 }
 .cs-welcome p {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--rd-muted);
   line-height: 1.9;
 }
@@ -460,14 +460,14 @@
   background: var(--rd-surface);
   padding: 13px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--rd-ink);
   text-align: left;
   cursor: pointer;
 }
 .cs-storage-notice {
   padding: 0 26px;
-  font-size: 11px;
+  font-size: 13px;
   color: #a15e32;
 }
 .sidebar-search[href] {
@@ -543,7 +543,7 @@
     min-height: 240px;
   }
   .cs-mode {
-    font-size: 10px;
+    font-size: 11px;
   }
   .cs-chat-heading {
     gap: 9px;
@@ -639,7 +639,7 @@
   color: #317756;
 }
 .chat-page .cs-disclaimer {
-  font-size: 10px;
+  font-size: 12px;
 }
 .cs-mode {
   margin-left: auto;
@@ -654,7 +654,7 @@
 .chat-page .cs-history-items button,
 .chat-page .cs-chips button {
   font-family: Pretendard, 'Malgun Gothic', sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.6;
   font-weight: 500;
   letter-spacing: 0;

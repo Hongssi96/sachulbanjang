@@ -9,7 +9,6 @@ export default function ProductionChart({ period }: ProductionChartProps) {
   const points = values
     .map((value, i) => `${62 + i * 76},${232 - value * (period === 'today' ? 0.25 : 0.025)}`)
     .join(' ');
-  const area = `M62,232 L${points.replaceAll(' ', ' L')} L670,232 Z`;
   const labels =
     period === 'today'
       ? ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00']
@@ -25,12 +24,6 @@ export default function ProductionChart({ period }: ProductionChartProps) {
             : '예시 일별 생산량 추이'
         }
       >
-        <defs>
-          <linearGradient id="production-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#61E2A6" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#61E2A6" stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
         {(period === 'today' ? [0, 200, 400, 600, 800] : [0, 2000, 4000, 6000, 8000]).map(
           (value) => (
             <g key={value.toLocaleString()}>
@@ -54,7 +47,6 @@ export default function ProductionChart({ period }: ProductionChartProps) {
           ),
         )}
         <line x1="62" y1="107" x2="695" y2="107" stroke="#A9AAB5" strokeDasharray="5 5" />
-        <path d={area} fill="url(#production-fill)" />
         <polyline
           points={points}
           fill="none"

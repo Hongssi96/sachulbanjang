@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import type { FormEvent, KeyboardEvent, PointerEvent } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowDownRight,
@@ -84,7 +84,22 @@ function FilterDropdown({
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // 목록이 아래쪽 채팅창을 가릴 만큼 길면 위로 펼친다. 채팅창이 없으면 화면 아래를 기준으로 한다.
+  const openMenu = () => {
+    const element = rootRef.current;
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      const menuHeight = Math.min(options.length * 38 + 12, 300);
+      const chat = document.querySelector('.rt-ask');
+      const boundary = chat ? chat.getBoundingClientRect().top : window.innerHeight;
+      const spaceBelow = boundary - rect.bottom;
+      setDropUp(spaceBelow < menuHeight && rect.top > spaceBelow);
+    }
+    setOpen(true);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -109,13 +124,20 @@ function FilterDropdown({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={label}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (open) setOpen(false);
+          else openMenu();
+        }}
       >
         {value}
         <ChevronDown size={16} className="rt-select-chevron" />
       </button>
       {open && (
-        <ul className="rt-select-menu" role="listbox" aria-label={label}>
+        <ul
+          className={`rt-select-menu${dropUp ? ' drop-up' : ''}`}
+          role="listbox"
+          aria-label={label}
+        >
           {options.map((option) => (
             <li key={option}>
               <button
@@ -196,6 +218,11 @@ export default function RealtimePage() {
 
   // 설비가 많아질 때를 대비해 목록을 좌우 스크롤 밴드로 전환한다.
   const bandRef = useRef<HTMLDivElement>(null);
+  const bandDragRef = useRef<{ pointerId: number; startX: number; scrollLeft: number } | null>(
+    null,
+  );
+  const suppressBandClickRef = useRef(false);
+  const [bandDragging, setBandDragging] = useState(false);
   const [bandEdges, setBandEdges] = useState({ scrollable: false, start: true, end: true });
 
   const syncBand = useCallback(() => {
@@ -218,6 +245,44 @@ export default function RealtimePage() {
     const el = bandRef.current;
     if (!el) return;
     el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
+  const startBandDrag = (event: PointerEvent<HTMLDivElement>) => {
+    suppressBandClickRef.current = false;
+    if (event.pointerType !== 'mouse' || event.button !== 0 || !bandEdges.scrollable) return;
+    bandDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: event.currentTarget.scrollLeft,
+    };
+  };
+
+  const moveBandDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = bandDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const distance = event.clientX - drag.startX;
+    // 작은 손떨림은 카드 클릭으로 처리한다.
+    if (!suppressBandClickRef.current && Math.abs(distance) < 5) return;
+    event.preventDefault();
+    if (!suppressBandClickRef.current) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      suppressBandClickRef.current = true;
+      setBandDragging(true);
+      // React 렌더링 전에도 스냅을 해제해 첫 드래그부터 이동량을 그대로 반영한다.
+      event.currentTarget.style.scrollSnapType = 'none';
+    }
+    event.currentTarget.scrollLeft = drag.scrollLeft - distance;
+  };
+
+  const endBandDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (bandDragRef.current?.pointerId !== event.pointerId) return;
+    bandDragRef.current = null;
+    setBandDragging(false);
+    event.currentTarget.style.removeProperty('scroll-snap-type');
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    syncBand();
   };
 
   const statusCounts = useMemo(() => {
@@ -533,18 +598,27 @@ export default function RealtimePage() {
           </div>
         ) : (
           <div className="rt-band">
-            {bandEdges.scrollable && (
-              <button
-                type="button"
-                className="rt-band-nav prev"
-                aria-label="이전 설비 보기"
-                disabled={bandEdges.start}
-                onClick={() => scrollBand(-1)}
-              >
-                <ChevronLeft size={18} />
-              </button>
-            )}
-            <div className="rt-card-grid" ref={bandRef} onScroll={syncBand}>
+            <div
+              className={`rt-card-grid${bandEdges.scrollable ? ' is-scrollable' : ''}${bandDragging ? ' is-dragging' : ''}`}
+              ref={bandRef}
+              onScroll={syncBand}
+              onPointerDown={startBandDrag}
+              onPointerMove={moveBandDrag}
+              onPointerUp={endBandDrag}
+              onPointerCancel={endBandDrag}
+              onLostPointerCapture={endBandDrag}
+              onPointerLeave={(event) => {
+                if (!event.currentTarget.hasPointerCapture(event.pointerId)) endBandDrag(event);
+              }}
+              onDragStart={(event) => event.preventDefault()}
+              onClickCapture={(event) => {
+                if (suppressBandClickRef.current && event.detail > 0) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  suppressBandClickRef.current = false;
+                }
+              }}
+            >
               {filteredEquipment.map((machine) => (
                 <article
                   key={machine.name}
@@ -580,15 +654,26 @@ export default function RealtimePage() {
               ))}
             </div>
             {bandEdges.scrollable && (
-              <button
-                type="button"
-                className="rt-band-nav next"
-                aria-label="다음 설비 보기"
-                disabled={bandEdges.end}
-                onClick={() => scrollBand(1)}
-              >
-                <ChevronRight size={18} />
-              </button>
+              <div className="rt-band-controls" role="group" aria-label="설비 목록 이동">
+                <button
+                  type="button"
+                  className="rt-band-nav"
+                  aria-label="이전 설비 보기"
+                  disabled={bandEdges.start}
+                  onClick={() => scrollBand(-1)}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  type="button"
+                  className="rt-band-nav"
+                  aria-label="다음 설비 보기"
+                  disabled={bandEdges.end}
+                  onClick={() => scrollBand(1)}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
             )}
           </div>
         )}

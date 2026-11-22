@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ProductionChart from '../components/ProductionChart';
-import { calendarEvents, equipment, reports } from '../constants/demoData';
+import { equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
+import { useCalendarEvents } from '../services/calendarStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { HandoverNote, Report } from '../types';
 
@@ -76,27 +77,42 @@ interface HomePageProps {
   onToggleExtended: () => void;
 }
 export default function HomePage({ onToast, extended, onToggleExtended }: HomePageProps) {
+  // 일정관리 탭과 같이 오늘 날짜를 기본으로 보여준다.
+  const today = new Date();
   const [period, setPeriod] = useState<'today' | 'week'>('today');
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [month, setMonth] = useState(10);
-  const [year, setYear] = useState(2026);
-  const [selectedDay, setSelectedDay] = useState(17);
+  const [month, setMonth] = useState(today.getMonth());
+  const [year, setYear] = useState(today.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [notes, setNotes] = useState<HandoverNote[]>(loadNotes);
   const [noteText, setNoteText] = useState('');
   const [reportFilter, setReportFilter] = useState('전체');
-  const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [announcementRead, setAnnouncementRead] = useState(false);
   useReportStatusVersion();
+  const allEvents = useCalendarEvents();
   const unreadNotes = notes.filter((note) => !note.checked).length;
-  const visibleReports = reports.filter(
+  const latestReports = sortedReportPosts.slice(0, 3);
+  const visibleReports = latestReports.filter(
     (report) => reportFilter === '전체' || getReportStatus(report) !== '완료',
   );
+  const reportStatuses = reportPosts.map((report) => getReportStatus(report));
+  const pendingCount = reportStatuses.filter((status) => status !== '완료').length;
+  const waitingCount = reportStatuses.filter((status) => status === '대기').length;
+  const inProgressCount = reportStatuses.filter((status) => status === '진행 중').length;
+  const demoToday = sortedReportPosts[0]?.date;
+  const todayReportCount = demoToday
+    ? reportPosts.filter((report) => report.date === demoToday).length
+    : 0;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
   const eventsForDay = (day: number) =>
     year === 2026
-      ? calendarEvents.filter((event) => (event.month ?? 10) === month && event.day === day)
+      ? allEvents.filter((event) => (event.month ?? 10) === month && event.day === day)
       : [];
+  // 선택한 날짜의 일정은 시간순으로 보여준다.
+  const selectedEvents = eventsForDay(selectedDay)
+    .slice()
+    .sort((a, b) => a.time.localeCompare(b.time));
   const saveNotes = (next: HandoverNote[]) => {
     setNotes(next);
     try {
@@ -162,12 +178,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
       </div>
       <section className="overview" aria-labelledby="overview-heading">
         <div className="section-top">
-          <h2 id="overview-heading">
-            오늘의 공정 요약{' '}
-            <span className="live-label">
-              <i /> DEMO
-            </span>
-          </h2>
+          <h2 id="overview-heading">오늘의 공정 요약 </h2>
           <span className="muted">예시 기준 시각 16:42</span>
         </div>
         <div className="kpi-grid">
@@ -235,11 +246,14 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               <ClipboardIcon />
             </div>
             <div className="kpi-value">
-              2<span>건</span>
+              {pendingCount}
+              <span>건</span>
               <span className="pill pill-amber">확인 필요</span>
             </div>
             <div className="kpi-bottom">
-              <span>접수 대기 1건 · 조치 중 1건</span>
+              <span>
+                접수 대기 {waitingCount}건 · 조치 중 {inProgressCount}건
+              </span>
               <button
                 className="text-link"
                 onClick={() => {
@@ -253,7 +267,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                 <ArrowRight size={17} />
               </button>
             </div>
-            <div className="kpi-caption">오늘 올라온 보고 3건</div>
+            <div className="kpi-caption">오늘 올라온 보고 {todayReportCount}건</div>
           </article>
         </div>
       </section>
@@ -263,7 +277,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <div className="card-heading">
               <div>
                 <h2>생산 현황</h2>
-                <p>시간에 따른 생산량 흐름을 확인하세요.</p>
               </div>
               <div className="segmented-control" aria-label="생산 조회 기간">
                 <button
@@ -321,7 +334,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <div className="card-heading">
               <div className="heading-inline">
                 <h2>올라온 보고</h2>
-                <span className="pill pill-neutral">3</span>
+                <span className="pill pill-neutral">{latestReports.length}</span>
               </div>
               <div className="report-tabs">
                 <button
@@ -439,7 +452,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
         <div className="side-column">
           <section className="insight-card">
             <div className="insight-label">
-              <Sparkles size={17} /> 사출반장의 품질 인사이트<span>예시</span>
+              <Sparkles size={17} /> 사출반장의 품질 인사이트
             </div>
             <h2>
               오늘은 이 부분을
@@ -484,14 +497,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           <section className="card calendar-card">
             <div className="card-heading">
               <h2>근무 일정</h2>
-              <button
-                className="icon-button"
-                onClick={() => setCalendarExpanded(!calendarExpanded)}
-                aria-label={calendarExpanded ? '일정 요약 접기' : '선택 날짜 일정 펼치기'}
-                aria-expanded={calendarExpanded}
-              >
-                <CalendarDays size={19} />
-              </button>
             </div>
             <div className="calendar-month">
               <strong>
@@ -522,13 +527,16 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => (
                 <button
                   key={day}
-                  className={`calendar-day ${day === selectedDay ? 'chosen' : ''} ${year === 2026 && month === 10 && day === 17 ? 'today' : ''}`}
+                  className={`calendar-day ${day === selectedDay ? 'chosen' : ''} ${
+                    year === today.getFullYear() &&
+                    month === today.getMonth() &&
+                    day === today.getDate()
+                      ? 'today'
+                      : ''
+                  }`}
                   aria-label={`${month + 1}월 ${day}일, 일정 ${eventsForDay(day).length}건`}
                   aria-pressed={day === selectedDay}
-                  onClick={() => {
-                    setSelectedDay(day);
-                    setOverlay({ kind: 'schedule', day });
-                  }}
+                  onClick={() => setSelectedDay(day)}
                 >
                   <span>{day}</span>
                   {eventsForDay(day).length > 0 && <i />}
@@ -542,30 +550,27 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                     `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`,
                   )}{' '}
                   <span>
-                    {year === 2026 && month === 10 && selectedDay === 17 ? '오늘' : '선택일'}
+                    {year === today.getFullYear() &&
+                    month === today.getMonth() &&
+                    selectedDay === today.getDate()
+                      ? '오늘'
+                      : '선택일'}
                   </span>
                 </strong>
-                <span className="muted">{eventsForDay(selectedDay).length}건</span>
+                <span className="muted">{selectedEvents.length}건</span>
               </div>
-              {eventsForDay(selectedDay).length ? (
-                eventsForDay(selectedDay)
-                  .slice(0, calendarExpanded ? 10 : 2)
-                  .map((event) => (
-                    <button
-                      className="schedule-row"
-                      key={event.time}
-                      onClick={() => setOverlay({ kind: 'schedule', day: selectedDay })}
-                    >
-                      <span className={`schedule-line ${event.kind === '점검' ? 'mint' : ''}`} />
-                      <span>
-                        <small>
-                          {event.time} · {event.kind}
-                        </small>
-                        <strong>{event.title}</strong>
-                      </span>
-                      <ChevronRight size={15} />
-                    </button>
-                  ))
+              {selectedEvents.length ? (
+                selectedEvents.map((event) => (
+                  <div className="schedule-row" key={`${event.time}-${event.title}`}>
+                    <span className={`schedule-line ${event.kind === '점검' ? 'mint' : ''}`} />
+                    <span>
+                      <small>
+                        {event.time} · {event.kind}
+                      </small>
+                      <strong>{event.title}</strong>
+                    </span>
+                  </div>
+                ))
               ) : (
                 <p className="empty-text">등록된 일정이 없어요.</p>
               )}
@@ -585,7 +590,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
       </div>
       <footer className="page-footer">
         <span>© 2026 사출반장. 더 나은 현장을 함께 만듭니다.</span>
-        <span>예시 화면 · 실제 공정 및 서버 미연동</span>
       </footer>
       {overlay && (
         <Modal
@@ -638,7 +642,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
             <>
               {eventsForDay(overlay.day).length ? (
                 eventsForDay(overlay.day).map((event) => (
-                  <div className="modal-event" key={event.time}>
+                  <div className="modal-event" key={`${event.time}-${event.title}`}>
                     <span className="pill pill-violet">{event.kind}</span>
                     <div>
                       <strong>{event.title}</strong>
@@ -653,7 +657,6 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                   <p>다른 날짜를 선택해 확인해 보세요.</p>
                 </div>
               )}
-              <p className="demo-disclaimer">일정은 2026.11 기준의 시연용 데이터입니다.</p>
             </>
           )}
           {overlay.kind === 'note' && (
@@ -751,7 +754,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               </div>
               <div className="modal-callout">
                 <TriangleAlert size={18} />
-                <p>사출 3호기 압력 변동 확인 필요 · 설비 상태와 배치는 시연용입니다.</p>
+                <p>사출 3호기 압력 변동 확인이 필요합니다.</p>
               </div>
             </>
           )}

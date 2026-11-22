@@ -6,12 +6,14 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 def test_core_schema_registers_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
         "app_user",
+        "auth_session",
         "department",
         "equipment",
         "process_record",
         "process_replay",
         "product",
         "production_line",
+        "refresh_credential",
         "source_import",
     }
 
@@ -27,6 +29,12 @@ def test_process_record_preserves_source_identity_and_explicit_cycle_unit() -> N
         isinstance(constraint, UniqueConstraint)
         and {column.name for column in constraint.columns}
         == {"source_import_id", "source_row_number"}
+        for constraint in table.constraints
+    )
+    assert any(
+        isinstance(constraint, UniqueConstraint)
+        and {column.name for column in constraint.columns}
+        == {"source_namespace", "source_record_key"}
         for constraint in table.constraints
     )
     assert any(

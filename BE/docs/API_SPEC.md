@@ -61,9 +61,9 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 영역 | 상태 | 검증 근거 | 갱신일 |
 | --- | --- | --- | --- |
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
-| 인증 | 미착수 | - | 2026-11-20 |
+| 인증 | 구현 중 | 로그인·갱신·로그아웃·현재 사용자 조회, Argon2id 검증, 5회 실패 잠금, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 초기 계정 시드 CLI, FE 출처 CORS 구현. pytest 47건·PostgreSQL 18 회전/재사용/로그아웃/CORS 통합 확인. 비밀번호 변경·초기화 미구현 | 2026-11-20 |
 | 근무 | 미착수 | - | 2026-11-20 |
-| 공정 | 미착수 | - | 2026-11-20 |
+| 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정과 인증된 현재 공정 조회 구현. 전체 pytest 및 PostgreSQL 18 replay 검증. FE polling 연동 미확인 | 2026-11-20 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
 | 검사·품질 | 미착수 | - | 2026-11-20 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
@@ -78,6 +78,20 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 - `구현 완료`: 합의한 코드가 작성됐지만 필수 검증 또는 계약 대조가 남아 있다.
 - `검증 완료`: 관련 린트·타입 검사·테스트와 API 계약 대조를 통과했다.
 - `보류`: 외부 정보나 비즈니스 결정이 필요해 의도적으로 진행을 멈췄다.
+
+### 공정 세부 구현 상태
+
+- [x] 계정·조직·설비·제품·공정 적재·재생 핵심 스키마와 Mermaid ERD
+- [x] 실제 CSV 필수 헤더·TimeStamp·Cycle_Time 검증과 `Asia/Seoul` → UTC 변환
+- [x] 설비·제품 마스터 연결, 전체 원자적 적재, 초기 `ready` replay 생성
+- [x] 파일 fingerprint 재적재 차단과 원천 `_id` 중복·충돌 처리
+- [x] DB에 저장하지 않는 전체 CSV `--validate-only` 검증 명령
+- [x] 5초 간격 공정 레코드 재생과 정상 종료·15초 지연 판정
+- [x] 인증·권한이 적용된 `GET /process/current` 응답과 OpenAPI 계약
+- [ ] FE polling 연동과 시연·기준 시각·조회 시각·오류 상태 표시 확인
+
+상위 공정 상태는 위 필수 항목이 일부 남아 있으므로 `구현 중`이다. 체크된 하위 항목만 완료로
+간주하며 CSV 적재 구현을 실시간 공정 전체 완료로 표현하지 않는다.
 
 ## 개별 API 기술 기본안
 
@@ -132,6 +146,28 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 
 신규 사용자 생성·마스터 편집·검사 수동 등록·재고 원장 삭제·예약 보고·복구 API는 추가하지 않는다. 실제 검사 수집 API는 원천·인증 규격 확보 후 별도 설계한다.
 
+### GET /process/current
+
+인증된 관리자와 고용자가 가장 최근에 적재된 CSV replay의 현재 공정을 조회한다. 선택 query
+`equipment_id`는 1 이상의 설비 ID이며 생략하면 replay에 공개된 전체 설비를 반환한다. 아직
+replay가 없거나 공개된 레코드가 없으면 200과 빈 `items`를 반환한다.
+
+| 응답 필드 | 형식·의미 |
+| --- | --- |
+| queried_at | 서버가 조회한 UTC RFC 3339 시각 |
+| replay_id | 최신 replay ID. replay가 없으면 null |
+| replay_state | `ready`, `running`, `delayed`, `completed`, `failed`. replay가 없으면 null |
+| data_time | replay에서 마지막으로 공개한 원본 데이터 시각. 공개 전이면 null |
+| last_advanced_at | 마지막 정상 공개 시각. 공개 전이면 null |
+| items | 설비별 공개된 최신 레코드 목록. `equipment_code` 오름차순 |
+
+각 item은 `equipment_id`, `equipment_code`, `equipment_name`, `equipment_status`,
+`product_id`, `product_code`, `product_name`, `cycle_time_seconds`, `occurred_at`,
+`available_at`, `is_demo`를 포함한다. 품목이 없으면 품목 세 필드는 null이며 CSV에 설비 상태가
+없으므로 현재 `equipment_status`는 `unknown`이다. `cycle_time_seconds`는 정밀도 보존을 위해
+JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하지 않으면 401
+`AUTHENTICATION_REQUIRED`, `equipment_id`가 1 미만이면 422를 반환한다.
+
 ### 필드·응답 기술 기본안
 
 - 목록: `items`, `pagination: {page, page_size, total_items, total_pages}`. 빈 결과는 items=[]·total_items=0·total_pages=0. page>=1, page_size 1~100. 번호 10개 묶음은 FE 표시 규칙이다.
@@ -146,6 +182,34 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 
 쿠키·CSRF와 프런트의 알림·입력 보존·날짜 변환은 FE/BE 상세 계약 확인이 필요하다. 이 문서 작성만으로 FE를 변경하거나 최종 연동을 완료한 것으로 간주하지 않는다.
 
+### 인증 현재 구현 범위 (2026-11-20)
+
+- 구현: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`
+- 비밀번호: Argon2id 해시(`argon2-cffi`). 사번이 없어도 같은 비용의 더미 해시를 검증해 응답 시간 차이를 줄인다
+- 잠금: 같은 계정 5회 연속 실패 시 5분 제한(설정값). 잠긴 동안 올바른 비밀번호도 거부하고 `Retry-After`를 반환한다
+- 쿠키: `imleader_access_token`(Path `/`), `imleader_refresh_token`(Path `/api/v1/auth`)은 HttpOnly·SameSite=Lax, `imleader_csrf_token`(Path `/`)은 JS가 읽는다. Secure는 `APP_AUTH_COOKIE_SECURE`
+- 토큰: 액세스 JWT 15분, 리프레시 JWT 7일(최초 로그인 기준). 리프레시 원문은 저장하지 않고 SHA-256 digest만 `refresh_credential`에 저장
+- 갱신: 리프레시를 제출하면 세대가 1 증가한 새 자격 증명을 발급하고 이전 행에 `consumed_at`을 기록한다. 새 만료는 세션의 `absolute_expires_at`을 넘지 않는다
+- 재사용 감지: 소비·폐기된 리프레시가 다시 제출되면 세션과 현재 리프레시를 폐기하고 `SESSION_REVOKED`를 반환한다. 다른 기기 세션은 유지한다(DEC-107)
+- 동시 갱신: 같은 세션의 직전 세대를 `APP_REFRESH_REUSE_GRACE_SECONDS`(기본 10초) 안에 다시 보내면 재사용으로 보지 않고 `REFRESH_IN_PROGRESS`(409)만 반환한다. FE는 잠시 후 재시도한다
+- 로그아웃: 해당 세션의 리프레시를 폐기하고 쿠키를 지운다. 이미 발급된 액세스 토큰은 남은 만료(최대 15분)까지 유효하다(DEC-054)
+- CSRF: 로그인 시 더블 서브밋 쿠키를 발급하고, `POST /auth/refresh`·`POST /auth/logout`은 `X-CSRF-Token` 헤더가 쿠키와 일치해야 한다. 불일치는 `CSRF_VALIDATION_FAILED`(403)
+- 미구현: 비밀번호 변경·초기화, 근무 종료 시각 응답, 공통 오류 응답 핸들러
+- 오류: 공통 오류 응답(`{code,message,request_id}`) 핸들러가 아직 없어 FastAPI 기본 `detail` 래퍼로 반환한다. `detail.code`는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_REVOKED`, `REFRESH_IN_PROGRESS`, `CSRF_VALIDATION_FAILED`를 사용한다
+- 초기 계정: `python -m app.commands.seed_accounts --employee-no ... --display-name ... --role admin|worker`로 준비한다. 같은 사번이 있으면 덮어쓰지 않고 종료 코드 1로 알린다
+
+### FE 연동 계약 (인증)
+
+- base URL은 `/api/v1`, 요청은 `credentials: "include"`로 보내야 쿠키가 오간다
+- CORS: `APP_CORS_ORIGINS`에 나열한 출처만 허용하고 자격 증명을 허용한다. 개발 기본값은 `http://localhost:5173`, `http://localhost:5174`
+- 쿠키: `imleader_access_token`(Path `/`, 액세스 JWT), `imleader_refresh_token`(Path `/api/v1/auth`), `imleader_csrf_token`(Path `/`, JS가 읽는 CSRF 토큰)
+- 로그인·갱신 응답은 사용자 객체만 반환하고 토큰 원문을 JSON에 넣지 않는다. `Cache-Control: no-store`가 붙는다
+- 인증 실패는 `401` + `detail.code`: 잘못된 자격 증명 `INVALID_CREDENTIALS`, 잠금 `ACCOUNT_LOCKED`(`Retry-After`), 쿠키 없음·만료 `AUTHENTICATION_REQUIRED`
+- 상태 변경 요청(`POST /auth/refresh`, `POST /auth/logout`)은 쿠키의 `imleader_csrf_token` 값을 `X-CSRF-Token` 헤더로 함께 보낸다. 헤더가 없거나 다르면 `CSRF_VALIDATION_FAILED`(403)
+- 액세스 만료 대응: 업무 API에서 `401 AUTHENTICATION_REQUIRED`를 받으면 `POST /auth/refresh`를 한 번 호출하고, 성공하면 원래 요청을 재시도한다. `INVALID_REFRESH_TOKEN`·`SESSION_REVOKED`면 로그인 화면으로 보낸다
+- 동시 갱신 처리: `409 REFRESH_IN_PROGRESS`는 로그아웃이 아니라 재시도 신호다. FE는 갱신 요청을 한 번에 하나만 보내고, 409를 받으면 `Retry-After`(1초) 후 현재 리프레시 쿠키로 다시 시도한다
+- 로그아웃: `POST /auth/logout` 성공(204) 후 클라이언트 상태를 초기화한다. 서버가 쿠키를 지우므로 별도 삭제는 필요하지 않다
+
 ## 구현 시 상세 확인
 
 필수값은 FE가 전송 전에 검사해 사용자에게 안내하고 BE도 요청에서 검증한다. 부분 수정에서 생략은 기존 값 유지, nullable 필드의 null은 값 제거, 필수값의 null은 검증 오류로 처리한다. 필드별 생략·null 허용 여부를 명세한다(DEC-155).
@@ -153,7 +217,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 - 필수·선택·null 의미와 요청·응답 필드별 런타임 검증
 - 페이지 메타데이터, 검색·필터·정렬 파라미터 이름과 기본값
 - 작업 상태 코드, 요청 재전송 식별자, 버전 충돌 응답
-- CSRF 전송·검증 방식과 FE·BE 배포 출처별 쿠키·CORS 설정
+- CSRF 방식 확정(더블 서브밋 쿠키, `imleader_csrf_token` + `X-CSRF-Token`)과 배포 출처별 쿠키·CORS 세부값 확인
 - 공정 CSV의 시간대·필드와 내부 데이터 모델의 매핑
 - DEC-153의 문서화 방식에 따른 실제 OpenAPI 화면 구현과 계약·구현 일치 검증
 

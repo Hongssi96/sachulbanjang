@@ -182,10 +182,15 @@ export const reportPosts: ReportPost[] = [
     checklist: ['주간 근무 시 펜스 전체 체결 상태 재확인', '체결 볼트 재조임 필요 여부 확인'],
   },
 ];
-// 홈 요약 카드·알림·검색은 기존 3건을 그대로 사용한다.
-export const reports: Report[] = reportPosts.slice(0, 3);
+// 목록·상세·홈 카드가 같은 순서를 쓰도록 최신순으로 한 번만 정렬한다.
+export const sortedReportPosts = [...reportPosts].sort((a, b) =>
+  `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`),
+);
+// 홈 요약 카드·알림·검색은 최신 3건을 사용한다.
+export const reports: Report[] = sortedReportPosts.slice(0, 3);
 export const calendarEvents: CalendarEvent[] = [
   {
+    id: 'C-01',
     day: 12,
     time: '14:00',
     title: '3호기 금형 교체',
@@ -193,6 +198,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '사출 3호기 금형을 교체하고 첫 사이클 품질을 확인합니다.',
   },
   {
+    id: 'C-02',
     day: 17,
     time: '09:00',
     title: '생산팀 일일 회의',
@@ -200,6 +206,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '전일 생산 실적과 금일 생산 계획을 공유합니다.',
   },
   {
+    id: 'C-03',
     day: 17,
     time: '14:00',
     title: '사출 3호기 정기 점검',
@@ -207,6 +214,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '유압 압력 변동 보고(R-003) 이후 첫 정기 점검이에요.',
   },
   {
+    id: 'C-04',
     day: 17,
     time: '16:30',
     title: 'CN7 출하 전 품질 확인',
@@ -214,6 +222,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '출하 전 외관·치수 검사를 실시합니다.',
   },
   {
+    id: 'C-05',
     day: 19,
     time: '10:00',
     title: 'CN7 제품 납품',
@@ -221,6 +230,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '완제품 물류 이동과 인수 확인을 진행합니다.',
   },
   {
+    id: 'C-06',
     day: 24,
     time: '14:00',
     title: '전 설비 안전 점검',
@@ -228,6 +238,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '10대 설비의 안전 커버와 비상 정지 스위치를 확인합니다.',
   },
   {
+    id: 'C-07',
     day: 26,
     time: '10:00',
     title: '월간 품질 회의',
@@ -235,6 +246,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: 'RG3 RH 불량 집중 기간(10/22–23)의 분석 결과를 공유합니다.',
   },
   {
+    id: 'C-08',
     month: 11,
     day: 2,
     time: '10:00',
@@ -243,6 +255,7 @@ export const calendarEvents: CalendarEvent[] = [
     description: '12월 가동 전 금형 세척과 윤활을 진행합니다.',
   },
   {
+    id: 'C-09',
     month: 11,
     day: 11,
     time: '14:00',

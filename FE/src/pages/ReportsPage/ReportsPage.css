@@ -1,7 +1,7 @@
 .reports-page {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 4px 0 24px;
+  padding: 0 0 24px;
 }
 .rp-toolbar {
   display: flex;
@@ -14,9 +14,9 @@
 .rp-filter-group {
   display: flex;
   align-items: center;
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-radius: var(--radius-control);
   background: var(--surface);
 }
 .rp-tabs {
@@ -25,8 +25,8 @@
 }
 .rp-tabs button {
   padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-small);
+  font-size: 14px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -48,11 +48,11 @@
   align-items: center;
   gap: 8px;
   min-width: 260px;
-  height: 40px;
+  height: 44px;
   padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--soft);
+  border-radius: var(--radius-control);
+  background: var(--surface);
   color: var(--muted);
 }
 .rp-search input {
@@ -60,7 +60,7 @@
   border: 0;
   background: none;
   outline: none;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink);
 }
 .rp-search button {
@@ -72,7 +72,7 @@
   margin: 0;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   overflow: hidden;
 }
@@ -84,7 +84,8 @@
   grid-template-columns: minmax(0, 1fr) auto 20px;
   align-items: center;
   gap: 16px;
-  padding: 13px 20px;
+  min-height: 64px;
+  padding: 14px 24px;
 }
 .rp-row:hover {
   background: var(--soft);
@@ -111,7 +112,7 @@
   padding: 2px 9px;
 }
 .rp-line strong {
-  font-size: 17px;
+  font-size: 16px;
   line-height: 24px;
   font-weight: 650;
   color: var(--ink);
@@ -126,7 +127,7 @@
   border-radius: 5px;
   background: var(--mint);
   color: #29263f;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.4px;
   line-height: 1;
@@ -194,7 +195,7 @@
   gap: 8px;
   padding: 56px 24px;
   border: 1px solid var(--border);
-  border-radius: 13px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   color: var(--muted);
   text-align: center;
@@ -230,9 +231,9 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 28px 32px;
+  padding: 32px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 .rpd-tags {
@@ -242,9 +243,9 @@
   margin-bottom: 12px;
 }
 .rpd-article h1 {
-  font-size: 26px;
-  line-height: 36px;
-  letter-spacing: -0.8px;
+  font-size: 28px;
+  line-height: 38px;
+  letter-spacing: -1px;
   margin: 0 0 12px;
 }
 .rpd-meta {
@@ -254,7 +255,7 @@
   gap: 8px;
   padding-bottom: 20px;
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
 }
 .rpd-meta i {
@@ -285,8 +286,8 @@
 }
 .rpd-body {
   word-break: keep-all;
-  font-size: 16px;
-  line-height: 30px;
+  font-size: 14px;
+  line-height: 24px;
   color: var(--ink);
 }
 .rpd-side {
@@ -300,7 +301,7 @@
   gap: 10px;
   padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 .rpd-summary h2 {
@@ -397,8 +398,8 @@
   flex-direction: column;
   gap: 8px;
   padding: 18px 20px;
-  border: 1px solid #f2bb69;
-  border-radius: 12px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-card);
   background: #fff0d6;
   font-size: 14px;
   line-height: 24px;
@@ -466,14 +467,14 @@
   gap: 4px;
   padding: 14px 18px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 .rpd-nav a:hover {
   border-color: var(--primary);
 }
 .rpd-nav small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .rpd-nav strong {
@@ -510,5 +511,13 @@
   }
   .rpd-nav {
     grid-template-columns: 1fr;
+  }
+}
+
+/* 1920 이상에서는 카드 제목(20)에 맞춰 게시글 제목도 한 단계 키운다. */
+@media (min-width: 1700px) {
+  .rp-line strong {
+    font-size: 18px;
+    line-height: 26px;
   }
 }

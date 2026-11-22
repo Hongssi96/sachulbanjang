@@ -1,7 +1,7 @@
 import LoadingState from './components/LoadingState';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router';
-import { Bell, Check, ChevronRight, Factory, LogOut, PanelLeftOpen, Maximize2 } from 'lucide-react';
+import { Bell, Check, ChevronRight, Factory, PanelLeftOpen, Maximize2 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import Modal from './components/Modal';
@@ -90,23 +90,33 @@ export default function App() {
     workspaceRef.current?.scrollTo(0, 0);
   }, [location.pathname, pageTitle]);
 
+  // 토스트는 2초 뒤 자동으로 사라진다.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(''), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   const toggleDark = () => {
     // 주간 모드로 돌아오면 연장 근무를 해제해 17시 자동 로그아웃이 다시 동작하도록 한다.
     if (dark) setExtended(false);
     setDark(!dark);
   };
+  // 야근을 시작한다. 퇴근 시간 이후 자동 로그아웃된 상태에서도 바로 연장할 수 있다.
+  const startOvertime = () => {
+    setSessionEnded(false);
+    setSessionFired(false);
+    setOffWorkModalOpen(false);
+    setExtended(true);
+    setDark(true);
+  };
   const toggleExtended = () => {
     if (sessionEnded) {
-      setToast('퇴근 시간 이후에는 연장할 수 없어요. 다시 로그인해 주세요.');
+      startOvertime();
       return;
     }
     setExtended(!extended);
     setDark(!extended);
-    setToast(
-      extended
-        ? '연장 근무 예시를 해제했습니다. 화면 테마를 원래대로 되돌렸어요.'
-        : '연장 근무 예시를 설정했습니다. 화면을 야근 모드로 전환했어요.',
-    );
   };
   const endSession = () => {
     setSessionFired(true);
@@ -120,14 +130,6 @@ export default function App() {
     setExtended(false);
     setDark(false);
     setToast('로그아웃되었습니다. 오늘 하루 수고하셨어요!');
-  };
-  const relogin = () => {
-    setSessionEnded(false);
-    setSessionFired(false);
-    setOffWorkModalOpen(false);
-    setExtended(true);
-    setDark(true);
-    setToast('예시 로그인 세션을 다시 시작했어요. 오늘 야근 모드로 시작합니다.');
   };
   const handleNavigate = (name: string) => {
     const route = menuRoutes[name];
@@ -178,7 +180,6 @@ export default function App() {
           sessionFired={sessionFired}
           onSessionEnd={endSession}
           onLogout={logout}
-          onRelogin={relogin}
         />
         <main id="main-content">
           {isChat && (
@@ -279,14 +280,18 @@ export default function App() {
         </Modal>
       )}
       {offWorkModalOpen && (
-        <Modal title="퇴근 시간 알림" onClose={() => setOffWorkModalOpen(false)}>
-          <div className="empty-state">
-            <LogOut size={36} />
-            <h3>퇴근시간이에요!</h3>
-            <p>오늘 근무가 끝났어요. 로그인 세션이 종료되었어요.</p>
-            <button className="button button-primary" onClick={relogin}>
-              다시 로그인
-            </button>
+        <Modal title="퇴근 시간 알림" plain onClose={() => setOffWorkModalOpen(false)}>
+          <div className="confirm-dialog">
+            <p>오늘 근무가 끝났어요.</p>
+            <strong>야근이 필요하면 연장 근무를 시작해 주세요.</strong>
+            <div className="confirm-actions">
+              <button className="button button-white" onClick={() => setOffWorkModalOpen(false)}>
+                닫기
+              </button>
+              <button className="button button-primary" onClick={startOvertime}>
+                오늘 야근
+              </button>
+            </div>
           </div>
         </Modal>
       )}
