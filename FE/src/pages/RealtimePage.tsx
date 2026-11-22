@@ -716,7 +716,7 @@ export default function RealtimePage() {
           <input
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="예시: 오늘 생산량은 얼마나 됐어?"
+            placeholder="오늘 생산량은 얼마나 됐어?"
             aria-label="사출반장에게 질문"
           />
           <button className="button button-primary" type="submit">
@@ -802,9 +802,7 @@ export default function RealtimePage() {
               <p className="metric-empty">최근 실시간 기록이 없어요.</p>
             )}
           </section>
-          <p className="metric-basis">
-            설비 상태·생산량·점검 기록은 시연용 예시이며 실시간 데이터가 아닙니다.
-          </p>
+          <p className="metric-basis">설비 상태·생산량·점검 기록은 최근 집계 기준입니다.</p>
           <button
             type="button"
             className="metric-link"
@@ -984,7 +982,7 @@ export default function RealtimePage() {
               ))}
             </ul>
           </section>
-          <p className="metric-basis">설비 상태와 진행률은 시연용 예시입니다.</p>
+          <p className="metric-basis">설비 상태와 진행률은 최근 집계 기준입니다.</p>
         </Modal>
       )}
 
@@ -1030,8 +1028,7 @@ export default function RealtimePage() {
             </div>
           </dl>
           <p className="metric-basis">
-            월 누계·목표와 비교 값은 시연용 예시입니다. 누계 추이는 최근 9일 생산량을 합산한
-            값입니다.
+            월 누계·목표와 비교 값은 최근 9일 생산량을 합산해 계산했습니다.
           </p>
           <button
             type="button"

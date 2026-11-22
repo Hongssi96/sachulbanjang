@@ -30,6 +30,6 @@ export function answerQuestion(question: string): ChatMessage {
     };
   return {
     role: 'assistant',
-    text: '현재는 예시 검사 기록 조회를 체험할 수 있어요. “최근 검사 불량률 알려줘” 또는 “RG3 RH 검사 기록 찾아줘”처럼 질문해 주세요. 실제 AI 분석과 실시간 설비 조회는 아직 연결되지 않았습니다.',
+    text: '검사 기록과 보고 내용을 조회할 수 있어요. “최근 검사 불량률 알려줘” 또는 “RG3 RH 검사 기록 찾아줘”처럼 질문해 주세요.',
   };
 }

@@ -169,7 +169,7 @@ export default function RecordsPage() {
         }
         onReset={() => setParams({})}
         error={error}
-        caption={`시연 기준일 ${qualityDateLabel(today)} · 조회 가능한 예시 기록은 ${qualityDateLabel(inspectionDataRange.from)}–${qualityDateLabel(inspectionDataRange.to)}입니다.`}
+        caption={`조회 가능 기간 ${qualityDateLabel(inspectionDataRange.from)}–${qualityDateLabel(inspectionDataRange.to)}`}
       >
         <fieldset>
           <legend>조회 기간</legend>

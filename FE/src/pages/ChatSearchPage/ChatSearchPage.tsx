@@ -354,7 +354,7 @@ export default function ChatSearchPage() {
                   <strong>{active?.title ?? '어떤 업무를 도와드릴까요?'}</strong>
                   <p>사출반장 · 검사 기록 조회 도우미</p>
                 </div>
-                <span className="rd-pill good">시연</span>
+                <span className="rd-pill good">AI</span>
               </div>
               <div
                 ref={messageList}
@@ -388,7 +388,7 @@ export default function ChatSearchPage() {
                     </span>
                     <div>
                       <span className="cs-message-author">
-                        {message.role === 'assistant' ? '사출반장 · 예시 응답' : '내 질문'}
+                        {message.role === 'assistant' ? '사출반장' : '내 질문'}
                       </span>
                       <div className="cs-bubble">
                         <p>{message.text}</p>

@@ -181,7 +181,7 @@ export default function InventoryPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = '사출반장_완제품재고_예시.csv';
+    anchor.download = '사출반장_완제품재고.csv';
     anchor.click();
     URL.revokeObjectURL(url);
     setFeedback(`조회 결과 ${rows.length}개 품목을 CSV로 내려받았어요.`);

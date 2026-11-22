@@ -278,7 +278,7 @@ export default function AppShell() {
               <li>보고를 누르면 상세 내용이 열립니다.</li>
               <li>달력에서 날짜를 선택해 일정을 확인하세요.</li>
               <li>인수인계 노트를 작성하고 확인 상태를 관리하세요.</li>
-              <li>대화·검색 화면에서 예시 질문을 실행해 보세요.</li>
+              <li>대화·검색 화면에서 질문을 실행해 보세요.</li>
             </ul>
             <button className="button button-primary" onClick={() => setPlaceholder('')}>
               닫기
@@ -300,7 +300,7 @@ export default function AppShell() {
               <Bell size={18} />
               <span>
                 <strong>{report.title}</strong>
-                <small>{report.time} · 예시 알림</small>
+                <small>{report.time} · 알림</small>
               </span>
               <ChevronRight size={16} />
             </button>

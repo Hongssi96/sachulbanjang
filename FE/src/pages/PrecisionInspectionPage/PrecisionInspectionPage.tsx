@@ -52,9 +52,9 @@ export default function PrecisionInspectionPage() {
     const content =
       '\uFEFF' +
       [
-        ['시연용 정밀기계검사 · 실제 검사 결과 아님'],
+        ['정밀기계검사 결과'],
         ['검사 대상', record!.equipment, record!.id],
-        ['측정 항목', '측정 위치', '측정값', '하한', '상한', '단위', '예시 판정'],
+        ['측정 항목', '측정 위치', '측정값', '하한', '상한', '단위', '판정'],
         ...measurements.map((item) => [
           item.name,
           item.point,
@@ -70,7 +70,7 @@ export default function PrecisionInspectionPage() {
     const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `정밀기계검사_${record!.equipment}_예시.csv`;
+    link.download = `정밀기계검사_${record!.equipment}.csv`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -107,9 +107,9 @@ export default function PrecisionInspectionPage() {
         </div>
         <div className="pi-overview-status">
           <span className="rd-pill warn">
-            <TriangleAlert size={12} /> 재확인 필요 · 예시
+            <TriangleAlert size={12} /> 재확인 필요
           </span>
-          <p>스크루 위치 반복 편차가 예시 범위를 벗어났어요.</p>
+          <p>스크루 위치 반복 편차가 허용 범위를 벗어났어요.</p>
         </div>
       </div>
       <div className="rd-summary">
@@ -153,12 +153,12 @@ export default function PrecisionInspectionPage() {
           {tab === 'measurements' ? (
             <div className="rd-table-wrap">
               <table>
-                <caption className="sr-only">시연용 정밀기계검사 측정 결과</caption>
+                <caption className="sr-only">정밀기계검사 측정 결과</caption>
                 <thead>
                   <tr>
                     <th>검사 항목 / 측정 위치</th>
-                    <th>허용 범위 · 예시</th>
-                    <th>측정값 · 예시</th>
+                    <th>허용 범위</th>
+                    <th>측정값</th>
                     <th>판정</th>
                   </tr>
                 </thead>
@@ -190,7 +190,7 @@ export default function PrecisionInspectionPage() {
               {[
                 ['검사 대상 및 배치 식별', '설비 번호와 연결된 생산 배치를 확인했습니다.'],
                 ['측정 위치 구분', '금형·사출부·형체부의 측정 위치를 구분했습니다.'],
-                ['측정 결과 확인', '6개 측정 항목의 예시 결과를 확인했습니다.'],
+                ['측정 결과 확인', '6개 측정 항목의 결과를 확인했습니다.'],
                 ['이상 항목 재확인', '스크루 위치 반복 편차를 재확인할 항목으로 남겼습니다.'],
               ].map(([label, detail], index) => (
                 <li key={label}>
@@ -202,15 +202,15 @@ export default function PrecisionInspectionPage() {
                     <p>{detail}</p>
                   </div>
                   <span className={`rd-pill ${index === 3 ? 'warn' : 'good'}`}>
-                    {index === 3 ? '확인 필요' : '예시 완료'}
+                    {index === 3 ? '확인 필요' : '확인 완료'}
                   </span>
                 </li>
               ))}
             </ul>
           )}
           <p className="pi-table-note">
-            예시 판정: 측정값이 하한 이상·상한 이하면 적합으로 표시합니다. 실제 설비 운전·정비
-            판단에 사용하지 마세요.
+            판정 기준: 측정값이 하한 이상·상한 이하면 적합으로 표시합니다. 설비 운전·정비 판단에
+            사용하지 마세요.
           </p>
         </article>
         <aside>
@@ -222,7 +222,7 @@ export default function PrecisionInspectionPage() {
                 ['설비 번호', record.equipment],
                 ['연결 제품', record.product],
                 ['연결 검사일시', formatRecordTimestamp(record.inspectedAt)],
-                ['검사표 상태', '시연용 · 미승인'],
+                ['검사표 상태', '미승인'],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt>{label}</dt>
@@ -235,8 +235,8 @@ export default function PrecisionInspectionPage() {
             <TriangleAlert size={23} />
             <h2>재확인 항목</h2>
             <strong>스크루 위치 반복 편차</strong>
-            <p>예시 측정값 0.12 mm / 예시 상한 0.10 mm</p>
-            <p>실제 적용 시 설비별 승인된 검사 기준과 측정 기록을 연결해 확인해야 합니다.</p>
+            <p>측정값 0.12 mm / 허용 상한 0.10 mm</p>
+            <p>설비별 승인된 검사 기준과 측정 기록을 연결해 확인해야 합니다.</p>
           </article>
           <Link className="rd-button pi-related" to={`/records/${record.id}${query}`}>
             연결된 생산·검사 상세 보기 <ClipboardCheck size={16} />

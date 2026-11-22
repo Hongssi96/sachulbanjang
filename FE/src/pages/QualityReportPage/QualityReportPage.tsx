@@ -238,7 +238,7 @@ export default function QualityReportPage() {
         }
         onReset={() => setParams({})}
         error={rangeError}
-        caption={`시연 기준일 ${qualityDateLabel(today)} · 조회 가능한 예시 검사 기록은 ${qualityDateLabel(inspectionDataRange.from)}–${qualityDateLabel(inspectionDataRange.to)}입니다.`}
+        caption={`조회 가능 기간 ${qualityDateLabel(inspectionDataRange.from)}–${qualityDateLabel(inspectionDataRange.to)}`}
       >
         <fieldset>
           <legend>조회 기간</legend>
@@ -286,13 +286,7 @@ export default function QualityReportPage() {
       </QueryFilterCard>
       <section aria-labelledby="quality-summary-heading">
         <div className="section-top">
-          <h2 id="quality-summary-heading">
-            선택 기간 품질 요약
-            <span className="live-label">
-              <i />
-              예시
-            </span>
-          </h2>
+          <h2 id="quality-summary-heading">선택 기간 품질 요약</h2>
           <div className="qr-summary-actions">
             <span className="muted">
               {rangeError
@@ -660,7 +654,6 @@ export default function QualityReportPage() {
       </section>
       <footer className="page-footer qr-page-footer">
         <span>검사 불량률은 제공된 검사 수량 기준이며 전체 생산 불량률과 다릅니다.</span>
-        <span>예시 데이터 · 실제 AI·공정 시스템 미연동</span>
       </footer>
       {dialog && (
         <Modal
@@ -682,7 +675,6 @@ export default function QualityReportPage() {
                 <strong>
                   사출반장 <span>QUALITY REPORT</span>
                 </strong>
-                <span className="pill pill-violet">시연용</span>
               </div>
               <h3>{qualityReportLabel(filters)} 품질 리포트</h3>
               <p className="qr-preview-scope">
@@ -729,7 +721,7 @@ export default function QualityReportPage() {
                   : '선택한 검사 범위에서는 점검 기준을 초과한 제품이 없습니다.'}
               </p>
               <p className="qr-preview-note">
-                이 리포트는 시연용 검사 배치 데이터에 기반합니다. 불량 원인이나 전체 생산 품질을
+                이 리포트는 선택한 검사 배치 데이터에 기반합니다. 불량 원인이나 전체 생산 품질을
                 확정하지 않습니다.
               </p>
               <button
@@ -786,8 +778,8 @@ export default function QualityReportPage() {
                 </div>
               ))}
               <p className="qr-preview-note">
-                모든 기록은 예시 데이터입니다. 관찰된 차이는 불량 원인을 증명하지 않으며, 실제 공정
-                조건과 현장 조치를 함께 검토해야 합니다.
+                관찰된 차이는 불량 원인을 증명하지 않으며, 공정 조건과 현장 조치를 함께 검토해야
+                합니다.
               </p>
             </div>
           )}

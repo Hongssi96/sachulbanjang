@@ -131,7 +131,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
         title,
         kind: newKind,
         month,
-        description: '이 브라우저 세션에 추가한 예시 일정이에요.',
+        description: '이 브라우저 세션에 추가한 일정이에요.',
       });
       onToast(
         `${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 이 브라우저 세션에 유지됩니다.`,

@@ -175,7 +175,7 @@ export default function LoginPage() {
           </li>
         </ul>
 
-        <p className="login-brand-foot">업무 화면은 시연 데이터로 제공됩니다.</p>
+        <p className="login-brand-foot">현장의 업무를 한곳에서 확인하세요.</p>
       </section>
 
       <main className="login-panel">

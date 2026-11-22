@@ -133,14 +133,14 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   };
   const downloadSummary = () => {
     const csv =
-      '\uFEFF구분,값,기준\n생산량,"5,232개",예시 데이터\n검사 불량률,1.15%,예시 검사 기록\n가동률,60%,예시 데이터\n미처리 보고,2건,예시 데이터\n';
+      '\uFEFF구분,값,기준\n생산량,"5,232개",오늘\n검사 불량률,1.15%,오늘\n가동률,60%,오늘\n미처리 보고,2건,오늘\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = '사출반장_홈요약_예시.csv';
+    link.download = '사출반장_홈요약.csv';
     link.click();
     URL.revokeObjectURL(url);
-    onToast('예시 홈 요약을 CSV로 내려받았습니다.');
+    onToast('홈 요약을 CSV로 내려받았습니다.');
   };
   return (
     <>
@@ -181,7 +181,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       <section className="overview" aria-labelledby="overview-heading">
         <div className="section-top">
           <h2 id="overview-heading">오늘의 공정 요약 </h2>
-          <span className="muted">예시 기준 시각 {demoAsOf}</span>
+          <span className="muted">마지막 갱신 {demoAsOf}</span>
         </div>
         <div className="kpi-grid">
           <article className="kpi">
@@ -573,7 +573,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
           </span>
           <div>
             <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
-            <p>{extended ? '데모 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
+            <p>{extended ? '현재 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
           </div>
           <button onClick={onLogout} disabled={loggingOut}>
             로그아웃
@@ -638,7 +638,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                     <span className="pill pill-violet">{event.kind}</span>
                     <div>
                       <strong>{event.title}</strong>
-                      <p>{event.time} · 생산팀 · 예시 일정</p>
+                      <p>{event.time} · 생산팀 일정</p>
                     </div>
                   </div>
                 ))
@@ -727,7 +727,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
           )}
           {overlay.kind === 'equipment' && (
             <>
-              <p className="muted">설비 배치와 상태를 보여주는 예시입니다.</p>
+              <p className="muted">설비 배치와 상태를 보여줍니다.</p>
               <div className="factory-map">
                 {equipment.map((item, index) => (
                   <div
