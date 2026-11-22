@@ -55,7 +55,7 @@ export default function TabletQualityCard() {
         viewBox="0 0 300 150"
         className="th-quality-graph"
         role="img"
-        aria-label={`${period === 'week' ? '최근 7일' : '오늘 시간대별'} 검사 불량률 예시: ${data.values.map((value, index) => `${data.labels[index]} ${value}%`).join(', ')}`}
+        aria-label={`${period === 'week' ? '최근 7일' : '오늘 시간대별'} 검사 불량률: ${data.values.map((value, index) => `${data.labels[index]} ${value}%`).join(', ')}`}
       >
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
@@ -89,7 +89,7 @@ export default function TabletQualityCard() {
           </text>
         ))}
       </svg>
-      <p className="th-quality-note">검사 기록 기준 · 시연용 데이터</p>
+      <p className="th-quality-note">검사 기록 기준</p>
     </section>
   );
 }

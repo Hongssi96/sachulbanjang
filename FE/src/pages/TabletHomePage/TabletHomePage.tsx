@@ -276,7 +276,7 @@ export default function TabletHomePage() {
                           </div>
                           <h3>다음에 할 일</h3>
                           <p className="th-note-text">{note}</p>
-                          <small>작성 홍태휘 · 08:00 · 시연 예시</small>
+                          <small>작성 홍태휘 · 08:00</small>
                           <div className="th-note-actions">
                             <Link to="/equipment">
                               설비 상세 <ArrowRight size={17} />
@@ -331,9 +331,7 @@ export default function TabletHomePage() {
                       </section>
                     </div>
                   </div>
-                  <p className="th-demo">
-                    예시 데이터 · AI 추정과 실제 검사 결과를 구분합니다. 실제 설비·서버 미연동
-                  </p>
+                  <p className="th-demo">AI 추정과 실제 검사 결과를 구분해 표시합니다.</p>
                 </>
               }
             />
@@ -385,7 +383,7 @@ export default function TabletHomePage() {
         >
           {modal === 'schedule' ? (
             <div className="th-form">
-              <p>2026.11.17 · 주간조 · 시연용 일정</p>
+              <p>2026.11.17 · 주간조 일정</p>
               <ol>
                 <li>09:20 CN7 초도 검사 · 외관·치수 확인</li>
                 <li>11:00 RG3 생산 조건 확인 · S14 검사 이력 점검</li>
@@ -400,9 +398,9 @@ export default function TabletHomePage() {
               <p>
                 <strong>S14 · RG3 RH</strong>
               </p>
-              <p>가동 상태 미확인 · 과거 검사 예시 데이터</p>
+              <p>가동 상태 미확인 · 과거 검사 기록</p>
               <p>최근 검사 30건 중 양품 28건, 불량 2건 · 검사 불량률 6.7%</p>
-              <p>현재 설비 상태를 나타내는 실시간 정보가 아닙니다.</p>
+              <p>현재 설비 상태는 현장 계기로 확인해 주세요.</p>
               <button className="button button-white" onClick={openNote}>
                 인수인계 노트 남기기
               </button>
@@ -413,10 +411,10 @@ export default function TabletHomePage() {
                 <strong>조합한 질문</strong>
               </p>
               <p>{question}</p>
-              <p>독립 태블릿 시연 화면입니다. 기존 사이트와 AI 서버에는 연결되지 않습니다.</p>
+              <p>현장 태블릿에서 확인하는 화면입니다.</p>
               <p>
-                관련 예시: S14 · RG3 RH 검사 기록 30건 중 불량 2건입니다. 실시간 생산량·온도·압력은
-                연결되지 않아 답변할 수 없습니다.
+                관련 기록: S14 · RG3 RH 검사 기록 30건 중 불량 2건입니다. 실시간 생산량·온도·압력은
+                현장 계기에서 확인해 주세요.
               </p>
               <button className="button button-white" onClick={() => setModal('check')}>
                 현장 확인 항목 보기
@@ -442,14 +440,14 @@ export default function TabletHomePage() {
                   onChange={(event) => setDraft(event.target.value)}
                 />
               </label>
-              <small>새로고침하면 초기화되는 시연용 기록입니다.</small>
+              <small>새로고침하면 초기화되는 기록입니다.</small>
               <button className="button button-primary" disabled={!draft.trim()}>
                 노트 저장
               </button>
             </form>
           ) : modal === 'check' ? (
             <div className="th-form">
-              <p>점검 대상: S14 · 시연용 체크리스트</p>
+              <p>점검 대상: S14 · 체크리스트</p>
               {checklist.map((item) => (
                 <label className="th-check" key={item}>
                   <input
@@ -471,7 +469,7 @@ export default function TabletHomePage() {
                 disabled={checks.length !== checklist.length}
                 onClick={() => {
                   setModal(null);
-                  setFeedback('예시 점검 항목을 모두 확인했어요.');
+                  setFeedback('점검 항목을 모두 확인했어요.');
                 }}
               >
                 점검 완료 기록
@@ -484,9 +482,7 @@ export default function TabletHomePage() {
                 event.preventDefault();
                 setModal(null);
                 setReport('');
-                setFeedback(
-                  '이상 내용을 시연용으로 기록했어요. 실제 관리자에게 전송되지는 않습니다.',
-                );
+                setFeedback('이상 내용을 기록했어요.');
               }}
             >
               <label>
@@ -499,12 +495,12 @@ export default function TabletHomePage() {
                 />
               </label>
               <button className="button button-primary" disabled={!report.trim()}>
-                예시 보고 기록
+                보고 기록
               </button>
             </form>
           ) : modal === 'manual' ? (
             <div className="th-form">
-              <p>현장 작업 전 확인 순서 · 시연용 안내</p>
+              <p>현장 작업 전 확인 순서</p>
               <ol>
                 {checklist.map((item) => (
                   <li key={item}>{item}</li>

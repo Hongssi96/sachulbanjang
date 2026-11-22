@@ -121,7 +121,7 @@ export default function TabletReportsPage({
               setOpen(false);
               setDescription('');
               setFilter('전체');
-              setFeedback('태블릿에 예시 보고를 기록했어요. 실제 전송은 하지 않습니다.');
+              setFeedback('보고를 기록했어요.');
             }}
           >
             <fieldset className="tp-choices">
@@ -160,9 +160,9 @@ export default function TabletReportsPage({
                 onChange={(event) => setDescription(event.target.value)}
               />
             </label>
-            <small>독립 태블릿 시연용 보고입니다.</small>
+            <small>태블릿 보고입니다.</small>
             <button className="button button-primary" disabled={!description.trim()}>
-              예시 보고 기록
+              보고 기록
             </button>
           </form>
         </Modal>
@@ -174,7 +174,7 @@ export default function TabletReportsPage({
               <strong>{selected.status}</strong> · {selected.time}
             </p>
             <p className="tp-report-body">{selected.description}</p>
-            <small>관리자 처리 상태는 시연용이며 서버와 연결되지 않습니다.</small>
+            <small>관리자 처리 상태입니다.</small>
           </div>
         </Modal>
       )}

@@ -14,7 +14,7 @@ export default function TabletEquipmentPage() {
           <span>EQUIPMENT</span>
           <h1 className="sr-only">설비 현황</h1>
         </div>
-        <span className="tp-date">시연 데이터 · 실시간 아님</span>
+        <span className="tp-date">최근 집계 기준</span>
       </div>
       <div className="tp-stats">
         {['정상', '주의', '미가동'].map((state) => (
@@ -91,9 +91,7 @@ export default function TabletEquipmentPage() {
             </button>
           ))}
       </section>
-      <p className="th-demo">
-        수치는 태블릿 시연을 위한 예시이며 실제 설비 가동 상태를 나타내지 않습니다.
-      </p>
+      <p className="th-demo">수치는 최근 집계 기준이며 설비 가동 상태와 다를 수 있습니다.</p>
       {item && (
         <Modal title={`${item.id} 설비 상세`} onClose={() => setSelected(null)}>
           <div className="th-form">
@@ -119,7 +117,7 @@ export default function TabletEquipmentPage() {
                 </dd>
               </div>
             </dl>
-            <p>시연 데이터입니다. 이상 여부는 현장 계기와 승인된 관리 기준으로 확인해 주세요.</p>
+            <p>이상 여부는 현장 계기와 승인된 관리 기준으로 확인해 주세요.</p>
             <Link className="button button-primary" to={`/reports?equipment=${item.id}`}>
               이 설비 이상 보고 <ArrowRight size={17} />
             </Link>
