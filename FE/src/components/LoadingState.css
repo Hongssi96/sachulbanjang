@@ -6,7 +6,7 @@
   gap: 16px;
   min-height: 420px;
   color: #817497;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .loading-state > svg {
   animation: loading-spin 1s linear infinite;
@@ -16,7 +16,7 @@
   justify-content: flex-start;
   min-height: 32px;
   gap: 9px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 8px 0;
 }
 .loading-skeleton {
@@ -30,7 +30,7 @@
   background: linear-gradient(90deg, #ece8f2, #f7f5fa, #ece8f2);
   background-size: 200% 100%;
   animation: loading-shimmer 1.6s ease-in-out infinite;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 .dark .loading-skeleton i {
   background: #393343;
