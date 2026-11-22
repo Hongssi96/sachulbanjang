@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": ["tablet", "src/pages/TabletHomePage", "src/components/Modal.tsx", "src/vite-env.d.ts"]
+}
