@@ -19,12 +19,15 @@ Copy-Item .env.example .env
 ```
 
 `.env`의 `APP_DATABASE_URL`, `APP_JWT_SECRET`을 개인 개발 값으로 변경한다. JWT 비밀값은
-32자 이상이어야 한다. `APP_AI_API_KEY`는 선택값이며 비어 있어도 일반 기능은 실행된다.
+32자 이상이어야 한다. AI 연동 시 승인된 OpenAI 호환 서버의 `/v1` 포함 주소를
+`APP_AI_BASE_URL`, 발급 키를 `APP_AI_API_KEY`, 모델 ID를 `APP_AI_MODEL`에 설정한다. 예시 모델은
+`gpt-6.2-sol`이다. `APP_AI_API_KEY`가 비어 있어도 일반 기능은 실행된다. 실제 키와 `.env`는
+커밋하지 않는다.
 `APP_ACCESS_TOKEN_TTL_SECONDS`, `APP_REFRESH_TOKEN_TTL_SECONDS`, `APP_LOGIN_MAX_FAILURES`,
 `APP_LOGIN_LOCK_SECONDS`, `APP_REFRESH_REUSE_GRACE_SECONDS`, `APP_TEMPORARY_PASSWORD_TTL_SECONDS`로
 인증 기본값을 조정한다. 실제 HTTPS
 배포에서는 `APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON
-배열로 나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다. 실제 `.env`와 비밀값은 커밋하지 않는다.
+배열로 나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다.
 
 ## 2. PostgreSQL과 마이그레이션
 
