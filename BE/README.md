@@ -93,6 +93,14 @@ uvicorn app.main:app --reload
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
+- 재고 잔고: `GET http://localhost:8000/api/v1/stocks` (`q`, `low_stock`, `page`, `page_size`)
+- 재고 원장: `GET http://localhost:8000/api/v1/stock-movements`
+  (`product_id`, `kind`, `from`, `to`, `page`, `page_size`)
+- 재고 등록: `POST .../stock-movements` (`product_id`, `kind`(initial/receipt/issue/adjustment),
+  `quantity`, `reason`?, `X-CSRF-Token` 헤더. 초기 재고는 관리자만)
+- 재고 정정·확인: `POST .../stock-movements/{id}/corrections` (`delta`, `reason`),
+  `POST .../stock-movements/{id}/confirmation` (관리자)
+- 최소 재고: `PATCH .../products/{id}/minimum-stock` (`minimum_stock` nullable, 관리자)
 - 일정 목록: `GET http://localhost:8000/api/v1/schedules`
   (`from`, `to`(한국 기준, 양 끝 포함), `page`, `page_size`. 범위와 겹치는 일정을 시작 순 반환)
 - 일정 상세: `GET .../schedules/{id}`

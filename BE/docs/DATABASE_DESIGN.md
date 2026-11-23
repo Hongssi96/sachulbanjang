@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블, 생성 작업 큐, 일정 테이블은 Alembic `20261123_0014`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블, 생성 작업 큐, 일정, 재고 테이블은 Alembic `20261123_0015`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -31,6 +31,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 계정별 기본 근무시간과 로그인 세션의 실제 종료 시각을 구분한다. 자동 연장은 현재 종료 시각의 10분 전 구간에서 실제 입력·클릭 신호를 받은 경우만 처리한다. 클라이언트 활동 신호는 업무 편의를 위한 신호이며 서버에서 구간·세션·중복을 검사한다. 연장해도 JWT 만료나 최초 로그인 기준 상한은 변경하지 않는다.
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
+
+`stock_balance`·`stock_movement`는 20261123_0015로 구현했다. 잔고는 제품당 1행이며 `quantity >= 0` CHECK, 원장은 유형·증감 CHECK를 갖는다. 거래 등록·정정은 제품 행을 잠그고 잔고와 원장을 같은 트랜잭션에서 갱신하며, `(product_id, created_at, id)` 인덱스로 원장을 조회한다.
 
 `schedule`은 20261123_0014로 구현했다. 종일/시간 지정 표현을 CHECK로 제한하고 종료>시작, 유형, version 제약을 둔다. 조회는 `starts_at`·`start_date` 인덱스를 사용하고 수정·삭제는 version 조건으로 원자적 갱신한다.
 
@@ -103,8 +105,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| stock_balance | product_id UNIQUE FK, quantity bigint CHECK(quantity >= 0) |
-| stock_movement | product_id FK, actor_id FK, kind(initial/receipt/issue/adjustment/correction), delta bigint, reason?, original_movement_id? FK, checked_by_id? FK, checked_at?, created_at |
+| stock_balance | product_id UNIQUE FK, quantity bigint CHECK(quantity >= 0). 20261123_0015로 구현 |
+| stock_movement | product_id FK, actor_id FK, kind(initial/receipt/issue/adjustment/correction), delta bigint CHECK(delta <> 0), reason?, original_movement_id? FK, checked_by_id? FK, checked_at?, created_at. 20261123_0015로 구현 |
 
 재고 원장을 수정·삭제해서 거래를 없애지 않는다. 정정은 원본에 연결된 signed delta의 새 행이다. 동일 품목의 balance 행을 잠그고 권한·확인 여부·음수 여부를 검증한 뒤 원장 추가와 잔고 갱신을 함께 커밋한다. 관리자 확인과 고용자 정정의 경합도 같은 원본 행 잠금 안에서 검사한다. 반대 순서로 잠가 교착하지 않도록 품목→원본 기록 순서를 통일한다. 생산 기록은 자동 입고를 만들지 않는다(DEC-201).
 

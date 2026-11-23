@@ -1902,3 +1902,33 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-schedule-crud)만 수정하도록 작성자를 1인으로 지정했다.
 - 기록일: 2026-11-23.
 
+## DEC-213 — 재고 조정 입력·사후 확인·초기 재고 방식 (Q-213)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-041·DEC-059·DEC-060·DEC-085~089·DEC-131·DEC-139·DEC-148
+- 확인한 문서 상태: 요구사항은 완제품 재고의 입고·출고·조정·정정, 즉시 반영·사후 확인, 원장 보존, 음수 차단, 최소 재고 표시를 확정했다. `stock_balance`·`stock_movement`는 설계만 있고 구현되지 않았다.
+- 질문 1: 조정(adjustment) 입력은?
+- 답변 1(2026-11-23): 목표 수량으로 한다.
+- 확정 결과 1: 조정은 조정 후 목표 수량(0 이상)을 받고 서버가 증감을 계산한다. 목표가 현재고와 같으면 변경으로 보지 않는다(DEC-087).
+- 질문 2: 관리자 등록 거래의 사후 확인은?
+- 답변 2(2026-11-23): 관리자 등록은 자동 확인으로 한다.
+- 확정 결과 2: 관리자가 등록한 거래는 생성 시 확인 완료(`checked_by_id`·`checked_at`)로 기록하고, 고용자가 등록한 거래만 관리자가 `POST /stock-movements/{id}/confirmation`으로 확인한다(DEC-059·DEC-060).
+- 질문 3: 시연용 초기 재고 준비 방식은?
+- 답변 3(2026-11-23): 관리자 `initial` API를 허용한다.
+- 확정 결과 3: 관리자가 `initial` 유형으로 초기 재고를 등록하며 제품당 한 번만 허용한다. 초기 재고도 원장에 남기고 잔고를 같은 트랜잭션에서 만든다(DEC-139).
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 생산 기반 자동 입고 연동(DEC-201), 실제 재고 시연 데이터, 확인·정정 감사 이력 조회 화면, 최소 재고 기준 데이터
+
+## TECH-022 — 재고 잔고·원장·입출고/조정/정정/확인 구현
+
+- 최신 `origin/dev`(507fd6b)에서 `.worktrees/inventory` 워크트리와 `codex/be-feature-inventory` 브랜치로 DEC-213을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `stock_balance`(제품당 1행, `quantity >= 0` CHECK)와 `stock_movement`(유형·증감 `delta`≠0·원거래 연결·확인자·확인 시각)를 마이그레이션 `20261123_0015`로 추가했다. 기존 dev head가 `20261123_0014`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `GET /stocks`·`GET /stock-movements`·`POST /stock-movements`·`POST /stock-movements/{id}/corrections`·`POST /stock-movements/{id}/confirmation`·`PATCH /products/{id}/minimum-stock`를 추가했다.
+- 동시성·음수 차단: `InventoryService`가 제품 행을 `SELECT ... FOR UPDATE`로 잠근 뒤 잔고를 읽어 음수면 `409 INSUFFICIENT_STOCK`을 반환하고, 잔고·원장을 하나의 트랜잭션에서 갱신한다.
+- 권한·규칙: 초기 재고는 관리자만, 관리자 등록 거래는 자동 확인, 고용자 등록 거래는 관리자 확인, 정정은 관리자 또는 확인 전 원작성자만 가능하다. 조정은 목표 수량으로 처리한다.
+- 검증: Ruff check, mypy, 전체 pytest 291건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0015)를 적용해 입고·출고·조정·정정·확인·음수 차단·최소 재고 부족 표시·원장 필터·CHECK 제약·인덱스를 확인하고 DB를 삭제했다. 다중 worker 동시 출고 부하 테스트는 수행하지 않았다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-inventory)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
