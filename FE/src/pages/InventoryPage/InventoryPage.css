@@ -11,27 +11,35 @@
 .inv-intro-actions .button {
   font-size: var(--fs-sm);
 }
+/* 홈 화면의 안전·일정 공지 바와 같은 구성(태그 + 구분선 + 내용 + 동작)을 쓴다. */
 .inv-stock-alert {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px;
+  gap: 16px;
+  padding: 12px 16px;
+  min-height: 48px;
   border: 1px solid #eddfc6;
   background: #fcf7ed;
   color: #856130;
   border-radius: var(--radius-control);
   margin-bottom: 32px;
-  font-size: var(--fs-sm);
-  line-height: 24px;
+  font-size: var(--fs-xs);
+  line-height: 20px;
 }
-.inv-alert-icon {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  background: #f8e9cf;
-  color: #a97728;
-  border-radius: var(--radius-control);
+.inv-alert-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #8a6428;
+}
+.inv-alert-tag:after {
+  content: '';
+  width: 1px;
+  height: 14px;
+  background: #e8d7b8;
+  margin-left: 8px;
 }
 .inv-stock-alert p {
   flex: 1;
@@ -43,7 +51,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   font-weight: 600;
   white-space: nowrap;
   color: #87612d;
@@ -53,12 +61,17 @@
 }
 .inv-stock-safe {
   background: #edf5ef;
-  color: #276a49;
+  color: #3c6051;
   border-color: #dce9e0;
 }
-.inv-stock-safe .inv-alert-icon {
-  background: #ddf1e5;
-  color: #23744f;
+.inv-stock-safe .inv-alert-tag {
+  color: #2e6d50;
+}
+.inv-stock-safe .inv-alert-tag:after {
+  background: #cdded2;
+}
+.inv-stock-safe button {
+  color: #2e6d50;
 }
 .inv-reserved-progress > span {
   background: #9b91ba;
@@ -241,7 +254,7 @@
 .inv-stock-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 980px;
+  min-width: 840px;
   font-size: var(--fs-sm);
   line-height: 22px;
   text-align: left;
@@ -254,25 +267,25 @@
   font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--muted);
-  padding: 12px 16px;
+  padding: 12px;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 .inv-stock-table td {
   height: 48px;
-  padding: 10px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
 .inv-stock-table th:first-child,
 .inv-stock-table td:first-child {
-  padding-left: 24px;
+  padding-left: 20px;
 }
 .inv-stock-table th:last-child,
 .inv-stock-table td:last-child {
-  padding-right: 24px;
+  width: 150px;
+  padding-right: 20px;
   padding-left: 8px;
-  width: 48px;
 }
 .inv-stock-table tbody tr:last-child td {
   border-bottom: 0;
@@ -300,6 +313,11 @@
   gap: 12px;
   text-align: left;
   padding: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.inv-product-cell > span:last-child {
+  min-width: 0;
 }
 .inv-product-cell:hover strong {
   text-decoration: underline;
@@ -321,6 +339,9 @@
 }
 .inv-product-cell strong {
   display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: var(--fs-sm);
   line-height: 22px;
   font-weight: 600;
@@ -330,6 +351,9 @@
   font-size: var(--fs-xs);
   color: var(--muted);
   display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 20px;
   white-space: nowrap;
   letter-spacing: 0.2px;
@@ -361,6 +385,28 @@
   font-size: var(--fs-xs);
   line-height: 16px;
   color: var(--muted);
+}
+/* 생산·검사 이력 표와 같은 '상세 보기' 링크 형태를 쓴다. */
+.inv-detail-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: #8d849f;
+  white-space: nowrap;
+}
+.inv-detail-link:hover {
+  color: var(--primary);
+  background: #eeeaf5;
+}
+.dark .inv-detail-link:hover {
+  color: #cfbff1;
+  background: #443958;
 }
 .inv-stock-table .pill {
   font-size: var(--fs-xs);
@@ -520,12 +566,11 @@
 }
 .inv-stock-legend {
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   font-size: var(--fs-xs);
   color: var(--muted);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 .inv-stock-legend > span {
   display: flex;
@@ -541,43 +586,58 @@
 .inv-stock-legend > span + span i {
   background: #9b91ba;
 }
+/* 실시간 공정의 비교 막대(rt-bar)와 같은 두께·곡률을 쓰고, 왼쪽 카드와 같은 두 줄 행으로 맞춘다. */
 .inv-product-bars {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 24px;
-  padding: 16px 0 24px;
+  justify-content: space-evenly;
+  gap: 16px;
+  padding: 4px 0;
+  min-height: 0;
 }
 .inv-product-bars > button {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
   text-align: left;
   padding: 0;
 }
-.inv-product-bars > button:hover strong {
+.inv-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inv-product-bars > button:hover .inv-bar-head strong {
   color: var(--primary);
   text-decoration: underline;
 }
-.inv-product-bars strong {
-  min-width: 36px;
+.inv-bar-head strong {
   font-size: var(--fs-sm);
   font-weight: 600;
 }
-.inv-product-bars b {
-  font-size: var(--fs-sm);
+.inv-bar-head b {
+  font-size: var(--fs-md);
   font-weight: 600;
-  min-width: 48px;
-  text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.inv-bar-head b small {
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  margin-left: 4px;
+  color: var(--muted);
 }
 .inv-bar-track {
   display: flex;
-  flex: 1;
-  height: 16px;
-  border-radius: var(--radius-small);
+  width: 100%;
+  height: 12px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
-  background: var(--soft);
+  background: rgba(139, 132, 173, 0.14);
 }
 .inv-bar-available {
   background: var(--mint);
@@ -891,9 +951,11 @@
   color: #dfc18e;
   border-color: #5d4b30;
 }
-.dark .inv-alert-icon {
-  background: #554125;
+.dark .inv-alert-tag {
   color: #e5bf7f;
+}
+.dark .inv-alert-tag:after {
+  background: #5d4b30;
 }
 .dark .inv-stock-alert button {
   color: #dfc18e;
@@ -903,14 +965,22 @@
   color: #b1d0bf;
   border-color: #3c5147;
 }
-.dark .inv-stock-safe .inv-alert-icon {
-  background: #2e4d3c;
-  color: #92d6ad;
+.dark .inv-stock-safe .inv-alert-tag {
+  color: #9cddb9;
+}
+.dark .inv-stock-safe .inv-alert-tag:after {
+  background: #3c5147;
+}
+.dark .inv-stock-safe button {
+  color: #9cddb9;
 }
 .dark .inv-product-icon,
 .dark .inv-category > span {
   background: #443958;
   color: #cfbff1;
+}
+.dark .inv-bar-track {
+  background: rgba(197, 194, 212, 0.18);
 }
 .dark .inv-product-icon.warning {
   background: #4d3e28;
@@ -975,17 +1045,17 @@
     font-size: var(--fs-xl);
   }
   .inv-bar-track {
-    height: 20px;
+    height: 14px;
   }
   .inv-product-bars {
-    gap: 24px;
+    gap: 16px;
   }
   .inv-product-bars strong,
   .inv-product-bars b {
     font-size: var(--fs-md);
   }
   .inv-stock-alert {
-    font-size: var(--fs-md);
+    font-size: var(--fs-sm);
   }
 }
 @media (max-width: 1250px) {
@@ -1018,12 +1088,6 @@
   .inv-table-footer > span:nth-child(2) {
     display: none;
   }
-  .inv-stock-alert {
-    font-size: var(--fs-sm);
-  }
-  .inv-stock-alert button {
-    font-size: var(--fs-xs);
-  }
 }
 @media (max-width: 1050px) {
   .inv-intro-actions {
@@ -1033,13 +1097,10 @@
     grid-template-columns: 1fr;
   }
   .inv-stock-alert {
-    flex-wrap: wrap;
+    align-items: flex-start;
   }
-  .inv-stock-alert p {
-    min-width: 200px;
-  }
-  .inv-stock-alert button {
-    margin-left: 44px;
+  .inv-alert-tag {
+    margin-top: 2px;
   }
   .inventory-page .section-top {
     gap: 12px;
@@ -1083,24 +1144,50 @@
     max-width: none;
   }
 }
+@media (max-width: 1150px) {
+  /* 좁은 화면에서는 표가 잘리지 않도록 출고 예약 열을 숨긴다(품목 상세에서 확인 가능). */
+  .inv-stock-table th:nth-child(3),
+  .inv-stock-table td:nth-child(3) {
+    display: none;
+  }
+  .inv-stock-table {
+    min-width: 680px;
+  }
+  .inv-stock-table th,
+  .inv-stock-table td {
+    padding: 10px 8px;
+  }
+  .inv-stock-table th:first-child,
+  .inv-stock-table td:first-child {
+    padding-left: 16px;
+  }
+  .inv-stock-table th:last-child,
+  .inv-stock-table td:last-child {
+    width: 130px;
+    padding-right: 16px;
+    padding-left: 8px;
+  }
+}
 @media (max-width: 760px) {
   .inv-intro-actions {
     align-self: flex-start;
     flex-wrap: wrap;
   }
   .inv-stock-alert {
-    padding: 12px;
     gap: 8px;
-    margin-bottom: 24px;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+  .inv-alert-tag:after {
+    display: none;
   }
   .inv-stock-alert p {
-    min-width: 0;
+    flex-basis: 100%;
+    order: 2;
     font-size: var(--fs-xs);
-    line-height: 22px;
-    flex-basis: calc(100% - 44px);
   }
   .inv-stock-alert button {
-    margin-left: 40px;
+    margin-left: auto;
   }
   .inv-stock-header {
     align-items: flex-start;
@@ -1134,7 +1221,6 @@
     outline-offset: -3px;
   }
   .inv-stock-table {
-    min-width: 920px;
     font-size: var(--fs-sm);
   }
   .inv-movement-row {
@@ -1205,24 +1291,27 @@
 /* 필터 결과 수와 관계없이 표 영역 높이를 유지한다. */
 .inv-table-scroll {
   overflow: auto;
-  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #d3cedd transparent;
+}
+/* 좁은 화면에서 가로로 넘칠 때 스크롤이 가능하다는 것을 바로 알 수 있게 한다. */
+.inv-table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.inv-table-scroll::-webkit-scrollbar-thumb {
+  background: #d3cedd;
+  border-radius: var(--radius-pill);
+}
+.dark .inv-table-scroll {
+  scrollbar-color: #514b63 transparent;
+}
+.dark .inv-table-scroll::-webkit-scrollbar-thumb {
+  background: #514b63;
 }
 .inv-stock-table td {
   box-sizing: border-box;
   height: 64px; /* 두 줄(품목명+코드) 셀 기준. 한 줄 표는 48px. */
-}
-.inv-product-bars > button {
-  position: relative;
-  overflow: visible;
-  min-height: 48px;
-}
-.inv-product-bars > button > b {
-  white-space: nowrap;
-}
-.inv-product-bars > button > b > small {
-  font-size: var(--fs-xs);
-  margin-left: 4px;
-  color: var(--muted);
 }
 .inv-stock-tooltip {
   position: absolute;
@@ -1270,6 +1359,8 @@
   transform: translateY(0);
 }
 .inv-product-summary {
+  display: flex;
+  flex-direction: column;
   overflow: visible;
 }
 .inv-table-scroll:focus-visible {
@@ -1326,9 +1417,6 @@
   justify-content: center;
   text-align: center;
   vertical-align: middle;
-}
-.inv-stock-table .icon-button {
-  margin-inline: auto;
 }
 
 .inventory-page #inventory-table-heading {

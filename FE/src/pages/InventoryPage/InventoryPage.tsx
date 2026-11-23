@@ -7,12 +7,13 @@ import { useSearchParams } from 'react-router';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  ArrowDown,
   ArrowDownUp,
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
   Boxes,
   Check,
-  ChevronRight,
   CircleHelp,
   Download,
   FilterX,
@@ -72,6 +73,15 @@ export default function InventoryPage() {
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [onlyLow, isPending, params]);
   const order = params.get('sort');
+  // 가용재고 정렬은 오름차순 → 내림차순 → 해제 순서로 세 번에 한 번씩 반복한다.
+  const sortLabel =
+    order === 'available-asc' ? '오름차순' : order === 'available-desc' ? '내림차순' : '기본';
+  const nextOrder =
+    order === 'available-asc'
+      ? 'available-desc'
+      : order === 'available-desc'
+        ? ''
+        : 'available-asc';
   const summary = inventorySummary(inventory.items);
   const rows = inventory.items.filter(
     (item) =>
@@ -237,8 +247,9 @@ export default function InventoryPage() {
         </div>
       )}
       <div className={`inv-stock-alert ${lowItems.length ? '' : 'inv-stock-safe'}`}>
-        <span className="inv-alert-icon">
-          {lowItems.length ? <TriangleAlert size={19} /> : <ShieldCheck size={19} />}
+        <span className="inv-alert-tag">
+          {lowItems.length ? <TriangleAlert size={16} /> : <ShieldCheck size={16} />}
+          {lowItems.length ? '재고 부족' : '재고 정상'}
         </span>
         <p>
           {lowItems.length ? (
@@ -453,7 +464,8 @@ export default function InventoryPage() {
         )}
         <div
           className="inv-table-scroll"
-          style={{ height: `${56 + inventory.items.length * 81}px` }}
+          // 필터 결과 수가 달라져도 표 영역 높이는 유지한다(행 64px + 구분선 1px).
+          style={{ minHeight: `${56 + inventory.items.length * 65}px` }}
           tabIndex={0}
           role="region"
           aria-label="품목별 재고 표"
@@ -483,15 +495,17 @@ export default function InventoryPage() {
                   }
                 >
                   <button
-                    onClick={() =>
-                      setFilter(
-                        'sort',
-                        order === 'available-asc' ? 'available-desc' : 'available-asc',
-                      )
-                    }
+                    aria-label={`가용재고 정렬: ${sortLabel}`}
+                    onClick={() => setFilter('sort', nextOrder)}
                   >
                     가용재고
-                    <ArrowDownUp size={14} />
+                    {order === 'available-asc' ? (
+                      <ArrowUp size={14} />
+                    ) : order === 'available-desc' ? (
+                      <ArrowDown size={14} />
+                    ) : (
+                      <ArrowDownUp size={14} />
+                    )}
                   </button>
                 </th>
                 <th scope="col" className="inv-number">
@@ -499,9 +513,7 @@ export default function InventoryPage() {
                 </th>
                 <th scope="col">보관 위치</th>
                 <th scope="col">상태</th>
-                <th scope="col">
-                  <span className="sr-only">상세</span>
-                </th>
+                <th scope="col">상세</th>
               </tr>
             </thead>
             <tbody>
@@ -552,11 +564,11 @@ export default function InventoryPage() {
                   </td>
                   <td>
                     <button
-                      className="icon-button"
-                      aria-label={`${item.name} 재고 상세`}
+                      className="inv-detail-link"
+                      aria-label={`${item.name} 상세 보기`}
                       onClick={() => setDialog({ kind: 'detail', itemId: item.id })}
                     >
-                      <ChevronRight size={17} />
+                      상세 보기 <ArrowUpRight size={15} />
                     </button>
                   </td>
                 </tr>
@@ -649,7 +661,13 @@ export default function InventoryPage() {
                 aria-label={`${group.group} 재고 ${group.stock.toLocaleString()}개 조회`}
                 aria-describedby={`stock-tooltip-${group.group}`}
               >
-                <strong>{group.group}</strong>
+                <span className="inv-bar-head">
+                  <strong>{group.group}</strong>
+                  <b>
+                    {group.stock.toLocaleString()}
+                    <small>개</small>
+                  </b>
+                </span>
                 <span className="inv-bar-track">
                   <span
                     className="inv-bar-available"
@@ -660,10 +678,6 @@ export default function InventoryPage() {
                     style={{ width: `${(group.reserved / maxStock) * 100}%` }}
                   />
                 </span>
-                <b>
-                  {group.stock.toLocaleString()}
-                  <small>개</small>
-                </b>
                 <span
                   className="inv-stock-tooltip"
                   id={`stock-tooltip-${group.group}`}
