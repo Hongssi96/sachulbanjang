@@ -61,7 +61,7 @@ export default function ReportsPage() {
       }),
     [setParams],
   );
-  // 검색 입력은 입력이 멈춘 뒤 URL에 반영한다.
+  // 검색 입력은 다른 검색 화면과 같이 입력이 멈춘 뒤 결과와 URL에 반영한다.
   const {
     input: searchInput,
     setInput: setSearchInput,
@@ -71,19 +71,19 @@ export default function ReportsPage() {
     value: query,
     onSearch: (value) => update('q', value),
   });
-  const keyword = query.trim().toLowerCase();
+  // 여러 단어를 띄어 써도 모든 단어가 포함된 보고를 찾도록 단어별로 비교한다.
+  const keywords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   // 작성자·설비로 모은 범위. 상태 탭 개수도 이 범위 기준으로 센다.
   const scoped = sortedReportPosts.filter(
     (post) => (!author || post.author === author) && (!equipment || post.equipment === equipment),
   );
-  const posts = scoped.filter(
-    (post) =>
-      (status === '전체' || getReportStatus(post) === status) &&
-      (!keyword ||
-        `${post.title} ${post.description} ${post.body} ${post.author} ${post.equipment} ${post.category} ${post.checklist.join(' ')}`
-          .toLowerCase()
-          .includes(keyword)),
-  );
+  const posts = scoped.filter((post) => {
+    if (status !== '전체' && getReportStatus(post) !== status) return false;
+    if (!keywords.length) return true;
+    const haystack =
+      `${post.title} ${post.description} ${post.body} ${post.author} ${post.equipment} ${post.category} ${post.checklist.join(' ')}`.toLowerCase();
+    return keywords.every((token) => haystack.includes(token));
+  });
   const counts = statusFilters.map((label) => ({
     label,
     count:
@@ -91,7 +91,6 @@ export default function ReportsPage() {
         ? scoped.length
         : scoped.filter((post) => getReportStatus(post) === label).length,
   }));
-  const hasPosts = posts.length > 0;
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!board) return;
@@ -113,7 +112,7 @@ export default function ReportsPage() {
       observer.disconnect();
       wide.removeEventListener('change', measure);
     };
-  }, [hasPosts]);
+  }, []);
   const pageCount = Math.max(1, Math.ceil(posts.length / pageSize));
   const requested = Number(params.get('page'));
   const page = Number.isInteger(requested) ? Math.min(Math.max(1, requested), pageCount) : 1;
@@ -164,101 +163,108 @@ export default function ReportsPage() {
           </div>
         </div>
       </section>
-      {posts.length ? (
-        <>
-          <div className="rp-board" ref={boardRef}>
-            <div className="rp-head" aria-hidden="true">
-              <span>분류</span>
-              <span>제목</span>
-              <span>작성자</span>
-              <span>설비</span>
-              <span>등록 일시</span>
-              <span>상태</span>
-            </div>
-            <ul className="rp-list" style={{ '--rp-rows': pageSize } as CSSProperties}>
-              {visiblePosts.map((post) => {
-                const currentStatus = getReportStatus(post);
-                return (
-                  <li key={post.id}>
-                    <Link
-                      className="rp-row"
-                      to={`/reports/${post.id}`}
-                      aria-label={`${post.title} 상세 보기`}
-                    >
-                      <span>
-                        <span className="rp-category">{post.category}</span>
-                      </span>
-                      <span className="rp-title">
-                        <strong title={post.title}>{post.title}</strong>
-                        {newPostIds.has(post.id) && (
-                          <span className="rp-new">
-                            N<span className="sr-only"> 새 보고</span>
-                          </span>
-                        )}
-                      </span>
-                      <span className="rp-cell">{post.author}</span>
-                      <span className="rp-cell">{post.equipment}</span>
-                      <span className="rp-cell rp-date" title={`${post.date} ${post.time}`}>
-                        {post.date.slice(5)} {post.time}
-                      </span>
-                      <span>
-                        <span className={`pill ${statusPill[currentStatus]}`}>{currentStatus}</span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          {pageCount > 1 && (
-            <nav className="rp-pagination" aria-label="페이지 이동">
-              <button
-                type="button"
-                aria-label="이전 페이지"
-                disabled={page === 1}
-                onClick={() => update('page', String(page - 1))}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              {pageWindow(page, pageCount).map((item, index) =>
-                item === '…' ? (
-                  <span className="rp-gap" key={`gap-${index}`}>
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={item}
-                    type="button"
-                    className={item === page ? 'current' : ''}
-                    aria-current={item === page ? 'page' : undefined}
-                    aria-label={`${item}페이지`}
-                    onClick={() => update('page', String(item))}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
-              <button
-                type="button"
-                aria-label="다음 페이지"
-                disabled={page === pageCount}
-                onClick={() => update('page', String(page + 1))}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </nav>
-          )}
-        </>
-      ) : (
-        <div className="rp-empty">
-          <ClipboardList size={34} />
-          <strong>조건에 맞는 보고가 없어요</strong>
-          <p>검색어, 처리 상태, 작성자·설비 조건을 바꿔 보세요.</p>
-          <button className="button button-primary" onClick={() => setParams({})}>
-            전체 보고 보기
-          </button>
+      <div className="rp-board" ref={boardRef}>
+        <div className="rp-head" aria-hidden="true">
+          <span>분류</span>
+          <span>제목</span>
+          <span>작성자</span>
+          <span>설비</span>
+          <span>등록 일시</span>
+          <span>상태</span>
         </div>
-      )}
+        {posts.length ? (
+          <ul className="rp-list" style={{ '--rp-rows': pageSize } as CSSProperties}>
+            {visiblePosts.map((post) => {
+              const currentStatus = getReportStatus(post);
+              return (
+                <li key={post.id}>
+                  <Link
+                    className="rp-row"
+                    to={`/reports/${post.id}`}
+                    aria-label={`${post.title} 상세 보기`}
+                  >
+                    <span>
+                      <span className="rp-category">{post.category}</span>
+                    </span>
+                    <span className="rp-title">
+                      <strong title={post.title}>{post.title}</strong>
+                      {newPostIds.has(post.id) && (
+                        <span className="rp-new">
+                          N<span className="sr-only"> 새 보고</span>
+                        </span>
+                      )}
+                    </span>
+                    <span className="rp-cell">{post.author}</span>
+                    <span className="rp-cell">{post.equipment}</span>
+                    <span className="rp-cell rp-date" title={`${post.date} ${post.time}`}>
+                      {post.date.slice(5)} {post.time}
+                    </span>
+                    <span>
+                      <span className={`pill ${statusPill[currentStatus]}`}>{currentStatus}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="rp-empty rp-empty-inside">
+            <ClipboardList size={34} />
+            <strong>조건에 맞는 보고가 없어요</strong>
+            <p>검색어, 처리 상태, 작성자·설비 조건을 바꿔 보세요.</p>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                searchNow('');
+                setParams({});
+              }}
+            >
+              전체 보고 보기
+            </button>
+          </div>
+        )}
+      </div>
+      {/* 페이지 수가 바뀌어도 게시판 높이가 흔들리지 않도록 자리를 미리 잡아 둔다. */}
+      <div className="rp-pagination-slot">
+        {pageCount > 1 && (
+          <nav className="rp-pagination" aria-label="페이지 이동">
+            <button
+              type="button"
+              aria-label="이전 페이지"
+              disabled={page === 1}
+              onClick={() => update('page', String(page - 1))}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            {pageWindow(page, pageCount).map((item, index) =>
+              item === '…' ? (
+                <span className="rp-gap" key={`gap-${index}`}>
+                  …
+                </span>
+              ) : (
+                <button
+                  key={item}
+                  type="button"
+                  className={item === page ? 'current' : ''}
+                  aria-current={item === page ? 'page' : undefined}
+                  aria-label={`${item}페이지`}
+                  onClick={() => update('page', String(item))}
+                >
+                  {item}
+                </button>
+              ),
+            )}
+            <button
+              type="button"
+              aria-label="다음 페이지"
+              disabled={page === pageCount}
+              onClick={() => update('page', String(page + 1))}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </nav>
+        )}
+      </div>
     </section>
   );
 }

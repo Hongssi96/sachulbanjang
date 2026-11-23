@@ -551,6 +551,20 @@ svg {
   border-radius: 50%;
   border: 1px solid var(--surface);
 }
+.topbar-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: var(--radius-pill);
+  transition: background 0.16s;
+}
+.topbar-profile:hover {
+  background: var(--soft);
+}
+.topbar-profile .avatar {
+  margin-left: 0;
+}
 .avatar {
   width: 36px;
   height: 36px;

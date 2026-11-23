@@ -26,6 +26,7 @@ const PrecisionInspectionPage = lazy(
   () => import('./pages/PrecisionInspectionPage/PrecisionInspectionPage'),
 );
 const ChatSearchPage = lazy(() => import('./pages/ChatSearchPage/ChatSearchPage'));
+const MyPage = lazy(() => import('./pages/MyPage/MyPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage/ReportsPage'));
 const ReportDetailPage = lazy(() => import('./pages/ReportsPage/ReportDetailPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -50,6 +51,7 @@ const routeTitles: Record<string, string> = {
   '/quality-reports': '품질 리포트',
   '/reports': '올라온 보고',
   '/chat': '대화·검색',
+  '/mypage': '관리',
 };
 
 export default function AppShell() {
@@ -219,6 +221,7 @@ export default function AppShell() {
           sessionEnded={sessionEnded}
           sessionFired={sessionFired}
           onSessionEnd={endSession}
+          onProfile={() => navigate('/mypage')}
           onLogout={handleLogout}
           loggingOut={loggingOut}
         />
@@ -249,6 +252,18 @@ export default function AppShell() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/:reportId" element={<ReportDetailPage />} />
               <Route path="/chat" element={<ChatSearchPage />} />
+              <Route
+                path="/mypage"
+                element={
+                  <MyPage
+                    onToast={setToast}
+                    onLogout={handleLogout}
+                    loggingOut={loggingOut}
+                    dark={dark}
+                    onToggleDark={toggleDark}
+                  />
+                }
+              />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>

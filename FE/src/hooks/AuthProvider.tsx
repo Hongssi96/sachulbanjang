@@ -76,7 +76,14 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }, []);
 
-  const value = useMemo(() => ({ status, user, login, logout }), [status, user, login, logout]);
+  const updateUser = useCallback((nextUser: AuthenticatedUser) => {
+    setUser(nextUser);
+  }, []);
+
+  const value = useMemo(
+    () => ({ status, user, login, logout, updateUser }),
+    [status, user, login, logout, updateUser],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
