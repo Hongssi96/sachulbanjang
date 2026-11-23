@@ -90,6 +90,9 @@ uvicorn app.main:app --reload
   `DELETE .../reports/{id}?expected_version=` (soft delete)
 - 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
   `GET .../reports/{id}/status-events`
+- 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
+  (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
+  유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
 - 보고서 생성 작업 접수: `POST .../report-jobs` (`client_request_key`, `report_kind`, `category`,
   `period`, `targets`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을 반환
 - 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,
