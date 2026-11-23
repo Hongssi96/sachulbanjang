@@ -26,7 +26,7 @@ class RecordCorrectionRepository:
             .join(Equipment, Equipment.id == ProcessRecord.equipment_id)
             .outerjoin(Product, Product.id == ProcessRecord.product_id)
             .where(ProcessRecord.id == record_id, ProcessRecord.deleted_at.is_(None))
-            .with_for_update()
+            .with_for_update(of=ProcessRecord)
         )
         row = self._session.execute(statement).first()
         if row is None:
@@ -56,7 +56,7 @@ class RecordCorrectionRepository:
             .join(Equipment, Equipment.id == InspectionRecord.equipment_id)
             .outerjoin(Product, Product.id == InspectionRecord.product_id)
             .where(InspectionRecord.id == record_id, InspectionRecord.deleted_at.is_(None))
-            .with_for_update()
+            .with_for_update(of=InspectionRecord)
         )
         row = self._session.execute(statement).first()
         if row is None:
