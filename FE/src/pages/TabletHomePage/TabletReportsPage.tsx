@@ -99,9 +99,9 @@ export default function TabletReportsPage({
         작성 내용은 현재 태블릿 화면에서만 유지됩니다. 실제 관리자·기존 사이트에 전송되지 않습니다.
       </p>
       {open && (
-        <Modal title="이상 보고 작성" onClose={() => setOpen(false)}>
+        <Modal title="이상 보고 작성" onClose={() => setOpen(false)} wide>
           <form
-            className="th-form"
+            className="th-form th-report-compose"
             onSubmit={(event) => {
               event.preventDefault();
               onReport({
