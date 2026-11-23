@@ -28,6 +28,7 @@ import ProductionChart from '../components/ProductionChart';
 import SegmentedControl from '../components/SegmentedControl';
 import { demoAsOf, equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
 import { useCalendarEvents } from '../services/calendarStore';
+import { formatWorkTime, useWorkTime } from '../services/workTimeStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { CalendarEvent, HandoverNote, Report } from '../types';
 
@@ -49,7 +50,7 @@ const demoNote: HandoverNote = {
   id: 'demo-1',
   content:
     '사출 3호기 압력 변동 확인이 필요합니다. 14시 정기 점검 기록을 확인한 후 다음 근무자에게 결과를 전달해 주세요.',
-  author: '이현우 · 13:50',
+  author: '김가을 · 13:50',
   checked: false,
 };
 function loadNotes(): HandoverNote[] {
@@ -101,6 +102,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const [announcementRead, setAnnouncementRead] = useState(false);
   useReportStatusVersion();
   const allEvents = useCalendarEvents();
+  const workTime = useWorkTime();
   const unreadNotes = notes.filter((note) => !note.checked).length;
   const latestReports = sortedReportPosts.slice(0, 3);
   const visibleReports = latestReports.filter(
@@ -612,7 +614,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
           </span>
           <div>
             <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
-            <p>{extended ? '현재 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
+            <p>
+              {extended ? '현재 화면에만 적용됩니다.' : `주간 근무 · ${formatWorkTime(workTime)}`}
+            </p>
           </div>
           <button onClick={onLogout} disabled={loggingOut}>
             로그아웃

@@ -48,6 +48,18 @@ export async function getCurrentUser(): Promise<AuthenticatedUser> {
   return parseAuthenticatedUser(await apiRequest<unknown>('/auth/me'));
 }
 
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<AuthenticatedUser> {
+  const payload = await apiRequest<unknown>('/auth/password', {
+    method: 'PATCH',
+    body: { current_password: currentPassword, new_password: newPassword },
+    csrf: true,
+  });
+  return parseAuthenticatedUser(payload);
+}
+
 export async function refreshSession(): Promise<AuthenticatedUser> {
   const payload = await apiRequest<unknown>('/auth/refresh', {
     method: 'POST',
