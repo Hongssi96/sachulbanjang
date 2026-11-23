@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-20. 이 문서는 Alembic `20261120_0005` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0006` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -24,8 +24,20 @@ erDiagram
         bigint id PK
         bigint user_id FK
         timestamptz absolute_expires_at
+        timestamptz work_ends_at
+        integer work_session_version
+        timestamptz auto_extended_for "nullable"
         timestamptz revoked_at "nullable"
         integer current_refresh_generation
+    }
+
+    WORK_EXTENSION {
+        bigint id PK
+        bigint session_id FK
+        bigint actor_id FK
+        timestamptz previous_ends_at
+        timestamptz new_ends_at
+        varchar kind
     }
 
     REFRESH_CREDENTIAL {
@@ -114,6 +126,8 @@ erDiagram
     PRODUCT o|--o{ PROCESS_RECORD : identifies
     APP_USER ||--o{ AUTH_SESSION : owns
     AUTH_SESSION ||--o{ REFRESH_CREDENTIAL : rotates
+    AUTH_SESSION ||--o{ WORK_EXTENSION : records
+    APP_USER ||--o{ WORK_EXTENSION : performs
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -138,10 +152,12 @@ erDiagram
   자격 증명 행은 삭제하지 않고 `consumed_at`·`revoked_at`으로 상태를 남긴다.
 - `auth_session.absolute_expires_at`은 최초 로그인부터 7일 상한이며, 리프레시를 교체해도 늘어나지
   않는다. 액세스 토큰 만료는 DB에 저장하지 않고 JWT claim으로 관리한다.
+- `auth_session.work_ends_at`과 `work_session_version`은 같은 로그인 세션의 여러 탭이 공유한다.
+  성공한 수동·자동 연장은 `work_extension`에 변경 전후 시각과 실행자를 기록한다.
 
 ## 구현 위치
 
 - ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
-  `20261120_0005_auth_session.py`
+  `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

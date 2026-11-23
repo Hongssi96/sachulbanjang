@@ -62,7 +62,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | --- | --- | --- | --- |
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
 | 인증 | 구현 중 | 로그인·갱신·로그아웃·현재 사용자 조회·본인 비밀번호 변경, Argon2id 검증, 5회 실패 잠금, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 초기 계정 시드 CLI, FE 출처 CORS 구현. 관리자 비밀번호 초기화 미구현 | 2026-11-23 |
-| 근무 | 미착수 | - | 2026-11-20 |
+| 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정과 인증된 현재 공정 조회 구현. 전체 pytest 및 PostgreSQL 18 replay 검증. FE polling 연동 미확인 | 2026-11-20 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
 | 검사·품질 | 미착수 | - | 2026-11-20 |
@@ -198,6 +198,14 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 미구현: 관리자 비밀번호 초기화, 근무 종료 시각 응답, 공통 오류 응답 핸들러
 - 오류: 공통 오류 응답(`{code,message,request_id}`) 핸들러가 아직 없어 FastAPI 기본 `detail` 래퍼로 반환한다. `detail.code`는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_REVOKED`, `REFRESH_IN_PROGRESS`, `CSRF_VALIDATION_FAILED`, `CURRENT_PASSWORD_MISMATCH`, `PASSWORD_UNCHANGED`를 사용한다
 - 초기 계정: `python -m app.commands.seed_accounts --employee-no ... --display-name ... --role admin|worker`로 준비한다. 같은 사번이 있으면 덮어쓰지 않고 종료 코드 1로 알린다
+
+### 근무 세션 현재 구현 범위 (2026-11-23)
+
+- 로그인 시 한국 시간의 사용자별 기본 근무 종료 시각을 로그인 세션에 저장한다. 이미 종료 시각이 지났다면 재로그인 시점부터 1시간을 기본값으로 사용한다
+- `GET /work-session`은 `ends_at`, 10분 전인 `warning_starts_at`, `server_time`, `version`을 반환한다
+- `POST /work-session/extensions`는 `kind`, `expected_ends_at`, 선택 `ends_at`을 받는다. 수동 연장은 지정 시각 또는 현재 종료에서 1시간, 자동 연장은 종료 10분 전 구간에서만 1시간을 적용한다
+- 같은 세션의 동시 요청은 행 잠금과 `expected_ends_at` 비교로 한 번만 반영한다. 자동 연장은 같은 종료 예정 시각당 한 번만 허용하고 모든 성공 연장을 `work_extension`에 기록한다
+- 연장 종료는 최초 로그인 기준 리프레시 7일 상한을 넘지 않는다. 종료된 세션은 업무 인증과 토큰 갱신을 거부한다
 
 ### FE 연동 계약 (인증)
 

@@ -23,14 +23,13 @@ CSV 공정 재생과 인증 세션 테이블은 Alembic `20261120_0005`까지 �
 | equipment | production_line_id? FK, equipment_code UNIQUE, name, deleted_at. CSV에 라인 값이 없어 현재 소속은 비울 수 있음 |
 | product | product_code? UNIQUE, name, minimum_stock? >= 0, deleted_at. PART_NO가 없는 CSV 품목도 허용 |
 | user_assignment | user_id FK, department_id?·production_line_id?·equipment_id? FK. 세 대상 중 정확히 하나만 NOT NULL. 대상별 활성 배정 중복 방지 |
-| auth_session | user_id FK, absolute_expires_at, revoked_at?, current_refresh_generation. 최초 로그인 기준 7일 상한 |
+| auth_session | user_id FK, absolute_expires_at, work_ends_at, work_session_version, auto_extended_for?, revoked_at?, current_refresh_generation. 로그인별 현재 종료 시각과 최초 로그인 기준 7일 상한 |
 | refresh_credential | session_id FK, token_digest UNIQUE, generation, expires_at, consumed_at?, revoked_at?. 재사용 감지를 위해 사용된 토큰의 식별 정보를 보존하고 토큰 원문은 저장하지 않음 |
-| session_work_period | session_id UNIQUE FK, ends_at, version. 같은 세션의 탭들이 공유하는 현재 이용 종료 시각 |
 | work_extension | session_id FK, previous_ends_at, new_ends_at, kind(manual/automatic), actor_id FK. 자동 연장은 (session_id, previous_ends_at)에 부분 UNIQUE |
 
 계정별 기본 근무시간과 로그인 세션의 실제 종료 시각을 구분한다. 자동 연장은 현재 종료 시각의 10분 전 구간에서 실제 입력·클릭 신호를 받은 경우만 처리한다. 클라이언트 활동 신호는 업무 편의를 위한 신호이며 서버에서 구간·세션·중복을 검사한다. 연장해도 JWT 만료나 최초 로그인 기준 상한은 변경하지 않는다.
 
-`auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 로그인 1회당 세션 1개와 1세대 리프레시 자격 증명 1개를 만들고, 리프레시 교체·재사용 감지 API는 후속 작업이다.
+`auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
 
 ## 공정·검사·품질
 

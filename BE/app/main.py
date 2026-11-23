@@ -14,6 +14,7 @@ from app.middleware import RequestContextMiddleware
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
 from app.routers.process import router as process_router
+from app.routers.work_session import router as work_session_router
 
 MigrationChecker = Callable[[Engine, Path], None]
 
@@ -47,6 +48,7 @@ def create_app(
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(process_router, prefix="/api/v1")
+    application.include_router(work_session_router, prefix="/api/v1")
     return application
 
 
