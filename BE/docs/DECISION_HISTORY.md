@@ -1783,3 +1783,34 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-record-correction)만 수정하도록 작성자를 1인으로 지정했다.
 - 기록일: 2026-11-23.
 
+## DEC-209 — 보고서 기본 CRUD의 생성 경로와 이력 범위 (Q-209)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-010~020·DEC-074·DEC-081·DEC-110·DEC-137·DEC-138·DEC-187·DEC-188
+- 확인한 문서 상태: DEC-064는 보고서를 AI 버튼 생성으로 정의했고 AI는 이번 범위에서 제외한다. DEC-137·138은 version 충돌 처리와 수정 이력 조회를, DEC-188은 상태 변경 이력 기록·조회를 요구한다. `report`·`report_revision`·`report_status_event`는 설계만 있고 구현되지 않았다.
+- 질문 1: AI 생성이 제외된 상태에서 보고서 생성 경로를 어떻게 할지?
+- 답변 1(2026-11-23): 수동 생성 API를 추가한다.
+- 확정 결과 1: 작성자·관리자가 `title`·`body_markdown`·`category`·`report_kind`로 보고서를 등록하는 `POST /reports`를 임시로 제공한다. 상태는 `pending`, version은 1이며 최초 내용을 revision 1로 저장한다. AI 생성이 준비되면 생성 경로만 교체한다.
+- 질문 2: 수정 이력과 상태 변경 이력을 이번 범위에 포함할지?
+- 답변 2(2026-11-23): 저장과 조회 API를 함께 구현한다.
+- 확정 결과 2: `report_revision`과 `report_status_event`를 구현하고, 수정 시 버전별 제목·본문·수정자를, 상태 변경 시 전후 상태·작업자·시각을 기록한다. 조회 권한이 있는 사용자가 `GET /reports/{id}/revisions`·`/revisions/{version}`·`/status-events`로 확인한다.
+- 질문 3: `category`와 `report_kind`의 저장 값은?
+- 답변 3(2026-11-23): category 6값과 kind 3값을 연동한다.
+- 확정 결과 3: `category`는 `equipment_issue`·`quality_report`·`inspection_done`·`periodic_weekly`·`periodic_monthly`·`other`, `report_kind`는 `general`·`weekly`·`monthly`다. `periodic_weekly`→`weekly`, `periodic_monthly`→`monthly`, 그 외는 `general`이어야 하며 불일치는 검증 오류다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: AI 생성 연동 시 수동 생성 유지 여부, 보고 대상(report_target)·집계 스냅샷, PDF·중복 안내·다운로드, 상태 전이의 추가 세분화
+
+## TECH-018 — 보고서 기본 CRUD·상태 변경·이력 조회 구현
+
+- 최신 `origin/dev`(528ae30)에서 `.worktrees/reports` 워크트리와 `codex/be-feature-report-crud` 브랜치로 DEC-209를 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `report`·`report_revision`·`report_status_event`를 마이그레이션 `20261123_0012`로 추가했다. 기존 dev head가 `20261123_0011`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다. AI·집계 관련 컬럼(`generation_job_id`·`aggregate_snapshot`·기간·기준 시각 등)은 AI 생성 작업에서 추가한다.
+- `POST /reports`·`GET /reports`·`GET /reports/{id}`·`PATCH /reports/{id}`·`PATCH /reports/{id}/status`·`DELETE /reports/{id}?expected_version=`·`GET /reports/{id}/revisions`·`/revisions/{version}`·`/status-events`를 추가했다.
+- 권한: 조회·수정·삭제는 관리자 전체·고용자 본인이며 타인 보고는 404로 숨긴다. 고용자는 완료된 보고서를 수정·삭제할 수 없다(`403 REPORT_COMPLETED_LOCKED`). 상태 변경은 관리자 전용이다.
+- version: 수정·상태 변경·삭제 모두 기대 version과 비교하고 불일치는 `409 VERSION_CONFLICT`다. 수정은 `report_revision`, 상태 변경은 `report_status_event`에 같은 트랜잭션으로 기록한다.
+- 목록은 `q`·`category`·`business_status`·기간(한국 기준 `from` 포함·`to` 제외)과 DEC-122 페이지네이션·`created_at` 내림차순 정렬을 적용하고 고용자에게는 `author_id`로 범위를 제한한다.
+- 검증: Ruff check, mypy, 전체 pytest 230건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0012)를 적용해 생성·revision·목록 필터·작성자 범위·타인 404·수정·version 충돌·무변경 거부·상태 전이·완료 잠금·soft delete·이력 정렬·인덱스 생성을 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-report-crud)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+

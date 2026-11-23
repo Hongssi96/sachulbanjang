@@ -65,7 +65,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 전체 pytest 및 PostgreSQL 18 replay·이력·정정 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
 | 마스터·담당 | 구현 완료 | 부서·라인·설비·제품 활성 목록 조회와 본인 담당 조회, 사용자 담당 테이블·조직/담당 초기 데이터 적재 명령 구현. pytest 192건 및 PostgreSQL 18 통합 검증. 담당 배정·변경 관리 화면은 추후 | 2026-11-23 |
-| 보고서·이력 | 미착수 | - | 2026-11-20 |
+| 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회 구현. version 충돌·작성자/관리자 권한 적용. AI 생성·PDF·중복 안내는 미착수. pytest 230건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
 | 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 품질 리포트·가동률·삭제 미착수. PostgreSQL 18 이력·정정 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 미착수 | - | 2026-11-20 |
@@ -132,11 +132,14 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | POST /report-jobs | client_request_key, report_kind, category, period, targets, 중복 확인 결과에 대한 재생성 선택 | 202: job_id, state, accepted_at, data_cutoff_at |
 | GET /jobs, GET /jobs/{id} | 본인 작업과 상태·safe_error_message·결과 링크 | 역할과 무관하게 요청자 본인 |
 | POST /jobs/{id}/cancel, POST /jobs/{id}/retry | 재시도에는 새 client_request_key | 본인. 재시도는 새 job_id·새 기준 시각 |
-| GET /reports, GET /reports/{id} | 검색·분류·상태·기간 | 관리자 전체·고용자 본인 |
-| PATCH /reports/{id} | version, title?, body_markdown? | 관리자 전체·고용자 완료 전 본인. 집계 변경 불가 |
-| PATCH /reports/{id}/status | version, business_status | 관리자만. 상태 이벤트 기록 |
-| DELETE /reports/{id} | expected_version | 기존 역할·상태별 삭제 권한 |
+| POST /reports | title, body_markdown, category, report_kind | 작성자·관리자, CSRF. AI 생성 전 임시 수동 등록 |
+| GET /reports | q, category, business_status, from, to, page, page_size | 관리자 전체·고용자 본인 |
+| GET /reports/{id} | 없음 | 관리자 전체·고용자 본인. 삭제 보고는 404 |
+| PATCH /reports/{id} | version, title?, body_markdown? | 관리자 전체·고용자 완료 전 본인. version 충돌 409 |
+| PATCH /reports/{id}/status | version, business_status | 관리자만. 전이 검사·상태 이벤트 기록 |
+| DELETE /reports/{id}?expected_version= | expected_version | 관리자 전체·고용자 완료 전 본인. soft delete |
 | GET /reports/{id}/revisions, /revisions/{version} | 읽기 전용 과거 제목·본문 | 현재 보고서 조회 권한 |
+| GET /reports/{id}/status-events | 전후 상태·작업자·시각 | 현재 보고서 조회 권한 |
 | GET /reports/{id}/pdf?version=... | 선택 버전 PDF 생성 | 조회 권한. 파일 응답, 다운로드 이벤트 |
 | GET /reports/{id}/downloads | 다운로드 사용자·시각·버전, 합계 | 현재 보고서 조회 권한 |
 | GET /reports/{id}/charts/{chart_key}?version=... | 저장 집계 기반 이미지 생성·재시도 | 조회 권한. 실패 시 JSON 오류+사유, 화면/PDF 대체 안내 |
@@ -344,6 +347,35 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 검증: pytest 211건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 정정 적용·version 충돌·무변경
   거부·null 비우기·감사 기록(전후 값·사유·작업자)·이력 정렬·soft delete 기록 404·원천 식별자 불변·
   인덱스 생성을 확인했다
+
+### 보고서 기본 CRUD 현재 구현 범위 (2026-11-23)
+
+AI 생성이 준비되기 전 임시로 수동 등록을 포함한 기본 CRUD를 제공한다(DEC-209). 생성·수정·삭제는
+CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용자 본인이다.
+
+- `POST /reports`: 작성자·관리자가 `title`, `body_markdown`, `category`, `report_kind`로 등록한다.
+  상태는 `pending`, version은 1이며 최초 내용이 revision 1로 함께 저장된다
+- `category`는 `equipment_issue`·`quality_report`·`inspection_done`·`periodic_weekly`·
+  `periodic_monthly`·`other`, `report_kind`는 `general`·`weekly`·`monthly`다. `periodic_weekly`→`weekly`,
+  `periodic_monthly`→`monthly`, 그 외는 `general`이어야 하며 불일치는 `422 VALIDATION_ERROR`다
+- `GET /reports`: `q`(제목·본문 부분), `category`, `business_status`, `from`·`to`(한국 기준 작성 기간,
+  `from` 포함·`to` 제외), `page`/`page_size`(기본 10·최대 100). `created_at` 내림차순·`id` 내림차순
+- `GET /reports/{id}`: 본문을 포함한 상세. 고용자가 타인 보고를 요청하거나 삭제된 보고서는
+  `404 REPORT_NOT_FOUND`다
+- `PATCH /reports/{id}`: `version`과 `title`·`body_markdown` 중 하나 이상. 고용자는 본인 보고이며
+  `completed`가 아닐 때만 수정할 수 있고, 완료 후에는 `403 REPORT_COMPLETED_LOCKED`다. version이
+  다르면 `409 VERSION_CONFLICT`, 실제 변경이 없으면 `422 VALIDATION_ERROR`다. 성공 시 version을
+  올리고 revision을 남기며 `last_editor_id`를 기록한다
+- `PATCH /reports/{id}/status`: 관리자만. `pending→in_progress/completed`, `in_progress→completed`,
+  `completed→in_progress`만 허용하고 그 외 전이는 `422 VALIDATION_ERROR`다. 전후 상태·작업자·시각을
+  `report_status_event`에 기록하고 version을 올린다
+- `DELETE /reports/{id}?expected_version=`: soft delete. 권한은 수정과 같고 version이 다르면
+  `409 VERSION_CONFLICT`다
+- `GET /reports/{id}/revisions`, `/revisions/{version}`: 조회 권한이 있으면 버전별 제목·본문·수정자·시각을
+  확인한다. `GET /reports/{id}/status-events`는 상태 변경 이력을 최신순으로 반환한다
+- 검증: pytest 230건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 생성·revision·목록 필터·
+  작성자 범위·수정·version 충돌·무변경 거부·상태 전이·완료 잠금·soft delete·이력 정렬·인덱스 생성을
+  확인했다. AI 생성·PDF·중복 안내·집계 스냅샷은 미착수다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 

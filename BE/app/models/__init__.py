@@ -15,6 +15,7 @@ from app.models.process import (
     RecordChange,
     SourceImport,
 )
+from app.models.report import Report, ReportRevision, ReportStatusEvent
 
 __all__ = [
     "AccountAuditEvent",
@@ -29,6 +30,9 @@ __all__ = [
     "ProductionLine",
     "RecordChange",
     "RefreshCredential",
+    "Report",
+    "ReportRevision",
+    "ReportStatusEvent",
     "SourceImport",
     "UserAssignment",
 ]
