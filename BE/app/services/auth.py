@@ -10,7 +10,7 @@ from app.core.config import Settings
 from app.models.auth import AuthSession, RefreshCredential
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
-from app.security.passwords import dummy_password_hash, verify_password
+from app.security.passwords import dummy_password_hash, hash_password, verify_password
 from app.security.tokens import (
     TokenError,
     TokenExpiredError,
@@ -58,6 +58,14 @@ class SessionRevokedError(RefreshRejectedError):
 
 class RefreshInProgressError(RefreshRejectedError):
     """Raised for a duplicated refresh request that must not end the session."""
+
+
+class CurrentPasswordMismatchError(Exception):
+    """Raised when a password change does not prove the current password."""
+
+
+class PasswordUnchangedError(Exception):
+    """Raised when the requested password is the same as the current password."""
 
 
 @dataclass(frozen=True)
@@ -208,6 +216,21 @@ class AuthService:
 
         self._revoke_session(auth_session, self._clock())
         self._session.commit()
+
+    def change_password(
+        self, user: AppUser, *, current_password: str, new_password: str
+    ) -> AppUser:
+        """Change the authenticated user's password after verifying the old value."""
+        if not verify_password(current_password, user.password_hash):
+            raise CurrentPasswordMismatchError
+        if verify_password(new_password, user.password_hash):
+            raise PasswordUnchangedError
+
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+        user.version += 1
+        self._session.commit()
+        return user
 
     def _reject_replayed_credential(
         self, auth_session: AuthSession, credential: RefreshCredential, now: datetime

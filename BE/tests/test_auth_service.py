@@ -6,7 +6,7 @@ from app.core.config import Settings
 from app.models.auth import AuthSession, RefreshCredential
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
-from app.security.passwords import hash_password
+from app.security.passwords import hash_password, verify_password
 from app.security.tokens import (
     create_refresh_token,
     decode_access_token,
@@ -15,8 +15,10 @@ from app.security.tokens import (
 from app.services.auth import (
     AccountLockedError,
     AuthService,
+    CurrentPasswordMismatchError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    PasswordUnchangedError,
     RefreshInProgressError,
     SessionRevokedError,
 )
@@ -364,3 +366,51 @@ def test_logout_uses_refresh_cookie_when_access_token_is_expired() -> None:
 
     assert repository.sessions[0].revoked_at == clock.now
     session.commit.assert_called_once_with()
+
+
+def test_change_password_replaces_hash_and_clears_temporary_flag() -> None:
+    user = make_user(must_change_password=True, version=3)
+    service, _, session, _ = build_service(user)
+
+    changed = service.change_password(
+        user,
+        current_password="correct-password",
+        new_password="new-password",
+    )
+
+    assert changed is user
+    assert verify_password("new-password", user.password_hash)
+    assert not verify_password("correct-password", user.password_hash)
+    assert user.must_change_password is False
+    assert user.version == 4
+    session.commit.assert_called_once_with()
+
+
+def test_change_password_rejects_wrong_current_password() -> None:
+    user = make_user()
+    original_hash = user.password_hash
+    service, _, session, _ = build_service(user)
+
+    with pytest.raises(CurrentPasswordMismatchError):
+        service.change_password(
+            user,
+            current_password="wrong-password",
+            new_password="new-password",
+        )
+
+    assert user.password_hash == original_hash
+    session.commit.assert_not_called()
+
+
+def test_change_password_rejects_same_password() -> None:
+    user = make_user()
+    service, _, session, _ = build_service(user)
+
+    with pytest.raises(PasswordUnchangedError):
+        service.change_password(
+            user,
+            current_password="correct-password",
+            new_password="correct-password",
+        )
+
+    session.commit.assert_not_called()
