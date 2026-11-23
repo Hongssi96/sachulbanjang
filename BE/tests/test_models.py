@@ -10,6 +10,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "auth_session",
         "department",
         "equipment",
+        "generation_job",
         "inspection_record",
         "process_record",
         "process_replay",
