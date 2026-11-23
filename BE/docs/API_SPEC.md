@@ -68,7 +68,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회, 생성 작업 접수·조회·취소·재시도와 PostgreSQL 작업 큐(claim/lease/heartbeat·중단 정리) 구현. version 충돌·작성자/관리자 권한 적용. 실제 AI 실행·PDF·중복 안내는 미착수. pytest 250건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
 | 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정·변경 이력, 품질 통계(양품·불량·미분류·불량률·생산 기록 건수) 구현. 가동률·삭제 미착수. pytest 257건 및 PostgreSQL 18 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
-| 일정 | 미착수 | - | 2026-11-20 |
+| 일정 | 구현 완료 | 달력 범위·목록 페이지 조회, 종일/시간 지정 등록·수정·soft delete, 관리자 전체·고용자 본인 권한, version 충돌 처리 구현. 반복·복사 제외. pytest 272건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
 | 재고 | 미착수 | - | 2026-11-20 |
 | 인수인계 | 미착수 | - | 2026-11-20 |
 
@@ -148,8 +148,11 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가 |
 | POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state |
 | POST /conversations/{id}/turns/{turn_id}/refresh | 새 요청 키·기존 조건 기반 최신 재조회 | 새 질문·답변 추가. 실패 재시도와 구분 |
-| GET /schedules, POST /schedules | 달력 범위/페이지 조회·종일/시간 지정 등록 | 양 역할 |
-| GET /schedules/{id}, PATCH /schedules/{id}, DELETE /schedules/{id} | 버전 포함 수정·삭제 | 조회 전체, 수정·삭제 관리자 또는 작성자 |
+| GET /schedules | from·to(한국 기준, 양 끝 포함), page, page_size | 양 역할. 범위와 겹치는 일정을 시작 순 반환 |
+| POST /schedules | title, category, description?, all_day, 종일 또는 시간 지정 필드 | 양 역할, CSRF |
+| GET /schedules/{id} | 없음 | 양 역할 전체 조회 |
+| PATCH /schedules/{id} | version + 변경 필드(날짜·시각 혼용 금지) | 관리자 전체·고용자 본인, CSRF. version 충돌 409 |
+| DELETE /schedules/{id}?expected_version= | expected_version | 관리자 전체·고용자 본인, CSRF. soft delete |
 | GET /handover-notes, POST /handover-notes | 본인 담당 기본 필터·전체 조회·등록 | 양 역할 |
 | GET /handover-notes/{id} | 본문·대상·수정 시각·확인 정보 | 양 역할 전체 조회 |
 | PATCH /handover-notes/{id}, DELETE /handover-notes/{id} | 본인 수정, 삭제 관리자 전체·고용자 본인 | 관리자 타인 본문 수정 불가 |
@@ -427,6 +430,28 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
 - 검증: pytest 257건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 기간 경계·설비/품목 필터·
   soft delete 제외·불량률 반올림·분모 0 null·유형 분포 정렬·생산 기록 건수·시연 표시를 확인했다
 - 가동률(`GET /quality/operation`)은 `operation_day` 작업에서 별도 구현한다
+
+### 일정 현재 구현 범위 (2026-11-23)
+
+관리자·고용자 모두 조회하고 생성할 수 있다. 수정·삭제는 관리자 전체·고용자 본인 일정만 가능하다
+(DEC-035·DEC-036·DEC-037). 반복·복사는 이번 범위에서 제외한다(DEC-039).
+
+- `GET /schedules`: 선택 query `from`·`to`(한국 기준 날짜, 양 끝 포함), `page`, `page_size`(기본 10·최대 100).
+  `from`/`to`가 주어지면 해당 범위와 겹치는 일정만 반환한다. 종일 일정은 `start_date`·`end_date_exclusive`,
+  시간 지정 일정은 시각 경계로 겹침을 판정한다. 시작 시각 오름차순·`id` 오름차순으로 정렬한다
+- `POST /schedules`: `title`, `category`, 선택 `description`, `all_day`와 표현 필드를 받는다. `category`는
+  `inspection`·`production`·`meeting`·`other`다
+- 종일 일정: `all_day=true`에 `start_date`·`end_date_exclusive`(종료일 제외)를 받고 시각 필드는 비운다.
+  시간 지정 일정: `all_day=false`에 `starts_at`·`ends_at`(오프셋 포함 UTC)을 받고 날짜 필드는 비운다.
+  한 표현만 허용하며 종료가 시작보다 뒤여야 하고, 위반은 `422 VALIDATION_ERROR`다(DEC-168). DB CHECK로도 보장한다
+- `GET /schedules/{id}`: 상세. 삭제된 일정은 `404 SCHEDULE_NOT_FOUND`
+- `PATCH /schedules/{id}`: `version`과 변경 필드를 받는다. 생략한 필드는 유지하며 날짜·시각 필드를 한 요청에
+  섞으면 `422`다. `all_day`를 바꾸려면 새 표현 필드를 함께 보내야 한다. version이 다르면 `409 VERSION_CONFLICT`,
+  고용자가 타인 일정을 수정하면 `403 FORBIDDEN`, 실제 변경이 없거나 형식이 맞지 않으면 `422 VALIDATION_ERROR`다.
+  성공 시 version을 올린다
+- `DELETE /schedules/{id}?expected_version=`: soft delete. 권한은 수정과 같고 version이 다르면 `409`다
+- 검증: pytest 272건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 종일/시간 지정 등록·범위 겹침 필터·
+  권한(타인 403)·version 충돌·표현 전환·soft delete 제외·DB CHECK 제약·인덱스를 확인했다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 
