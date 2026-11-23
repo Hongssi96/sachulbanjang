@@ -12,15 +12,13 @@ import {
   ChartNoAxesCombined,
   CircleHelp,
   Clock3,
-  PanelTop,
-  BookOpen,
   Check,
   ChevronsUp,
+  HardHat,
   ClipboardCheck,
   ClipboardList,
   Factory,
   House,
-  NotebookPen,
   Plus,
   ShieldCheck,
   TriangleAlert,
@@ -224,7 +222,6 @@ export default function TabletHomePage() {
                       <section className="th-assistant card">
                         <div className="th-section-heading">
                           <div>
-                            <span className="th-card-kicker">FIELD ASSISTANT</span>
                             <h2>현장 도우미</h2>
                           </div>
                           <span className="th-ai-badge">
@@ -234,7 +231,7 @@ export default function TabletHomePage() {
                         </div>
                         <div className="th-ai-intro">
                           <span>
-                            <ChevronsUp size={24} />
+                            <HardHat size={24} />
                           </span>
                           <div>
                             <strong>질문에 필요한 항목을 선택하세요</strong>
@@ -296,32 +293,27 @@ export default function TabletHomePage() {
                       <section className="th-quick card">
                         <div className="th-section-heading">
                           <h2>빠른 실행</h2>
-                          <PanelTop size={17} />
                         </div>
                         <div>
                           <button onClick={() => setModal('check')}>
-                            <ClipboardCheck size={21} />
                             <span>
                               <strong>점검 시작</strong>
                               <small>설비 체크리스트</small>
                             </span>
                           </button>
                           <button onClick={() => setModal('manual')}>
-                            <BookOpen size={21} />
                             <span>
                               <strong>매뉴얼</strong>
                               <small>표준 작업 절차</small>
                             </span>
                           </button>
                           <button onClick={openNote}>
-                            <NotebookPen size={21} />
                             <span>
                               <strong>교대 기록</strong>
                               <small>인수인계 확인</small>
                             </span>
                           </button>
                           <button onClick={() => setModal('contact')}>
-                            <ShieldCheck size={21} />
                             <span>
                               <strong>비상 연락</strong>
                               <small>관리자·안전팀</small>

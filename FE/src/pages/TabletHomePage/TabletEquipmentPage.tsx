@@ -11,7 +11,6 @@ export default function TabletEquipmentPage() {
     <div className="tp-page">
       <div className="tp-title">
         <div>
-          <span>EQUIPMENT</span>
           <h1 className="sr-only">설비 현황</h1>
         </div>
         <span className="tp-date">시연 데이터 · 실시간 아님</span>

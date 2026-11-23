@@ -25,7 +25,6 @@ export default function TabletReportsPage({
     <div className="tp-page">
       <div className="tp-title">
         <div>
-          <span>FIELD REPORTS</span>
           <h1 className="sr-only">이상 보고</h1>
         </div>
         <button className="button button-primary" onClick={() => setOpen(true)}>
