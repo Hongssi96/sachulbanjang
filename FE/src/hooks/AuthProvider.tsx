@@ -76,7 +76,22 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }, []);
 
-  const value = useMemo(() => ({ status, user, login, logout }), [status, user, login, logout]);
+  const refreshUser = useCallback(async () => {
+    setUser(await getCurrentUser());
+  }, []);
+  useEffect(() => {
+    const expired = () => {
+      setUser(null);
+      setStatus('unauthenticated');
+    };
+    window.addEventListener('imleader-session-expired', expired);
+    return () => window.removeEventListener('imleader-session-expired', expired);
+  }, []);
+
+  const value = useMemo(
+    () => ({ status, user, login, logout, refreshUser }),
+    [status, user, login, logout, refreshUser],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

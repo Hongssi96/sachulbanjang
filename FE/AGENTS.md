@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> 현재 실행 화면은 데스크톱·태블릿 공통 API 연결 버전입니다. 연결 범위와 제한 및 실행 방법은 [INTEGRATION.md](./INTEGRATION.md)를 확인하세요. 업무 라우트는 `src/pages/Connected/LiveRoutes.tsx`가 관리합니다.
+
 > 상태: 팀 검토용 초안
 목적: 팀원과 AI가 동일한 기준으로 개발하고, 변경 사항을 검증하고 리뷰할 수 있도록 한다.
 > 

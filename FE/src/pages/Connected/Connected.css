@@ -1,0 +1,233 @@
+.live-page {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+  color: var(--ink, #29263f);
+}
+.live-page h1 {
+  margin: 0;
+  font-size: var(--fs-2xl);
+}
+.live-page h2 {
+  margin: 0;
+  font-size: var(--fs-xl);
+}
+.live-toolbar,
+.live-filters,
+.live-pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.live-toolbar {
+  justify-content: space-between;
+}
+.live-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e2e2e8);
+  border-radius: 20px;
+  padding: 24px;
+  min-width: 0;
+}
+.live-filters label,
+.live-form label {
+  display: grid;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+.live-filters {
+  align-items: end;
+}
+.live-page input,
+.live-page select,
+.live-form input,
+.live-form select,
+.live-form textarea {
+  font: inherit;
+  color: #29263f;
+  border: 1px solid #e2e2e8;
+  border-radius: 10px;
+  background: #fff;
+  min-height: 44px;
+  padding: 10px 12px;
+  max-width: 100%;
+}
+.live-page input:focus-visible,
+.live-page select:focus-visible,
+.live-form :is(input, select, textarea):focus-visible {
+  outline: 2px solid #d8d2e5;
+  outline-offset: 2px;
+}
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.live-metric small {
+  display: block;
+  color: #777;
+  margin-bottom: 12px;
+}
+.live-metric strong {
+  font-size: var(--fs-3xl);
+}
+.live-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.live-table-wrap {
+  overflow: auto;
+}
+.live-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.live-table th,
+.live-table td {
+  padding: 16px 12px;
+  text-align: center;
+  border-bottom: 1px solid #e2e2e8;
+  white-space: nowrap;
+}
+.live-table th {
+  color: #635b85;
+  background: #f7f6fa;
+}
+.live-pager {
+  justify-content: center;
+}
+.live-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: #eeeaf5;
+  flex-wrap: wrap;
+}
+.live-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 20px;
+  background: transparent;
+  color: #635b85;
+  cursor: pointer;
+}
+.live-tabs button[aria-pressed='true'] {
+  background: white;
+  box-shadow: 0 2px 6px #29263f12;
+}
+.live-error {
+  padding: 16px;
+  border: 1px solid #f0c7cc;
+  border-radius: 12px;
+  background: #fff3f4;
+  color: #a12f43;
+}
+.live-empty {
+  padding: 32px;
+  text-align: center;
+  color: #777;
+}
+.live-form {
+  display: grid;
+  gap: 16px;
+}
+.live-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+.live-note {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e2e8;
+}
+.live-note p,
+.live-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.live-muted {
+  color: #797588;
+  font-size: var(--fs-sm);
+}
+.live-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #e6f8ee;
+  color: #286446;
+}
+.live-badge.bad {
+  background: #ffeaee;
+  color: #a12f43;
+}
+.live-detail {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.live-detail dt {
+  color: #777;
+  font-size: var(--fs-sm);
+}
+.live-detail dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+.live-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 16px;
+}
+.live-bar progress {
+  flex: 1;
+  accent-color: #635b85;
+}
+.tablet-home .live-page {
+  padding: 0;
+}
+.tablet-home .live-page .button {
+  min-height: 44px;
+}
+.topbar .th-profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f0f7;
+  color: #29263f;
+  cursor: pointer;
+}
+.topbar .th-user-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: #e0f4e9;
+  border-radius: 50%;
+}
+.th-account .th-form {
+  display: grid;
+  gap: 16px;
+}
+.th-account .th-form label {
+  display: grid;
+  gap: 8px;
+}
+.live-page .live-card .live-toolbar {
+  margin-bottom: 16px;
+}
+@media (max-width: 1050px) {
+  .live-columns {
+    grid-template-columns: 1fr;
+  }
+  .live-page {
+    padding: 16px;
+  }
+}
