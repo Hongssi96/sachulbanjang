@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블은 Alembic `20261123_0012`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블, 생성 작업 큐는 Alembic `20261123_0013`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -31,6 +31,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 계정별 기본 근무시간과 로그인 세션의 실제 종료 시각을 구분한다. 자동 연장은 현재 종료 시각의 10분 전 구간에서 실제 입력·클릭 신호를 받은 경우만 처리한다. 클라이언트 활동 신호는 업무 편의를 위한 신호이며 서버에서 구간·세션·중복을 검사한다. 연장해도 JWT 만료나 최초 로그인 기준 상한은 변경하지 않는다.
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
+
+`generation_job`은 20261123_0013으로 구현했다. `(requester_id, kind, client_request_key)` UNIQUE와 `request_digest`로 중복·충돌을 판정하고, `state`·`lease_expires_at`·`claimed_at`·`heartbeat_at`으로 PostgreSQL 큐의 claim/lease를 관리한다. `report.generation_job_id`(nullable UNIQUE)로 성공 작업과 보고서를 연결한다. 실제 AI 실행·집계 스냅샷·input_snapshot은 후속 작업에서 채운다.
 
 `report`·`report_revision`·`report_status_event`는 20261123_0012로 구현했다. 수동 등록 기준으로 `report`는 제목·본문·분류·종류·업무 상태·version·마지막 수정자를 저장하고 soft delete한다. 수정은 `(report_id, version)` UNIQUE인 revision을 남기고, 상태 변경은 전후 상태·작업자·시각을 event로 남긴다. AI 생성·집계 스냅샷·보고 대상 컬럼은 생성 작업에서 후속 마이그레이션으로 추가한다.
 
@@ -65,7 +67,7 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| generation_job | requester_id FK, kind(report/chat), client_request_key, request_payload, request_digest, input_snapshot?, resolved_scope_snapshot?, retry_of_id? FK, accepted_at, data_cutoff_at, state, error_code?, safe_error_message?, claimed_at?, finished_at?. (requester_id, kind, client_request_key) UNIQUE |
+| generation_job | requester_id FK, kind(report/chat), client_request_key, request_payload, request_digest, state, accepted_at, data_cutoff_at?, claimed_at?, heartbeat_at?, lease_expires_at?, finished_at?, error_code?, safe_error_message?, retry_of_id? FK, attempt_count. (requester_id, kind, client_request_key) UNIQUE. 20261123_0013로 구현 |
 | report | author_id FK, title, body_markdown, category, report_kind, business_status(pending/in_progress/completed), version, last_editor_id FK?, deleted_at. 20261123_0012로 구현(AI·집계 컬럼은 생성 작업에서 추가) |
 | report_target | report_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나의 대상. 원래 선택과 고정된 설비 목록을 구분 |
 | report_revision | report_id FK, version, title, body_markdown, editor_id FK, created_at. (report_id, version) UNIQUE. 최초 버전도 보존. 20261123_0012로 구현 |

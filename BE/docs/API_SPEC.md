@@ -65,7 +65,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 전체 pytest 및 PostgreSQL 18 replay·이력·정정 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
 | 마스터·담당 | 구현 완료 | 부서·라인·설비·제품 활성 목록 조회와 본인 담당 조회, 사용자 담당 테이블·조직/담당 초기 데이터 적재 명령 구현. pytest 192건 및 PostgreSQL 18 통합 검증. 담당 배정·변경 관리 화면은 추후 | 2026-11-23 |
-| 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회 구현. version 충돌·작성자/관리자 권한 적용. AI 생성·PDF·중복 안내는 미착수. pytest 230건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
+| 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회, 생성 작업 접수·조회·취소·재시도와 PostgreSQL 작업 큐(claim/lease/heartbeat·중단 정리) 구현. version 충돌·작성자/관리자 권한 적용. 실제 AI 실행·PDF·중복 안내는 미착수. pytest 250건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
 | 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 품질 리포트·가동률·삭제 미착수. PostgreSQL 18 이력·정정 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 미착수 | - | 2026-11-20 |
@@ -129,9 +129,10 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /quality/summary | 기간·설비·품목 필터 | 판정 건수·불량률·유형. 가동률은 설비·날짜 범위 별도 명시 |
 | GET /quality/operation | 한국 기준 날짜·설비 | 계획/실제 시간·가동률·is_demo |
 | POST /report-duplicate-checks | report_kind, period, targets | 조회 가능한 동일 조건 보고서만 안내 |
-| POST /report-jobs | client_request_key, report_kind, category, period, targets, 중복 확인 결과에 대한 재생성 선택 | 202: job_id, state, accepted_at, data_cutoff_at |
-| GET /jobs, GET /jobs/{id} | 본인 작업과 상태·safe_error_message·결과 링크 | 역할과 무관하게 요청자 본인 |
-| POST /jobs/{id}/cancel, POST /jobs/{id}/retry | 재시도에는 새 client_request_key | 본인. 재시도는 새 job_id·새 기준 시각 |
+| POST /report-jobs | client_request_key, report_kind, category, period, targets | 202: job_id, state, accepted_at, data_cutoff_at. 같은 키·같은 내용은 기존 작업 반환, 다른 내용은 409 |
+| GET /jobs, GET /jobs/{id} | kind?, state?, page, page_size | 요청자 본인. 상태·safe_error_message·report_id |
+| POST /jobs/{id}/cancel | 없음 | 본인. 비종료 작업만 취소 |
+| POST /jobs/{id}/retry | 새 client_request_key | 본인. failed·interrupted만, 새 job_id·기준 시각 |
 | POST /reports | title, body_markdown, category, report_kind | 작성자·관리자, CSRF. AI 생성 전 임시 수동 등록 |
 | GET /reports | q, category, business_status, from, to, page, page_size | 관리자 전체·고용자 본인 |
 | GET /reports/{id} | 없음 | 관리자 전체·고용자 본인. 삭제 보고는 404 |
@@ -376,6 +377,35 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
 - 검증: pytest 230건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 생성·revision·목록 필터·
   작성자 범위·수정·version 충돌·무변경 거부·상태 전이·완료 잠금·soft delete·이력 정렬·인덱스 생성을
   확인했다. AI 생성·PDF·중복 안내·집계 스냅샷은 미착수다
+
+### 보고서 생성 작업 기반 현재 구현 범위 (2026-11-23)
+
+실제 AI 호출은 별도 작업으로 분리하고, 접수·상태·취소·재시도와 PostgreSQL 작업 큐 기반만 구현한다
+(DEC-082·DEC-083·DEC-094·DEC-095·DEC-096·DEC-118·DEC-127·DEC-210).
+
+- `POST /report-jobs`: 작성자·관리자가 `client_request_key`, `report_kind`, `category`, `period`,
+  `targets`로 접수한다. `request_payload`를 정규화해 저장하고 SHA-256 digest로 중복을 판정한다.
+  `data_cutoff_at`은 접수 시점의 최신 replay `data_time`, 없으면 접수 시각이다. 응답은 `202`와
+  `job_id`, `state`, `accepted_at`, `data_cutoff_at`이다
+- 같은 요청자·종류·`client_request_key` 재전송: digest가 같으면 기존 작업을 `202`로 반환하고,
+  내용이 다르면 `409 REQUEST_KEY_CONFLICT`다. 동시 접수의 UNIQUE 충돌은 재조회로 흡수한다
+- `GET /jobs`, `GET /jobs/{id}`: 요청자 본인 작업만 조회한다(타인은 404). `kind`·`state` 필터와
+  DEC-122 페이지네이션을 적용하고 `completed` 뒤에는 `report_id`를 함께 반환한다
+- `POST /jobs/{id}/cancel`: 비종료(`accepted`·`querying`·`writing`) 작업만 취소한다. 이미 종료된
+  작업은 `409 JOB_NOT_CANCELLABLE`이며 등록된 보고서는 기존 보고서 권한을 따른다
+- `POST /jobs/{id}/retry`: `failed`·`interrupted` 작업만 새 `client_request_key`로 재시도한다. 새
+  작업은 `retry_of_id`와 증가한 `attempt_count`를 가지며 그 외 상태는 `409 JOB_NOT_RETRYABLE`이다
+- 작업 상태: `accepted → querying → writing → succeeded`, 중간 `failed`, 임차 만료 `interrupted`,
+  비종료 상태 `cancelled`. 전이는 DB에서 확정한다
+- 큐: `claim_next_job`이 `accepted` 작업을 `FOR UPDATE SKIP LOCKED`로 잡아 `querying`으로 바꾸고
+  임차(`lease_expires_at`)·`heartbeat_at`을 기록하며 `attempt_count`를 증가시킨다. `heartbeat_job`이
+  임차를 연장하고, `fail_job`이 실패를 기록한다. `python -m app.commands.reap_report_jobs`가 임차가
+  만료된 `querying`·`writing` 작업을 `interrupted`(`WORKER_INTERRUPTED`)로 정리한다. 서버 복구 후
+  자동 재실행은 하지 않는다(DEC-094)
+- 검증: pytest 250건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 접수·data_cutoff·중복 반환·
+  키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인했다
+- 실제 AI 실행(`querying`·`writing` 단계와 `succeeded` 시 보고서 등록), 같은 조건 중복 안내
+  (`POST /report-duplicate-checks`)는 후속 작업이다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 

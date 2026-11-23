@@ -63,6 +63,9 @@ class Report(TimestampMixin, SoftDeleteMixin, Base):
     last_editor_id: Mapped[int | None] = mapped_column(
         ForeignKey("app_user.id", ondelete="RESTRICT")
     )
+    generation_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("generation_job.id", ondelete="RESTRICT"), unique=True
+    )
 
 
 class ReportRevision(Base):
