@@ -72,6 +72,10 @@ uvicorn app.main:app --reload
 - 검사 이력: `GET http://localhost:8000/api/v1/inspection-records`,
   `GET .../inspection-records/{id}` (위 필터 + `verdict=good|defect`)
 - 이력 조회는 관리자·고용자 모두 가능하며, `from`은 포함·`to`는 제외하는 한국 기준 날짜다
+- 기록 정정: `PATCH http://localhost:8000/api/v1/process-records/{id}`,
+  `PATCH .../inspection-records/{id}` (`version`, `change_reason` 필수 + 수정 필드, 관리자,
+  `X-CSRF-Token` 헤더. 원천 식별자·`is_demo` 변경 불가)
+- 변경 이력: `GET .../process-records/{id}/changes`, `GET .../inspection-records/{id}/changes` (관리자)
 - 마스터 목록: `GET http://localhost:8000/api/v1/departments`, `GET .../production-lines`
   (`department_id`), `GET .../equipment` (`production_line_id`), `GET .../products` (`q`).
   활성 데이터 전체를 반환한다
