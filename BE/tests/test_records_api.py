@@ -6,10 +6,11 @@ from app.core.config import Settings
 from app.dependencies.auth import get_current_user
 from app.main import create_app
 from app.models.master import AppUser, Equipment, Product
-from app.models.process import ProcessRecord
-from app.repositories.record_history import ProcessRecordView
+from app.models.process import InspectionRecord, ProcessRecord
+from app.repositories.record_history import InspectionRecordView, ProcessRecordView
 from app.routers.records import get_record_history_service
 from app.services.record_history import (
+    InspectionRecordPage,
     ProcessRecordPage,
     RecordHistoryService,
     RecordNotFoundError,
@@ -73,6 +74,104 @@ def make_application(service: RecordHistoryService | None = None) -> FastAPI:
     if service is not None:
         application.dependency_overrides[get_record_history_service] = lambda: service
     return application
+
+
+def make_inspection_view(record_id: int = 1) -> InspectionRecordView:
+    equipment = Equipment(id=20, equipment_code="S01", name="사출기 1")
+    product = Product(id=30, product_code=None, name="시연 제품")
+    record = InspectionRecord(
+        id=record_id,
+        equipment_id=20,
+        product_id=30,
+        process_record_id=5,
+        inspected_at=NOW,
+        available_at=NOW,
+        verdict="defect",
+        defect_type="scratch",
+        reason="표면 긁힘",
+        is_demo=True,
+        version=1,
+    )
+    return InspectionRecordView(record=record, equipment=equipment, product=product)
+
+
+def test_worker_lists_inspection_records_with_verdict_filter() -> None:
+    service = MagicMock(spec=RecordHistoryService)
+    service.list_inspection_records.return_value = InspectionRecordPage(
+        records=[make_inspection_view()], total_items=1
+    )
+
+    with TestClient(make_application(service)) as client:
+        response = client.get(
+            "/api/v1/inspection-records",
+            params={"verdict": "defect", "equipment_id": 20},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "record_id": 1,
+                "equipment_id": 20,
+                "equipment_code": "S01",
+                "equipment_name": "사출기 1",
+                "product_id": 30,
+                "product_code": None,
+                "product_name": "시연 제품",
+                "process_record_id": 5,
+                "inspected_at": "2026-11-20T03:00:00Z",
+                "available_at": "2026-11-20T03:00:00Z",
+                "verdict": "defect",
+                "defect_type": "scratch",
+                "reason": "표면 긁힘",
+                "is_demo": True,
+                "version": 1,
+            }
+        ],
+        "pagination": {"page": 1, "page_size": 10, "total_items": 1, "total_pages": 1},
+    }
+    service.list_inspection_records.assert_called_once_with(
+        equipment_id=20,
+        product_id=None,
+        verdict="defect",
+        date_from=None,
+        date_to=None,
+        page=1,
+        page_size=10,
+    )
+
+
+def test_inspection_record_detail_and_not_found() -> None:
+    service = MagicMock(spec=RecordHistoryService)
+    service.get_inspection_record.return_value = make_inspection_view(record_id=7)
+
+    with TestClient(make_application(service)) as client:
+        found = client.get("/api/v1/inspection-records/7")
+
+    assert found.status_code == 200
+    assert found.json()["record_id"] == 7
+
+    service.get_inspection_record.side_effect = RecordNotFoundError
+    with TestClient(make_application(service)) as client:
+        missing = client.get("/api/v1/inspection-records/999")
+
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "RECORD_NOT_FOUND"
+
+
+def test_inspection_records_reject_invalid_verdict_and_period() -> None:
+    service = MagicMock(spec=RecordHistoryService)
+
+    with TestClient(make_application(service)) as client:
+        bad_verdict = client.get("/api/v1/inspection-records", params={"verdict": "ng"})
+        reversed_period = client.get(
+            "/api/v1/inspection-records",
+            params={"from": "2026-11-21", "to": "2026-11-20"},
+        )
+
+    assert bad_verdict.status_code == 422
+    assert reversed_period.status_code == 422
+    service.list_inspection_records.assert_not_called()
 
 
 def test_process_records_require_authentication() -> None:

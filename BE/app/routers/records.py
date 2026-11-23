@@ -1,6 +1,6 @@
 from datetime import date
 from math import ceil
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
@@ -8,8 +8,14 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db_session
 from app.dependencies.auth import get_current_user
 from app.models.master import AppUser
-from app.repositories.record_history import ProcessRecordView, RecordHistoryRepository
+from app.repositories.record_history import (
+    InspectionRecordView,
+    ProcessRecordView,
+    RecordHistoryRepository,
+)
 from app.schemas.records import (
+    InspectionRecordItem,
+    InspectionRecordListResponse,
     Pagination,
     ProcessRecordDetail,
     ProcessRecordItem,
@@ -62,6 +68,75 @@ def _process_detail(view: ProcessRecordView) -> ProcessRecordDetail:
         source_import_id=view.record.source_import_id,
         source_row_number=view.record.source_row_number,
     )
+
+
+def _inspection_item(view: InspectionRecordView) -> InspectionRecordItem:
+    record = view.record
+    return InspectionRecordItem(
+        record_id=record.id,
+        equipment_id=view.equipment.id,
+        equipment_code=view.equipment.equipment_code,
+        equipment_name=view.equipment.name,
+        product_id=view.product.id if view.product is not None else None,
+        product_code=view.product.product_code if view.product is not None else None,
+        product_name=view.product.name if view.product is not None else None,
+        process_record_id=record.process_record_id,
+        inspected_at=record.inspected_at,
+        available_at=record.available_at,
+        verdict=record.verdict,
+        defect_type=record.defect_type,
+        reason=record.reason,
+        is_demo=record.is_demo,
+        version=record.version,
+    )
+
+
+@router.get("/inspection-records", response_model=InspectionRecordListResponse)
+def list_inspection_records(
+    _: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[RecordHistoryService, Depends(get_record_history_service)],
+    equipment_id: Annotated[int | None, Query(gt=0)] = None,
+    product_id: Annotated[int | None, Query(gt=0)] = None,
+    verdict: Annotated[Literal["good", "defect"] | None, Query()] = None,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> InspectionRecordListResponse:
+    validate_period(date_from, date_to)
+    result = service.list_inspection_records(
+        equipment_id=equipment_id,
+        product_id=product_id,
+        verdict=verdict,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
+    return InspectionRecordListResponse(
+        items=[_inspection_item(view) for view in result.records],
+        pagination=Pagination(
+            page=page,
+            page_size=page_size,
+            total_items=result.total_items,
+            total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
+        ),
+    )
+
+
+@router.get("/inspection-records/{record_id}", response_model=InspectionRecordItem)
+def read_inspection_record(
+    record_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[RecordHistoryService, Depends(get_record_history_service)],
+) -> InspectionRecordItem:
+    try:
+        return _inspection_item(service.get_inspection_record(record_id))
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
 
 
 @router.get("/process-records", response_model=ProcessRecordListResponse)
