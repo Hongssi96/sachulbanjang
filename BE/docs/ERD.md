@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0011` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0012` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -155,6 +155,38 @@ erDiagram
         timestamptz occurred_at
     }
 
+    REPORT {
+        bigint id PK
+        bigint author_id FK
+        varchar title
+        text body_markdown
+        varchar category
+        varchar report_kind
+        varchar business_status
+        integer version
+        bigint last_editor_id FK "nullable"
+        timestamptz deleted_at "nullable"
+    }
+
+    REPORT_REVISION {
+        bigint id PK
+        bigint report_id FK
+        integer version
+        varchar title
+        text body_markdown
+        bigint editor_id FK
+        timestamptz created_at
+    }
+
+    REPORT_STATUS_EVENT {
+        bigint id PK
+        bigint report_id FK
+        varchar before_status
+        varchar after_status
+        bigint actor_id FK
+        timestamptz created_at
+    }
+
     PROCESS_REPLAY {
         bigint id PK
         bigint source_import_id FK,UK
@@ -187,6 +219,12 @@ erDiagram
     PROCESS_RECORD o|--o{ RECORD_CHANGE : changed
     INSPECTION_RECORD o|--o{ RECORD_CHANGE : changed
     APP_USER ||--o{ RECORD_CHANGE : performs
+    APP_USER ||--o{ REPORT : authors
+    APP_USER o|--o{ REPORT : last_edited_by
+    APP_USER ||--o{ REPORT_REVISION : edits
+    APP_USER ||--o{ REPORT_STATUS_EVENT : performs
+    REPORT ||--o{ REPORT_REVISION : versions
+    REPORT ||--o{ REPORT_STATUS_EVENT : status_changes
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -227,14 +265,19 @@ erDiagram
 - `record_change`는 공정·검사 FK 중 정확히 하나를 갖는다(CHECK). 관리자 정정 한 건마다 변경 필드의
   전후 값과 사유·작업자·결과 version·시각을 남기며 토큰 원문처럼 민감한 값은 저장하지 않는다.
   원천 식별자(`source_*`)와 `is_demo`는 정정 대상이 아니다(DEC-158·DEC-208).
+- `report`는 본문 Markdown·분류·종류·업무 상태와 version을 갖고 soft delete로 숨긴다. `report_revision`은
+  `(report_id, version)` UNIQUE로 최초 버전부터 제목·본문·수정자를 보존하고, `report_status_event`는
+  대기·진행 중·완료 전이의 전후 상태·작업자·시각을 남긴다(DEC-137·DEC-188·DEC-209).
+- AI 생성·집계 관련 컬럼(`generation_job_id`, 기간·기준 시각, 집계 스냅샷 등)은 AI 보고서 생성 작업에서
+  추가한다. 현재 `report`는 수동 등록·조회·수정·상태 변경·삭제 범위만 담는다(DEC-209).
 
 ## 구현 위치
 
 - ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`,
-  `BE/app/models/account_audit.py`
+  `BE/app/models/account_audit.py`, `BE/app/models/report.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
   `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`,
-  `20261123_0011_record_change.py`
+  `20261123_0011_record_change.py`, `20261123_0012_report.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

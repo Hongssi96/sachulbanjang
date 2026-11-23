@@ -81,6 +81,15 @@ uvicorn app.main:app --reload
   활성 데이터 전체를 반환한다
 - 본인 담당: `GET http://localhost:8000/api/v1/assignments/me`
   (`departments`·`production_lines`·`equipment`로 묶어 id·코드·이름 반환)
+- 보고서 목록·상세: `GET http://localhost:8000/api/v1/reports` (`q`, `category`, `business_status`,
+  `from`, `to`, `page`, `page_size`), `GET .../reports/{id}`
+- 보고서 등록(AI 생성 전 임시): `POST .../reports` (`title`, `body_markdown`, `category`,
+  `report_kind`, `X-CSRF-Token` 헤더)
+- 보고서 수정·상태 변경·삭제: `PATCH .../reports/{id}` (`version`, `title?`, `body_markdown?`),
+  `PATCH .../reports/{id}/status` (`version`, `business_status`, 관리자),
+  `DELETE .../reports/{id}?expected_version=` (soft delete)
+- 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
+  `GET .../reports/{id}/status-events`
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비

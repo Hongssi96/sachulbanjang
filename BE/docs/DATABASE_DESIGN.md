@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력 테이블은 Alembic `20261123_0011`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블은 Alembic `20261123_0012`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -31,6 +31,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 계정별 기본 근무시간과 로그인 세션의 실제 종료 시각을 구분한다. 자동 연장은 현재 종료 시각의 10분 전 구간에서 실제 입력·클릭 신호를 받은 경우만 처리한다. 클라이언트 활동 신호는 업무 편의를 위한 신호이며 서버에서 구간·세션·중복을 검사한다. 연장해도 JWT 만료나 최초 로그인 기준 상한은 변경하지 않는다.
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
+
+`report`·`report_revision`·`report_status_event`는 20261123_0012로 구현했다. 수동 등록 기준으로 `report`는 제목·본문·분류·종류·업무 상태·version·마지막 수정자를 저장하고 soft delete한다. 수정은 `(report_id, version)` UNIQUE인 revision을 남기고, 상태 변경은 전후 상태·작업자·시각을 event로 남긴다. AI 생성·집계 스냅샷·보고 대상 컬럼은 생성 작업에서 후속 마이그레이션으로 추가한다.
 
 `record_change`는 20261123_0011로 구현했다. 관리자 정정 한 건마다 변경 필드의 전후 값(JSONB)·사유·작업자·결과 version·시각을 남기며, 공정·검사 FK 중 정확히 하나만 갖는다. 정정은 version 조건으로 원자적 갱신하고 변경 이력은 `(process_record_id|inspection_record_id, occurred_at)` 인덱스로 조회한다.
 
@@ -64,10 +66,10 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
 | generation_job | requester_id FK, kind(report/chat), client_request_key, request_payload, request_digest, input_snapshot?, resolved_scope_snapshot?, retry_of_id? FK, accepted_at, data_cutoff_at, state, error_code?, safe_error_message?, claimed_at?, finished_at?. (requester_id, kind, client_request_key) UNIQUE |
-| report | author_id FK, generation_job_id UNIQUE FK, title, body_markdown, category, report_kind, business_status, period_start, period_end_exclusive, data_cutoff_at, aggregate_snapshot, resolved_scope_snapshot, chart_style_version, version, last_editor_id FK, deleted_at |
+| report | author_id FK, title, body_markdown, category, report_kind, business_status(pending/in_progress/completed), version, last_editor_id FK?, deleted_at. 20261123_0012로 구현(AI·집계 컬럼은 생성 작업에서 추가) |
 | report_target | report_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나의 대상. 원래 선택과 고정된 설비 목록을 구분 |
-| report_revision | report_id FK, version, title, body_markdown, editor_id FK, created_at. (report_id, version) UNIQUE. 최초 버전도 보존 |
-| report_status_event | report_id FK, before_status, after_status, actor_id FK, created_at |
+| report_revision | report_id FK, version, title, body_markdown, editor_id FK, created_at. (report_id, version) UNIQUE. 최초 버전도 보존. 20261123_0012로 구현 |
+| report_status_event | report_id FK, before_status, after_status, actor_id FK, created_at. 20261123_0012로 구현 |
 | report_download | report_id FK, report_revision_id FK, user_id FK, provided_at. 요청당 이벤트를 기록하고 횟수는 이벤트 수로 계산 |
 
 집계 스냅샷은 수치·단위·시연 여부·누락 사유·계산 규칙 버전을 담는 JSONB 구조로 고정한다. 코드의 스키마 검증을 거쳐 저장하며 일반 테이블의 관계·검색 필드를 무차별 JSON으로 대체하지 않는다.
