@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bell, Moon, Sun } from 'lucide-react';
+import type { AuthenticatedUser } from '../api/auth';
 
 // 주간 근무 08:00–17:00 기준 퇴근 시각(분 단위)
 const WORK_END_MINUTES = 17 * 60;
@@ -13,6 +14,9 @@ function offWorkCountdown(now: Date) {
 
 interface TopbarProps {
   title: string;
+  /** 제목 옆 보조 정보(예: 실시간 공정의 마지막 갱신 시각) */
+  meta?: string;
+  user: AuthenticatedUser;
   dark: boolean;
   onToggleDark: () => void;
   onBell: () => void;
@@ -22,9 +26,12 @@ interface TopbarProps {
   sessionFired: boolean;
   onSessionEnd: () => void;
   onLogout: () => void;
+  loggingOut: boolean;
 }
 export default function Topbar({
   title,
+  meta,
+  user,
   dark,
   onToggleDark,
   onBell,
@@ -34,6 +41,7 @@ export default function Topbar({
   sessionFired,
   onSessionEnd,
   onLogout,
+  loggingOut,
 }: TopbarProps) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -46,7 +54,10 @@ export default function Topbar({
   }, [now, sessionFired, extended, onSessionEnd]);
   return (
     <header className="topbar">
-      <strong className="topbar-title">{title}</strong>
+      <div className="topbar-heading">
+        <strong className="topbar-title">{title}</strong>
+        {meta && <span className="topbar-meta">{meta}</span>}
+      </div>
       <div className="topbar-actions">
         <button
           className="icon-button"
@@ -63,14 +74,17 @@ export default function Topbar({
           <Bell size={20} />
           <i />
         </button>
-        <span className="avatar">민</span>
+        <span className="avatar" aria-hidden="true">
+          {user.display_name.trim().charAt(0) || '?'}
+        </span>
         <span className="user-greeting">
-          박민규 님{' '}
+          {user.display_name} 님{' '}
           {sessionEnded ? '퇴근 완료' : extended ? '오늘 야근 중이에요' : offWorkCountdown(now)}
         </span>
         <button
           className="button button-white topbar-extend"
           onClick={extended ? onLogout : onToggleExtended}
+          disabled={loggingOut}
         >
           {extended ? '퇴근하기' : '오늘 야근'}
         </button>

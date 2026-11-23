@@ -1,4 +1,4 @@
-import { formatDateTime } from '../utils/dateFormat';
+import { formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
 export const qualityProducts = ['CN7 LH', 'CN7 RH', 'RG3 LH', 'RG3 RH'] as const;
 export const qualityEquipment = ['S01', 'S02', 'S03', 'S04'] as const;
 export const defectTypes = ['가스', '찍힘', '휘어짐', '미성형'] as const;
@@ -19,9 +19,12 @@ export interface QualityFilters {
   product: string;
   equipment: string;
 }
+// 시연 데이터도 실제 오늘을 기준으로 최근 2주를 만든다.
+const DATA_END = todayISO();
+const DATA_START = shiftDateISO(DATA_END, -13);
 export const defaultQualityFilters: QualityFilters = {
-  from: '2026-11-11',
-  to: '2026-11-17',
+  from: shiftDateISO(DATA_END, -6),
+  to: DATA_END,
   product: '',
   equipment: '',
 };
@@ -45,7 +48,7 @@ export const inspectionBatches: InspectionBatch[] = [0, 1]
   .flatMap((week) =>
     Array.from({ length: 7 }, (_, day) =>
       qualityProducts.map((product, index) => {
-        const date = `2026-11-${String(4 + week * 7 + day).padStart(2, '0')}`;
+        const date = shiftDateISO(DATA_START, week * 7 + day);
         const inspected = index < 2 ? 100 : index === 2 ? 60 : day < 4 ? 90 : 100;
         const count =
           week === 0 && index === 3 ? [5, 6, 8, 12, 14, 12, 13][day] : currentDefects[index][day];
@@ -82,6 +85,10 @@ export const inspectionBatches: InspectionBatch[] = [0, 1]
     ),
   )
   .flat();
+export const inspectionDataRange = {
+  from: inspectionBatches[0].date,
+  to: inspectionBatches[inspectionBatches.length - 1].date,
+};
 export const defectCount = (record: InspectionBatch) =>
   defectTypes.reduce((sum, type) => sum + record.defects[type], 0);
 export const percentage = (part: number, total: number) =>
@@ -169,7 +176,7 @@ export function qualityReportText(filters: QualityFilters, records: InspectionBa
   const summary = summarizeQuality(records);
   const products = qualityByProduct(records);
   const focus = products.filter((product) => (product.rate ?? 0) > inspectionThreshold);
-  return `${qualityReportLabel(filters)} 품질 리포트 · 사출반장\n\n조회 기간: ${filters.from} ~ ${filters.to}\n제품: ${filters.product || '전체 제품'} / 설비: ${filters.equipment || '전체 설비'}\n\n검사 수량: ${summary.inspected.toLocaleString()}개\n양품 수량: ${summary.passed.toLocaleString()}개\n불량 수량: ${summary.defective.toLocaleString()}개\n검사 불량률: ${formatRate(summary.rate)}\n검사 배치: ${summary.batches}건\n\n제품별 현황\n${products.map((product) => `${product.product}: 검사 ${product.inspected.toLocaleString()}개 / 불량 ${product.defective}개 / ${formatRate(product.rate)}`).join('\n')}\n\n확인할 품목\n${focus.length ? focus.map((product) => `${product.product}: 검사 불량률 ${formatRate(product.rate)}로 점검 기준 ${inspectionThreshold}%를 초과합니다. 해당 기간의 검사 기록과 공정 조건·현장 조치 이력을 함께 확인해 주세요.`).join('\n') : '선택 범위에 점검 기준을 초과한 품목이 없습니다.'}\n\n데이터 기준\n모든 수치는 시연용 검사 배치 데이터입니다. 전체 생산 불량률이나 불량 원인을 확정하는 자료가 아닙니다. 검사 불량률 = 불량 수량 ÷ 검사 수량 × 100. AI·공정 API와 연결되지 않았습니다.\n`;
+  return `${qualityReportLabel(filters)} 품질 리포트 · 사출반장\n\n조회 기간: ${filters.from} ~ ${filters.to}\n제품: ${filters.product || '전체 제품'} / 설비: ${filters.equipment || '전체 설비'}\n\n검사 수량: ${summary.inspected.toLocaleString()}개\n양품 수량: ${summary.passed.toLocaleString()}개\n불량 수량: ${summary.defective.toLocaleString()}개\n검사 불량률: ${formatRate(summary.rate)}\n검사 배치: ${summary.batches}건\n\n제품별 현황\n${products.map((product) => `${product.product}: 검사 ${product.inspected.toLocaleString()}개 / 불량 ${product.defective}개 / ${formatRate(product.rate)}`).join('\n')}\n\n확인할 품목\n${focus.length ? focus.map((product) => `${product.product}: 검사 불량률 ${formatRate(product.rate)}로 점검 기준 ${inspectionThreshold}%를 초과합니다. 해당 기간의 검사 기록과 공정 조건·현장 조치 이력을 함께 확인해 주세요.`).join('\n') : '선택 범위에 점검 기준을 초과한 품목이 없습니다.'}\n\n데이터 기준\n모든 수치는 검사 배치 데이터 기준입니다. 전체 생산 불량률이나 불량 원인을 확정하는 자료가 아닙니다. 검사 불량률 = 불량 수량 ÷ 검사 수량 × 100.\n`;
 }
 
 // Production values and event times below are linked demonstration fixtures, not live factory data.

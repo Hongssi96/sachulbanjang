@@ -178,6 +178,7 @@ components/
 
 | 경로 | 페이지 컴포넌트 | 사이드바 메뉴 | 헤더 제목 |
 | --- | --- | --- | --- |
+| `/login` | `pages/LoginPage` | - | - |
 | `/` | `pages/HomePage` | 홈 | 홈 |
 | `/realtime` | `pages/RealtimePage` | 실시간 공정 | 실시간 공정 |
 | `/schedule` | `pages/SchedulePage` | 일정 관리 | 일정 관리 |
@@ -187,15 +188,23 @@ components/
 | `/inventory` | `pages/InventoryPage` | 재고 관리 | 재고 관리 |
 | `/quality-reports` | `pages/QualityReportPage` | 품질 리포트 | 품질 리포트 |
 | `/chat` | `pages/ChatSearchPage` | 과거 대화 이력 + 검색 | 대화·검색 |
-| `/reports` (예정) | 미구현 | 올라온 보고 | 준비 중 |
+| `/reports` | `pages/ReportsPage` | 올라온 보고 | 올라온 보고 |
+| `/reports/:reportId` | `pages/ReportsPage` | 올라온 보고 | 보고 상세 |
 
 
 
-- 생산·검사 이력(`/records`), 상세(`/records/:recordId`), 정밀기계검사(`/records/:recordId/precision-inspection`), 재고(`/inventory`), 품질(`/quality-reports`), 대화·검색(`/chat`)을 App에 연결한다. 올라온 보고 등 미구현 메뉴만 준비 중 안내를 표시한다.
+- 생산·검사 이력(`/records`), 상세(`/records/:recordId`), 정밀기계검사(`/records/:recordId/precision-inspection`), 재고(`/inventory`), 품질(`/quality-reports`), 보고(`/reports`), 대화·검색(`/chat`)을 AppShell에 연결한다.
+- `/login`은 고정 셸 밖에서 렌더링한다. 로그인하지 않은 사용자가 보호 라우트에 접근하면 `/login`으로 이동하고, 로그인 후 원래 요청한 경로로 돌아간다.
 - 정의되지 않은 주소는 페이지 없음 화면을 표시한다.
 - 새 라우트를 추가하면 이 표를 함께 갱신한다.
 
-#### 셸(App)이 소유하는 것
+#### 인증 상태
+
+- `hooks/AuthProvider`가 앱 시작 시 `GET /auth/me`로 세션을 복원하고, 만료됐으면 `POST /auth/refresh`를 한 번 시도한다.
+- 액세스·리프레시 토큰은 서버 HttpOnly 쿠키로 관리하며 FE 저장소에 토큰을 보관하지 않는다. 상태 변경 요청은 CSRF 쿠키 값을 `X-CSRF-Token` 헤더로 전달한다.
+- `App.tsx`가 인증 확인·보호 라우트를 판단하고, `AppShell.tsx`가 로그인 이후의 고정 셸과 업무 라우트를 소유한다.
+
+#### 셸(AppShell)이 소유하는 것
 
 - 사이드바와 Topbar의 렌더링·배치
 - 공통 상태: 사이드바 접힘, 라이트·다크 모드, 토스트 문구, 로그인 연장 예시 상태
@@ -217,7 +226,7 @@ components/
 
 #### 공유 파일 수정 규칙
 
-- `App.tsx`, `components/Sidebar.tsx`, `components/Topbar.tsx`: 라우트·메뉴 등 셸 변경은 담당자 간 합의 후 수정하고, 여러 브랜치에서 동시에 수정하지 않는다.
+- `App.tsx`, `AppShell.tsx`, `components/Sidebar.tsx`, `components/Topbar.tsx`: 라우트·메뉴·인증 가드 등 셸 변경은 담당자 간 합의 후 수정하고, 여러 브랜치에서 동시에 수정하지 않는다.
 - `constants/demoData.ts`, `types/index.ts`: 홈과 새 페이지가 함께 사용한다. 필드 추가·변경 전 기존 사용처를 확인하고, 기존 필드의 형식은 유지한다. 신규 필드는 optional로 추가한다.
 - `styles/global.css`: 페이지 스타일은 파일 뒤쪽에 페이지별 주석 구간으로 추가하고, 다크 모드(`.dark`) 오버라이드를 함께 작성한다. 기존 컴포넌트 스타일을 임의로 수정하지 않는다.
 - 컴포넌트 배치는 기존 코드 컨벤션을 우선한다: `pages/`와 `components/`는 평면 파일 구조(`HomePage.tsx`, `Sidebar.tsx` 방식)를 유지한다. 4.3의 폴더 구성 패턴은 컴포넌트 세트가 커진 시점에 합의 후 적용한다.

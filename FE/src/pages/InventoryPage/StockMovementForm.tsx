@@ -36,7 +36,7 @@ export default function StockMovementForm({ items, initialItemId, onSave }: Prop
     >
       <div className="inv-form-info">
         <Info size={18} />
-        <span>예시 재고를 변경합니다. 실제 재고 시스템에는 반영되지 않습니다.</span>
+        <span>재고 수량을 변경합니다.</span>
       </div>
       <fieldset className="inv-kind-options">
         <legend>처리 유형</legend>

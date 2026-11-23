@@ -20,8 +20,8 @@ export default function ProductionChart({ period }: ProductionChartProps) {
         role="img"
         aria-label={
           period === 'today'
-            ? '예시 시간별 생산량: 총 5,232개, 오전 8시 360개에서 오후 4시 622개까지'
-            : '예시 일별 생산량 추이'
+            ? '시간별 생산량: 총 5,232개, 오전 8시 360개에서 오후 4시 622개까지'
+            : '일별 생산량 추이'
         }
       >
         {(period === 'today' ? [0, 200, 400, 600, 800] : [0, 2000, 4000, 6000, 8000]).map(

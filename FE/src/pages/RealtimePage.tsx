@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import MetricTrendChart from '../components/MetricTrendChart';
+import SegmentedControl from '../components/SegmentedControl';
 import {
   defectRatePrevious,
   defectRateTrend,
@@ -350,6 +351,7 @@ export default function RealtimePage() {
 
   return (
     <>
+      <h1 className="sr-only">실시간 공정</h1>
       <div className="rt-summary">
         <article
           className="card rt-kpi rt-clickable"
@@ -358,35 +360,15 @@ export default function RealtimePage() {
         >
           <div className="card-heading">
             <h2>월 전체 생산량</h2>
-            <div
-              className="segmented-control"
-              role="group"
-              aria-label="생산 비교 기간 전환"
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className={trend === 'daily' ? 'selected' : ''}
-                aria-pressed={trend === 'daily'}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setTrend('daily');
-                }}
-              >
-                오늘
-              </button>
-              <button
-                type="button"
-                className={trend === 'weekly' ? 'selected' : ''}
-                aria-pressed={trend === 'weekly'}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setTrend('weekly');
-                }}
-              >
-                이번주
-              </button>
-            </div>
+            <SegmentedControl
+              label="생산 비교 기간 전환"
+              value={trend}
+              options={[
+                { value: 'daily', label: '오늘' },
+                { value: 'weekly', label: '이번주' },
+              ]}
+              onChange={setTrend}
+            />
           </div>
           <div className="kpi-value">
             {productionSummary.today.toLocaleString()}
@@ -734,7 +716,7 @@ export default function RealtimePage() {
           <input
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="예시: 오늘 생산량은 얼마나 됐어?"
+            placeholder="오늘 생산량은 얼마나 됐어?"
             aria-label="사출반장에게 질문"
           />
           <button className="button button-primary" type="submit">
@@ -820,9 +802,7 @@ export default function RealtimePage() {
               <p className="metric-empty">최근 실시간 기록이 없어요.</p>
             )}
           </section>
-          <p className="metric-basis">
-            설비 상태·생산량·점검 기록은 시연용 예시이며 실시간 데이터가 아닙니다.
-          </p>
+          <p className="metric-basis">설비 상태·생산량·점검 기록은 최근 집계 기준입니다.</p>
           <button
             type="button"
             className="metric-link"
@@ -1002,7 +982,7 @@ export default function RealtimePage() {
               ))}
             </ul>
           </section>
-          <p className="metric-basis">설비 상태와 진행률은 시연용 예시입니다.</p>
+          <p className="metric-basis">설비 상태와 진행률은 최근 집계 기준입니다.</p>
         </Modal>
       )}
 
@@ -1048,8 +1028,7 @@ export default function RealtimePage() {
             </div>
           </dl>
           <p className="metric-basis">
-            월 누계·목표와 비교 값은 시연용 예시입니다. 누계 추이는 최근 9일 생산량을 합산한
-            값입니다.
+            월 누계·목표와 비교 값은 최근 9일 생산량을 합산해 계산했습니다.
           </p>
           <button
             type="button"

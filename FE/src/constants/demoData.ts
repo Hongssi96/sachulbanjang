@@ -387,6 +387,8 @@ export const equipment: Equipment[] = [
     lastCheck: '2026.11.17',
   },
 ];
+// 시연 데이터의 기준 시각. 실제 API 연동 시 응답의 갱신 시각으로 교체한다.
+export const demoAsOf = '16:42';
 export const realtimeEvents: RealtimeEvent[] = [
   {
     time: '16:38',
