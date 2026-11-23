@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Route, Routes, useLocation } from 'react-router';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router';
 import TabletTasksPage from './TabletTasksPage';
+import TabletAccountDialog from './TabletAccountDialog';
 import TabletEquipmentPage from './TabletEquipmentPage';
 import TabletReportsPage from './TabletReportsPage';
 import { initialTabletReports } from './tabletData';
 import TabletQuestionFlow from './TabletQuestionFlow';
 import { emptyQuestionSelection } from './questionModel';
 import {
+  BookOpen,
+  NotebookPen,
   ArrowRight,
   ArrowUpRight,
   ChartNoAxesCombined,
@@ -36,10 +39,14 @@ const checklist = [
 ];
 export default function TabletHomePage() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [demoPassword, setDemoPassword] = useState('Tablet123!');
+  const [accountOpen, setAccountOpen] = useState(false);
   const [tabletReports, setTabletReports] = useState(initialTabletReports);
   const screenTitle =
     (
       {
+        '/login': '로그인',
         '/': '홈',
         '/tasks': '작업 지시',
         '/equipment': '설비 현황',
@@ -77,6 +84,22 @@ export default function TabletHomePage() {
     setDraft(note);
     setModal('note');
   };
+  const openLogin = () => {
+    setAccountOpen(false);
+    navigate('/login');
+  };
+  if (location.pathname === '/login') {
+    return (
+      <TabletAccountDialog
+        key="login-page"
+        page
+        password={demoPassword}
+        onPasswordChange={setDemoPassword}
+        onLoginOpen={openLogin}
+        onClose={() => navigate('/')}
+      />
+    );
+  }
   return (
     <div className="tablet-home">
       <aside className="th-sidebar" aria-label="현장 메뉴">
@@ -130,10 +153,16 @@ export default function TabletHomePage() {
               <i />
               주간조 <span>08:00–17:00</span>
             </span>
-            <span className="th-user-avatar">민</span>
-            <strong>
-              박민규 <small>현장관리자</small>
-            </strong>
+            <button
+              className="th-profile-trigger"
+              aria-label="박민규 개인 프로필 열기"
+              onClick={() => setAccountOpen(true)}
+            >
+              <span className="th-user-avatar">민</span>
+              <strong>
+                박민규 <small>현장관리자</small>
+              </strong>
+            </button>
             <button onClick={() => setExtended(!extended)}>
               {extended ? '연장 취소' : '로그인 연장'}
               <Clock3 size={15} />
@@ -296,24 +325,28 @@ export default function TabletHomePage() {
                         </div>
                         <div>
                           <button onClick={() => setModal('check')}>
+                            <ClipboardCheck size={21} />
                             <span>
                               <strong>점검 시작</strong>
                               <small>설비 체크리스트</small>
                             </span>
                           </button>
                           <button onClick={() => setModal('manual')}>
+                            <BookOpen size={21} />
                             <span>
                               <strong>매뉴얼</strong>
                               <small>표준 작업 절차</small>
                             </span>
                           </button>
                           <button onClick={openNote}>
+                            <NotebookPen size={21} />
                             <span>
                               <strong>교대 기록</strong>
                               <small>인수인계 확인</small>
                             </span>
                           </button>
                           <button onClick={() => setModal('contact')}>
+                            <ShieldCheck size={21} />
                             <span>
                               <strong>비상 연락</strong>
                               <small>관리자·안전팀</small>
@@ -352,6 +385,14 @@ export default function TabletHomePage() {
           </Routes>
         </section>
       </div>
+      {accountOpen && (
+        <TabletAccountDialog
+          password={demoPassword}
+          onPasswordChange={setDemoPassword}
+          onLoginOpen={openLogin}
+          onClose={() => setAccountOpen(false)}
+        />
+      )}
       {modal && (
         <Modal
           title={
