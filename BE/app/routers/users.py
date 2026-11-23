@@ -18,11 +18,16 @@ from app.schemas.users import (
     UserDetail,
     UserListItem,
     UserListResponse,
+    UserUpdateRequest,
 )
 from app.services.account_management import (
     AccountManagementService,
     CreateUserCommand,
     EmployeeNumberAlreadyExistsError,
+    LastAdminRequiredError,
+    SelfRoleChangeNotAllowedError,
+    UpdateUserCommand,
+    UserVersionConflictError,
 )
 from app.services.password_reset import (
     PasswordResetService,
@@ -104,6 +109,64 @@ def read_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
         ) from None
+
+
+@router.patch(
+    "/{user_id}",
+    response_model=UserDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def update_user(
+    user_id: Annotated[int, Path(ge=1)],
+    request: UserUpdateRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserDetail:
+    try:
+        user = service.update_user(
+            actor,
+            user_id,
+            UpdateUserCommand(
+                version=request.version,
+                display_name=request.display_name,
+                role=request.role,
+                shift_start_local=request.shift_start_local,
+                shift_end_local=request.shift_end_local,
+            ),
+        )
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+    except UserVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except SelfRoleChangeNotAllowedError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "SELF_ROLE_CHANGE_NOT_ALLOWED",
+                "message": "본인의 역할은 변경할 수 없습니다.",
+            },
+        ) from None
+    except LastAdminRequiredError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "LAST_ADMIN_REQUIRED",
+                "message": "활성 관리자가 최소 한 명 있어야 합니다.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _user_detail(user)
 
 
 @router.post(

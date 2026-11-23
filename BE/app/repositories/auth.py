@@ -50,6 +50,23 @@ class AuthRepository:
         """Include soft-deleted accounts so administrators can inspect them."""
         return self._session.scalar(select(AppUser).where(AppUser.id == user_id))
 
+    def find_any_user_for_update(self, user_id: int) -> AppUser | None:
+        return self._session.scalar(select(AppUser).where(AppUser.id == user_id).with_for_update())
+
+    def count_other_active_admins(self, user_id: int) -> int:
+        return (
+            self._session.scalar(
+                select(func.count())
+                .select_from(AppUser)
+                .where(
+                    AppUser.deleted_at.is_(None),
+                    AppUser.role == "admin",
+                    AppUser.id != user_id,
+                )
+            )
+            or 0
+        )
+
     def find_active_user_for_update(self, user_id: int) -> AppUser | None:
         """Lock an active account before an administrator changes its password."""
         return self._session.scalar(

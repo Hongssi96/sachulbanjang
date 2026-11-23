@@ -16,6 +16,31 @@ class EmployeeNumberAlreadyExistsError(Exception):
     """Raised when an employee number is already reserved, including by a deleted account."""
 
 
+class UserVersionConflictError(Exception):
+    """Raised when an account edit is based on an outdated version."""
+
+    def __init__(self, current_version: int) -> None:
+        self.current_version = current_version
+        super().__init__("account was changed by another request")
+
+
+class SelfRoleChangeNotAllowedError(Exception):
+    """Raised when an administrator changes their own role."""
+
+
+class LastAdminRequiredError(Exception):
+    """Raised when an edit would leave no active administrator."""
+
+
+@dataclass(frozen=True)
+class UpdateUserCommand:
+    version: int
+    display_name: str | None = None
+    role: str | None = None
+    shift_start_local: time | None = None
+    shift_end_local: time | None = None
+
+
 @dataclass(frozen=True)
 class CreateUserCommand:
     employee_no: str
@@ -72,6 +97,36 @@ class AccountManagementService:
         user = self._repository.find_any_user_by_id(user_id)
         if user is None:
             raise UserNotFoundError
+        return user
+
+    def update_user(self, actor: AppUser, user_id: int, command: UpdateUserCommand) -> AppUser:
+        user = self._repository.find_any_user_for_update(user_id)
+        if user is None:
+            raise UserNotFoundError
+        if user.version != command.version:
+            raise UserVersionConflictError(user.version)
+
+        if command.role is not None and command.role != user.role:
+            if actor.id == user.id:
+                raise SelfRoleChangeNotAllowedError
+            if (
+                user.role == "admin"
+                and command.role != "admin"
+                and self._repository.count_other_active_admins(user.id) == 0
+            ):
+                raise LastAdminRequiredError
+
+        if command.display_name is not None:
+            user.display_name = command.display_name
+        if command.role is not None:
+            user.role = command.role
+        if command.shift_start_local is not None:
+            user.shift_start_local = command.shift_start_local
+        if command.shift_end_local is not None:
+            user.shift_end_local = command.shift_end_local
+        user.version += 1
+
+        self._session.commit()
         return user
 
     def create_user(self, command: CreateUserCommand) -> CreateUserResult:

@@ -9,6 +9,10 @@ from app.services.account_management import (
     AccountManagementService,
     CreateUserCommand,
     EmployeeNumberAlreadyExistsError,
+    LastAdminRequiredError,
+    SelfRoleChangeNotAllowedError,
+    UpdateUserCommand,
+    UserVersionConflictError,
 )
 from app.services.password_reset import UserNotFoundError
 from sqlalchemy.exc import IntegrityError
@@ -71,6 +75,101 @@ def test_create_user_reserves_soft_deleted_employee_number() -> None:
 
     repository.add_user.assert_not_called()
     session.commit.assert_not_called()
+
+
+def make_target(**overrides: object) -> AppUser:
+    values: dict[str, object] = {
+        "id": 7,
+        "employee_no": "E007",
+        "display_name": "고용자",
+        "role": "worker",
+        "must_change_password": False,
+        "shift_start_local": time(9, 0),
+        "shift_end_local": time(18, 0),
+        "version": 2,
+    }
+    values.update(overrides)
+    return AppUser(**values)
+
+
+def test_update_user_applies_changes_and_increments_version() -> None:
+    actor = make_target(id=1, role="admin")
+    target = make_target()
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = target
+
+    result = AccountManagementService(session, repository).update_user(
+        actor,
+        7,
+        UpdateUserCommand(
+            version=2,
+            display_name="새 이름",
+            role="admin",
+            shift_start_local=time(8, 30),
+        ),
+    )
+
+    assert result is target
+    assert target.display_name == "새 이름"
+    assert target.role == "admin"
+    assert target.shift_start_local == time(8, 30)
+    assert target.shift_end_local == time(18, 0)
+    assert target.version == 3
+    session.commit.assert_called_once_with()
+
+
+def test_update_user_rejects_outdated_version() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = make_target(version=5)
+
+    with pytest.raises(UserVersionConflictError) as caught:
+        AccountManagementService(session, repository).update_user(
+            make_target(id=1, role="admin"), 7, UpdateUserCommand(version=4, display_name="이름")
+        )
+
+    assert caught.value.current_version == 5
+    session.commit.assert_not_called()
+
+
+def test_update_user_blocks_self_role_change_but_allows_other_fields() -> None:
+    actor = make_target(id=7, role="admin")
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = actor
+
+    with pytest.raises(SelfRoleChangeNotAllowedError):
+        AccountManagementService(session, repository).update_user(
+            actor, 7, UpdateUserCommand(version=2, role="worker")
+        )
+    session.commit.assert_not_called()
+
+    AccountManagementService(session, repository).update_user(
+        actor, 7, UpdateUserCommand(version=2, display_name="새 이름")
+    )
+    assert actor.display_name == "새 이름"
+
+
+def test_update_user_keeps_the_last_active_administrator() -> None:
+    actor = make_target(id=1, role="admin")
+    target = make_target(role="admin")
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = target
+    repository.count_other_active_admins.return_value = 0
+
+    with pytest.raises(LastAdminRequiredError):
+        AccountManagementService(session, repository).update_user(
+            actor, 7, UpdateUserCommand(version=2, role="worker")
+        )
+    session.commit.assert_not_called()
+
+    repository.count_other_active_admins.return_value = 1
+    AccountManagementService(session, repository).update_user(
+        actor, 7, UpdateUserCommand(version=2, role="worker")
+    )
+    assert target.role == "worker"
 
 
 def test_list_users_trims_query_and_paginates() -> None:

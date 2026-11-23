@@ -1,7 +1,7 @@
 from datetime import datetime, time
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class UserCreateRequest(BaseModel):
@@ -68,6 +68,35 @@ class UserDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     deactivated_at: datetime | None
+
+
+class UserUpdateRequest(BaseModel):
+    version: int = Field(ge=1)
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    role: Literal["admin", "worker"] | None = None
+    shift_start_local: time | None = None
+    shift_end_local: time | None = None
+
+    @field_validator("display_name")
+    @classmethod
+    def reject_blank_display_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("공백만 입력할 수 없습니다.")
+        return normalized
+
+    @model_validator(mode="after")
+    def require_at_least_one_change(self) -> UserUpdateRequest:
+        if (
+            self.display_name is None
+            and self.role is None
+            and self.shift_start_local is None
+            and self.shift_end_local is None
+        ):
+            raise ValueError("변경할 필드를 하나 이상 지정해야 합니다.")
+        return self
 
 
 class PasswordResetResponse(BaseModel):
