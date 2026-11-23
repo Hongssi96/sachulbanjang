@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = Field(default="imleader_refresh_token", min_length=1)
     csrf_cookie_name: str = Field(default="imleader_csrf_token", min_length=1)
     refresh_reuse_grace_seconds: int = Field(default=10, ge=0)
+    temporary_password_ttl_seconds: int = Field(default=86400, ge=1)
     auth_cookie_secure: bool = False
     cors_origins: list[str] = Field(default_factory=list)
 

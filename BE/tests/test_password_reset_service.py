@@ -3,6 +3,7 @@ from datetime import UTC, datetime, time, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from app.core.config import Settings
 from app.models.auth import AuthSession, RefreshCredential
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
@@ -83,12 +84,21 @@ class FakePasswordResetRepository(AuthRepository):
         return [credential for credential in self.credentials if credential.session_id in wanted]
 
 
+def make_settings(*, temporary_password_ttl_seconds: int = 86400) -> Settings:
+    return Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://user:password@localhost/database",
+        jwt_secret="test-secret-that-is-at-least-32-characters",
+        temporary_password_ttl_seconds=temporary_password_ttl_seconds,
+    )
+
+
 def build_service(
     user: AppUser | None,
 ) -> tuple[PasswordResetService, FakePasswordResetRepository, MagicMock]:
     session = MagicMock(spec=Session)
     repository = FakePasswordResetRepository(user)
-    service = PasswordResetService(session, repository, clock=lambda: NOW)
+    service = PasswordResetService(session, repository, make_settings(), clock=lambda: NOW)
     return service, repository, session
 
 
@@ -114,6 +124,7 @@ def test_reset_replaces_password_and_revokes_all_login_credentials() -> None:
     assert verify_password(result.temporary_password, target.password_hash)
     assert not verify_password("old-password", target.password_hash)
     assert target.must_change_password is True
+    assert target.temporary_password_expires_at == NOW + timedelta(seconds=86400)
     assert target.version == 4
     assert target.failed_login_count == 0
     assert target.locked_until is None
@@ -163,6 +174,23 @@ def test_reset_keeps_sessions_of_other_users() -> None:
     assert repository.sessions[1].revoked_at is None
     assert repository.credentials[0].revoked_at == NOW
     assert repository.credentials[1].revoked_at is None
+
+
+def test_reset_uses_configured_temporary_password_ttl() -> None:
+    target = make_user()
+    actor = make_user(user_id=99, role="admin")
+    session = MagicMock(spec=Session)
+    repository = FakePasswordResetRepository(target)
+    service = PasswordResetService(
+        session,
+        repository,
+        make_settings(temporary_password_ttl_seconds=3600),
+        clock=lambda: NOW,
+    )
+
+    service.reset_password(actor, target.id)
+
+    assert target.temporary_password_expires_at == NOW + timedelta(seconds=3600)
 
 
 def test_temporary_password_has_required_length_and_characters() -> None:

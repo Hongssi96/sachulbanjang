@@ -1,7 +1,8 @@
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from app.core.config import Settings
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.passwords import verify_password
@@ -21,6 +22,11 @@ from app.services.password_reset import UserNotFoundError
 from sqlalchemy.exc import IntegrityError
 
 NOW = datetime.now(UTC)
+SETTINGS = Settings(
+    _env_file=None,
+    database_url="postgresql+psycopg://user:password@localhost/database",
+    jwt_secret="test-secret-that-is-at-least-32-characters",
+)
 
 
 def command(employee_no: str = "E200") -> CreateUserCommand:
@@ -39,7 +45,7 @@ def test_get_user_returns_soft_deleted_account() -> None:
     deleted = AppUser(id=7)
     repository.find_any_user_by_id.return_value = deleted
 
-    result = AccountManagementService(session, repository).get_user(7)
+    result = AccountManagementService(session, repository, SETTINGS).get_user(7)
 
     repository.find_any_user_by_id.assert_called_once_with(7)
     assert result is deleted
@@ -51,7 +57,7 @@ def test_get_user_rejects_unknown_account() -> None:
     repository.find_any_user_by_id.return_value = None
 
     with pytest.raises(UserNotFoundError):
-        AccountManagementService(session, repository).get_user(7)
+        AccountManagementService(session, repository, SETTINGS).get_user(7)
 
 
 def test_create_user_hashes_temporary_password_and_requires_change() -> None:
@@ -59,7 +65,7 @@ def test_create_user_hashes_temporary_password_and_requires_change() -> None:
     repository = MagicMock(spec=AuthRepository)
     repository.find_user_by_employee_no.return_value = None
 
-    result = AccountManagementService(session, repository).create_user(command())
+    result = AccountManagementService(session, repository, SETTINGS).create_user(command())
 
     repository.add_user.assert_called_once_with(result.user)
     session.commit.assert_called_once_with()
@@ -70,13 +76,25 @@ def test_create_user_hashes_temporary_password_and_requires_change() -> None:
     assert len(result.temporary_password) == 16
 
 
+def test_create_user_sets_temporary_password_expiry() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_user_by_employee_no.return_value = None
+
+    result = AccountManagementService(session, repository, SETTINGS, clock=lambda: NOW).create_user(
+        command()
+    )
+
+    assert result.user.temporary_password_expires_at == NOW + timedelta(seconds=86400)
+
+
 def test_create_user_reserves_soft_deleted_employee_number() -> None:
     session = MagicMock()
     repository = MagicMock(spec=AuthRepository)
     repository.find_user_by_employee_no.return_value = AppUser()
 
     with pytest.raises(EmployeeNumberAlreadyExistsError):
-        AccountManagementService(session, repository).create_user(command())
+        AccountManagementService(session, repository, SETTINGS).create_user(command())
 
     repository.add_user.assert_not_called()
     session.commit.assert_not_called()
@@ -104,7 +122,7 @@ def test_update_user_applies_changes_and_increments_version() -> None:
     repository = MagicMock(spec=AuthRepository)
     repository.find_any_user_for_update.return_value = target
 
-    result = AccountManagementService(session, repository).update_user(
+    result = AccountManagementService(session, repository, SETTINGS).update_user(
         actor,
         7,
         UpdateUserCommand(
@@ -130,7 +148,7 @@ def test_update_user_rejects_outdated_version() -> None:
     repository.find_any_user_for_update.return_value = make_target(version=5)
 
     with pytest.raises(UserVersionConflictError) as caught:
-        AccountManagementService(session, repository).update_user(
+        AccountManagementService(session, repository, SETTINGS).update_user(
             make_target(id=1, role="admin"), 7, UpdateUserCommand(version=4, display_name="이름")
         )
 
@@ -145,12 +163,12 @@ def test_update_user_blocks_self_role_change_but_allows_other_fields() -> None:
     repository.find_any_user_for_update.return_value = actor
 
     with pytest.raises(SelfRoleChangeNotAllowedError):
-        AccountManagementService(session, repository).update_user(
+        AccountManagementService(session, repository, SETTINGS).update_user(
             actor, 7, UpdateUserCommand(version=2, role="worker")
         )
     session.commit.assert_not_called()
 
-    AccountManagementService(session, repository).update_user(
+    AccountManagementService(session, repository, SETTINGS).update_user(
         actor, 7, UpdateUserCommand(version=2, display_name="새 이름")
     )
     assert actor.display_name == "새 이름"
@@ -165,13 +183,13 @@ def test_update_user_keeps_the_last_active_administrator() -> None:
     repository.count_other_active_admins.return_value = 0
 
     with pytest.raises(LastAdminRequiredError):
-        AccountManagementService(session, repository).update_user(
+        AccountManagementService(session, repository, SETTINGS).update_user(
             actor, 7, UpdateUserCommand(version=2, role="worker")
         )
     session.commit.assert_not_called()
 
     repository.count_other_active_admins.return_value = 1
-    AccountManagementService(session, repository).update_user(
+    AccountManagementService(session, repository, SETTINGS).update_user(
         actor, 7, UpdateUserCommand(version=2, role="worker")
     )
     assert target.role == "worker"
@@ -186,9 +204,9 @@ def test_deactivate_user_soft_deletes_and_revokes_sessions() -> None:
     repository.find_sessions_for_update.return_value = []
     repository.find_credentials_for_update.return_value = []
 
-    result = AccountManagementService(session, repository, clock=lambda: NOW).deactivate_user(
-        actor, 7, 2
-    )
+    result = AccountManagementService(
+        session, repository, SETTINGS, clock=lambda: NOW
+    ).deactivate_user(actor, 7, 2)
 
     assert result is target
     assert target.deleted_at == NOW
@@ -204,15 +222,15 @@ def test_deactivate_user_protects_self_and_last_admin() -> None:
     repository.find_any_user_for_update.return_value = admin
 
     with pytest.raises(SelfDeactivationNotAllowedError):
-        AccountManagementService(session, repository).deactivate_user(admin, 7, 2)
+        AccountManagementService(session, repository, SETTINGS).deactivate_user(admin, 7, 2)
 
     other = make_target(id=1, role="admin")
     repository.count_other_active_admins.return_value = 0
     with pytest.raises(LastAdminRequiredError):
-        AccountManagementService(session, repository).deactivate_user(other, 7, 2)
+        AccountManagementService(session, repository, SETTINGS).deactivate_user(other, 7, 2)
 
     repository.count_other_active_admins.return_value = 1
-    AccountManagementService(session, repository).deactivate_user(other, 7, 2)
+    AccountManagementService(session, repository, SETTINGS).deactivate_user(other, 7, 2)
     assert admin.deleted_at is not None
 
 
@@ -223,11 +241,11 @@ def test_deactivate_user_rejects_inactive_account_and_stale_version() -> None:
 
     repository.find_any_user_for_update.return_value = make_target(deleted_at=NOW)
     with pytest.raises(AccountAlreadyInactiveError):
-        AccountManagementService(session, repository).deactivate_user(actor, 7, 2)
+        AccountManagementService(session, repository, SETTINGS).deactivate_user(actor, 7, 2)
 
     repository.find_any_user_for_update.return_value = make_target(version=9)
     with pytest.raises(UserVersionConflictError):
-        AccountManagementService(session, repository).deactivate_user(actor, 7, 2)
+        AccountManagementService(session, repository, SETTINGS).deactivate_user(actor, 7, 2)
 
     session.commit.assert_not_called()
 
@@ -237,7 +255,7 @@ def test_reactivate_user_restores_account() -> None:
     repository = MagicMock(spec=AuthRepository)
     repository.find_any_user_for_update.return_value = make_target(deleted_at=NOW)
 
-    result = AccountManagementService(session, repository).reactivate_user(7, 2)
+    result = AccountManagementService(session, repository, SETTINGS).reactivate_user(7, 2)
 
     assert result.deleted_at is None
     assert result.version == 3
@@ -250,11 +268,11 @@ def test_reactivate_user_rejects_active_account_and_unknown_user() -> None:
     repository.find_any_user_for_update.return_value = make_target()
 
     with pytest.raises(AccountAlreadyActiveError):
-        AccountManagementService(session, repository).reactivate_user(7, 2)
+        AccountManagementService(session, repository, SETTINGS).reactivate_user(7, 2)
 
     repository.find_any_user_for_update.return_value = None
     with pytest.raises(UserNotFoundError):
-        AccountManagementService(session, repository).reactivate_user(7, 2)
+        AccountManagementService(session, repository, SETTINGS).reactivate_user(7, 2)
 
     session.commit.assert_not_called()
 
@@ -265,7 +283,7 @@ def test_list_users_trims_query_and_paginates() -> None:
     repository.count_users.return_value = 12
     repository.find_users.return_value = [AppUser()]
 
-    result = AccountManagementService(session, repository).list_users(
+    result = AccountManagementService(session, repository, SETTINGS).list_users(
         query="  홍길동  ",
         role="worker",
         include_inactive=False,
@@ -293,7 +311,7 @@ def test_list_users_treats_blank_query_as_no_filter() -> None:
     repository.count_users.return_value = 0
     repository.find_users.return_value = []
 
-    AccountManagementService(session, repository).list_users(
+    AccountManagementService(session, repository, SETTINGS).list_users(
         query="   ",
         role=None,
         include_inactive=True,
@@ -311,7 +329,7 @@ def test_create_user_translates_unique_constraint_race_and_rolls_back() -> None:
     repository.add_user.side_effect = IntegrityError("statement", {}, Exception("duplicate"))
 
     with pytest.raises(EmployeeNumberAlreadyExistsError):
-        AccountManagementService(session, repository).create_user(command())
+        AccountManagementService(session, repository, SETTINGS).create_user(command())
 
     session.rollback.assert_called_once_with()
     session.commit.assert_not_called()

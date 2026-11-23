@@ -4,10 +4,11 @@ import secrets
 import string
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password
@@ -65,10 +66,12 @@ class PasswordResetService:
         self,
         session: Session,
         repository: AuthRepository,
+        settings: Settings,
         clock: Clock = _utc_now,
     ) -> None:
         self._session = session
         self._repository = repository
+        self._settings = settings
         self._clock = clock
 
     def reset_password(self, actor: AppUser, user_id: int) -> PasswordResetResult:
@@ -83,6 +86,9 @@ class PasswordResetService:
         temporary_password = generate_temporary_password()
         user.password_hash = hash_password(temporary_password)
         user.must_change_password = True
+        user.temporary_password_expires_at = now + timedelta(
+            seconds=self._settings.temporary_password_ttl_seconds
+        )
         user.version += 1
         user.failed_login_count = 0
         user.locked_until = None

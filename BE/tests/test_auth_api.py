@@ -1,8 +1,12 @@
 from datetime import UTC, datetime, time, timedelta
 from unittest.mock import MagicMock
 
+import pytest
 from app.core.config import Settings
-from app.dependencies.auth import get_auth_service, get_current_user
+from app.dependencies.auth import (
+    get_auth_service,
+    get_current_user_allow_password_change,
+)
 from app.main import create_app
 from app.models.master import AppUser
 from app.schemas.auth import AuthenticatedUser
@@ -16,6 +20,7 @@ from app.services.auth import (
     LoginResult,
     PasswordUnchangedError,
     SessionRevokedError,
+    TemporaryPasswordExpiredError,
 )
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -132,6 +137,52 @@ def test_locked_login_returns_retry_after_header() -> None:
     assert int(response.headers["retry-after"]) >= 1
 
 
+def test_expired_temporary_password_login_returns_contract_code() -> None:
+    application = make_application()
+    service = MagicMock(spec=AuthService)
+    service.login.side_effect = TemporaryPasswordExpiredError
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"employee_no": "E001", "password": "temporary"},
+        )
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "TEMPORARY_PASSWORD_EXPIRED"
+
+
+def test_business_route_requires_password_change(monkeypatch: pytest.MonkeyPatch) -> None:
+    user = make_user()
+    user.must_change_password = True
+    monkeypatch.setattr(
+        "app.dependencies.auth.load_authenticated_user",
+        lambda request, session, settings: user,
+    )
+
+    with TestClient(make_application()) as client:
+        response = client.get("/api/v1/process/current")
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "PASSWORD_CHANGE_REQUIRED"
+
+
+def test_me_is_allowed_before_password_change(monkeypatch: pytest.MonkeyPatch) -> None:
+    user = make_user()
+    user.must_change_password = True
+    monkeypatch.setattr(
+        "app.dependencies.auth.load_authenticated_user",
+        lambda request, session, settings: user,
+    )
+
+    with TestClient(make_application()) as client:
+        response = client.get("/api/v1/auth/me")
+
+    assert response.status_code == 200
+    assert response.json()["must_change_password"] is True
+
+
 def test_me_requires_access_cookie() -> None:
     with TestClient(make_application()) as client:
         response = client.get("/api/v1/auth/me")
@@ -157,7 +208,7 @@ def test_me_returns_authenticated_user() -> None:
     user = make_user()
     application = make_application()
     expected = AuthenticatedUser.model_validate(user)
-    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_current_user_allow_password_change] = lambda: user
 
     with TestClient(application) as client:
         response = client.get("/api/v1/auth/me")
@@ -322,7 +373,7 @@ def test_change_password_returns_updated_user() -> None:
 
     service.change_password.side_effect = change_password
     application, settings = make_app_with_settings()
-    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_current_user_allow_password_change] = lambda: user
     application.dependency_overrides[get_auth_service] = lambda: service
 
     with TestClient(application) as client:
@@ -345,7 +396,7 @@ def test_change_password_maps_domain_errors() -> None:
     user = make_user()
     application, settings = make_app_with_settings()
     service = MagicMock(spec=AuthService)
-    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_current_user_allow_password_change] = lambda: user
     application.dependency_overrides[get_auth_service] = lambda: service
 
     with TestClient(application) as client:

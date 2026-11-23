@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password
@@ -86,10 +87,15 @@ class AccountManagementService:
     """Create administrator-managed accounts with one-time temporary credentials."""
 
     def __init__(
-        self, session: Session, repository: AuthRepository, clock: Clock = _utc_now
+        self,
+        session: Session,
+        repository: AuthRepository,
+        settings: Settings,
+        clock: Clock = _utc_now,
     ) -> None:
         self._session = session
         self._repository = repository
+        self._settings = settings
         self._clock = clock
 
     def list_users(
@@ -197,6 +203,8 @@ class AccountManagementService:
             password_hash=hash_password(temporary_password),
             role=command.role,
             must_change_password=True,
+            temporary_password_expires_at=self._clock()
+            + timedelta(seconds=self._settings.temporary_password_ttl_seconds),
             shift_start_local=command.shift_start_local,
             shift_end_local=command.shift_end_local,
         )

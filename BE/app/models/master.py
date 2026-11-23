@@ -36,6 +36,7 @@ class AppUser(TimestampMixin, SoftDeleteMixin, Base):
     shift_end_local: Mapped[time] = mapped_column(Time, nullable=False)
     failed_login_count: Mapped[int] = mapped_column(default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    temporary_password_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(default=1, nullable=False)
 
 
