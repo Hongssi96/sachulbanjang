@@ -15,6 +15,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "production_line",
         "refresh_credential",
         "source_import",
+        "work_extension",
     }
 
 
@@ -50,3 +51,16 @@ def test_equipment_line_and_product_code_allow_unconfirmed_csv_values() -> None:
 
     assert equipment.c.production_line_id.nullable
     assert product.c.product_code.nullable
+
+
+def test_auth_session_tracks_shared_work_end_and_extension_version() -> None:
+    table = Base.metadata.tables["auth_session"]
+
+    assert not table.c.work_ends_at.nullable
+    assert not table.c.work_session_version.nullable
+    assert table.c.auto_extended_for.nullable
+    assert any(
+        isinstance(constraint, CheckConstraint)
+        and constraint.name == "ck_auth_session_work_session_version"
+        for constraint in table.constraints
+    )
