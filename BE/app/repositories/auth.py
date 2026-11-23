@@ -46,6 +46,10 @@ class AuthRepository:
             select(AppUser).where(AppUser.id == user_id, AppUser.deleted_at.is_(None))
         )
 
+    def find_any_user_by_id(self, user_id: int) -> AppUser | None:
+        """Include soft-deleted accounts so administrators can inspect them."""
+        return self._session.scalar(select(AppUser).where(AppUser.id == user_id))
+
     def find_active_user_for_update(self, user_id: int) -> AppUser | None:
         """Lock an active account before an administrator changes its password."""
         return self._session.scalar(

@@ -10,6 +10,7 @@ from app.services.account_management import (
     CreateUserCommand,
     EmployeeNumberAlreadyExistsError,
 )
+from app.services.password_reset import UserNotFoundError
 from sqlalchemy.exc import IntegrityError
 
 
@@ -21,6 +22,27 @@ def command(employee_no: str = "E200") -> CreateUserCommand:
         shift_start_local=time(9, 0),
         shift_end_local=time(18, 0),
     )
+
+
+def test_get_user_returns_soft_deleted_account() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    deleted = AppUser(id=7)
+    repository.find_any_user_by_id.return_value = deleted
+
+    result = AccountManagementService(session, repository).get_user(7)
+
+    repository.find_any_user_by_id.assert_called_once_with(7)
+    assert result is deleted
+
+
+def test_get_user_rejects_unknown_account() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_by_id.return_value = None
+
+    with pytest.raises(UserNotFoundError):
+        AccountManagementService(session, repository).get_user(7)
 
 
 def test_create_user_hashes_temporary_password_and_requires_change() -> None:

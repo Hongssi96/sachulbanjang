@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -53,6 +53,21 @@ class UserListItem(BaseModel):
 class UserListResponse(BaseModel):
     items: list[UserListItem]
     pagination: Pagination
+
+
+class UserDetail(BaseModel):
+    user_id: int
+    employee_no: str
+    display_name: str
+    role: Literal["admin", "worker"]
+    is_active: bool
+    shift_start_local: time
+    shift_end_local: time
+    must_change_password: bool
+    version: int
+    created_at: datetime
+    updated_at: datetime
+    deactivated_at: datetime | None
 
 
 class PasswordResetResponse(BaseModel):

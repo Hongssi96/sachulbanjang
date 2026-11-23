@@ -15,6 +15,7 @@ from app.schemas.users import (
     PasswordResetResponse,
     UserCreateRequest,
     UserCreateResponse,
+    UserDetail,
     UserListItem,
     UserListResponse,
 )
@@ -45,6 +46,23 @@ def _user_list_item(user: AppUser) -> UserListItem:
     )
 
 
+def _user_detail(user: AppUser) -> UserDetail:
+    return UserDetail(
+        user_id=user.id,
+        employee_no=user.employee_no,
+        display_name=user.display_name,
+        role=user.role,
+        is_active=user.deleted_at is None,
+        shift_start_local=user.shift_start_local,
+        shift_end_local=user.shift_end_local,
+        must_change_password=user.must_change_password,
+        version=user.version,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        deactivated_at=user.deleted_at,
+    )
+
+
 @router.get("", response_model=UserListResponse)
 def list_users(
     _: Annotated[AppUser, Depends(require_admin)],
@@ -71,6 +89,21 @@ def list_users(
             total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
         ),
     )
+
+
+@router.get("/{user_id}", response_model=UserDetail)
+def read_user(
+    user_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+) -> UserDetail:
+    try:
+        return _user_detail(service.get_user(user_id))
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
 
 
 @router.post(

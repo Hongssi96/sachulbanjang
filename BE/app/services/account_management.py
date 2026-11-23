@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password
-from app.services.password_reset import generate_temporary_password
+from app.services.password_reset import UserNotFoundError, generate_temporary_password
 
 
 class EmployeeNumberAlreadyExistsError(Exception):
@@ -67,6 +67,12 @@ class AccountManagementService:
             limit=page_size,
         )
         return UserListResult(users=users, total_items=total_items)
+
+    def get_user(self, user_id: int) -> AppUser:
+        user = self._repository.find_any_user_by_id(user_id)
+        if user is None:
+            raise UserNotFoundError
+        return user
 
     def create_user(self, command: CreateUserCommand) -> CreateUserResult:
         if self._repository.find_user_by_employee_no(command.employee_no) is not None:
