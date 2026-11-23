@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_url: str = Field(min_length=1)
     jwt_secret: SecretStr = Field(min_length=32)
+    ai_base_url: str | None = None
     ai_api_key: SecretStr | None = None
+    ai_model: str = Field(default="gpt-6.2-sol", min_length=1)
     access_token_ttl_seconds: int = Field(default=900, ge=1)
     refresh_token_ttl_seconds: int = Field(default=604800, ge=1)
     login_max_failures: int = Field(default=5, ge=1)

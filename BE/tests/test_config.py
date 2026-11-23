@@ -19,3 +19,21 @@ def test_ai_key_is_optional() -> None:
     )
 
     assert settings.ai_api_key is None
+    assert settings.ai_base_url is None
+    assert settings.ai_model == "gpt-6.2-sol"
+
+
+def test_ai_connection_settings_can_be_overridden() -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://user:password@localhost/database",
+        jwt_secret="x" * 32,
+        ai_base_url="https://ai.example.com/v1",
+        ai_api_key="issued-key",
+        ai_model="gpt-6.2-sol",
+    )
+
+    assert settings.ai_base_url == "https://ai.example.com/v1"
+    assert settings.ai_api_key is not None
+    assert settings.ai_api_key.get_secret_value() == "issued-key"
+    assert settings.ai_model == "gpt-6.2-sol"
