@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0015` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0016` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -208,6 +208,29 @@ erDiagram
         timestamptz created_at
     }
 
+    HANDOVER_NOTE {
+        bigint id PK
+        bigint author_id FK
+        text body
+        integer version
+        timestamptz deleted_at "nullable"
+    }
+
+    HANDOVER_TARGET {
+        bigint id PK
+        bigint handover_note_id FK
+        bigint department_id FK "nullable"
+        bigint production_line_id FK "nullable"
+        bigint equipment_id FK "nullable"
+    }
+
+    HANDOVER_READ {
+        bigint id PK
+        bigint handover_note_id FK
+        bigint user_id FK
+        timestamptz confirmed_at
+    }
+
     STOCK_BALANCE {
         bigint id PK
         bigint product_id FK,UK
@@ -289,6 +312,13 @@ erDiagram
     APP_USER ||--o{ STOCK_MOVEMENT : performs
     APP_USER o|--o{ STOCK_MOVEMENT : checks
     STOCK_MOVEMENT o|--o{ STOCK_MOVEMENT : corrects
+    APP_USER ||--o{ HANDOVER_NOTE : authors
+    HANDOVER_NOTE ||--o{ HANDOVER_TARGET : covers
+    HANDOVER_NOTE ||--o{ HANDOVER_READ : confirmed_by
+    APP_USER ||--o{ HANDOVER_READ : confirms
+    DEPARTMENT o|--o{ HANDOVER_TARGET : referenced
+    PRODUCTION_LINE o|--o{ HANDOVER_TARGET : referenced
+    EQUIPMENT o|--o{ HANDOVER_TARGET : referenced
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -345,16 +375,19 @@ erDiagram
   제품 행을 잠근 뒤 원장(`stock_movement`)과 잔고를 같은 트랜잭션에서 갱신한다. 원장은 유형
   (`initial`·`receipt`·`issue`·`adjustment`·`correction`)·증감·사유·등록자·확인자·원거래 연결을 남기며
   삭제하지 않는다(DEC-085·DEC-086·DEC-139·DEC-213).
+- `handover_note`는 본문 Markdown과 version을 갖고 soft delete한다. `handover_target`은 부서·라인·설비 중
+  정확히 하나를 대상으로 갖고(CHECK), `handover_read`는 `(handover_note_id, user_id)` UNIQUE로 사용자별
+  확인자·확인 시각을 한 번만 기록한다(DEC-090·DEC-091·DEC-214).
 
 ## 구현 위치
 
 - ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`,
   `BE/app/models/account_audit.py`, `BE/app/models/report.py`, `BE/app/models/report_job.py`,
-  `BE/app/models/schedule.py`, `BE/app/models/stock.py`
+  `BE/app/models/schedule.py`, `BE/app/models/stock.py`, `BE/app/models/handover.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
   `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`,
   `20261123_0011_record_change.py`, `20261123_0012_report.py`, `20261123_0013_generation_job.py`,
-  `20261123_0014_schedule.py`, `20261123_0015_inventory.py`
+  `20261123_0014_schedule.py`, `20261123_0015_inventory.py`, `20261123_0016_handover.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)
