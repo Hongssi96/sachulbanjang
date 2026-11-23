@@ -63,9 +63,9 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
 | 인증·계정 관리 | 검증 완료 | 로그인·갱신·로그아웃·현재 사용자 조회·본인 비밀번호 변경·관리자 계정 생성·비밀번호 초기화, 관리자 사용자 목록·상세·수정·비활성화·재활성화·감사 이력 조회, Argon2id 검증, 5회 실패 잠금, 임시 비밀번호 24시간(설정값) 만료와 최초 변경 강제, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 최초 관리자 시드 CLI, FE 출처 CORS 구현. Ruff·mypy·pytest 160건 및 PostgreSQL 18 계정 생성·초기화·비활성화 통합 검증 | 2026-11-23 |
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
-| 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정과 인증된 현재 공정 조회 구현. 전체 pytest 및 PostgreSQL 18 replay 검증. FE polling 연동 미확인 | 2026-11-20 |
+| 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션) 구현. 전체 pytest 및 PostgreSQL 18 replay·이력 조회 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
-| 검사·품질 | 미착수 | - | 2026-11-20 |
+| 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션) 구현. 품질 리포트·가동률 미착수. PostgreSQL 18 이력 조회 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 미착수 | - | 2026-11-20 |
 | 재고 | 미착수 | - | 2026-11-20 |
@@ -272,6 +272,31 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 검증: 서비스·API 단위 테스트 160건, Ruff, mypy 통과. 별도 일회용 PostgreSQL 18 DB에 Alembic head를
   적용해 계정 생성·초기화·목록·수정·비활성화·재활성화·감사 기록과 세션 폐기를 확인했다
 - FE 관리자 계정 관리 화면과 임시 비밀번호 1회 표시·복사 UI는 FE 작업으로 남긴다(DEC-204 후속 범위)
+
+### 생산·검사 이력 조회 현재 구현 범위 (2026-11-23)
+
+관리자와 고용자 모두 조회할 수 있다(DEC-058). `available_at`이 null인 미공개 적재 행도 이력에는
+포함하고 응답의 `available_at`으로 구분한다(DEC-206). soft delete된 기록은 제외한다.
+
+- `GET /process-records`: 선택 query `equipment_id`(1 이상), `product_id`(1 이상), `from`, `to`(한국 기준
+  날짜, `from` 포함·`to` 제외), `page`(기본 1), `page_size`(기본 10, 최대 100). `occurred_at` 내림차순,
+  `id` 내림차순으로 정렬한다
+- `GET /process-records/{record_id}`: 개별 공정 기록. 응답에 `source_import_id`, `source_row_number`를
+  포함한다
+- `GET /inspection-records`: `equipment_id`, `product_id`, `verdict`, `from`, `to`, `page`, `page_size`.
+  `verdict`는 `good`(양품)·`defect`(불량)이며 `inspected_at` 내림차순, `id` 내림차순으로 정렬한다
+- `GET /inspection-records/{record_id}`: 개별 검사 기록
+- 목록 응답은 `items`와 `pagination: {page, page_size, total_items, total_pages}`를 반환한다. 항목은
+  설비 코드·이름, 품목 코드·이름(nullable), `cycle_time_seconds`(JSON 문자열 또는 null), 시각,
+  `is_demo`, `version`을 포함한다. 검사 항목은 `process_record_id`, `verdict`, `defect_type`(null이면
+  화면·집계에서 ‘미분류’), `reason`을 포함한다
+- 없거나 삭제된 `{record_id}`는 `404 RECORD_NOT_FOUND`, `from`이 `to`보다 늦으면 `422 VALIDATION_ERROR`,
+  인식하지 못한 `verdict`·0 이하 ID·페이지 범위 밖 값은 `422 VALIDATION_ERROR`다
+- `inspection_record` 테이블과 이력 조회 인덱스를 마이그레이션 `20261123_0009`로 추가했다. 실제 자동
+  검사 데이터가 없으므로 현재 검사 이력은 비어 있을 수 있으며 시연·실데이터는 별도 적재가 필요하다
+- 검증: pytest 176건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 필터·페이지네이션·기간 경계
+  (한국 시간→UTC 변환)·정렬·soft delete 제외·판정 필터·삭제 설비 이력 보존·미공개 행 포함·인덱스
+  생성을 확인했다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 

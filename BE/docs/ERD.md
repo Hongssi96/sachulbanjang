@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0008` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0009` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -118,6 +118,21 @@ erDiagram
         timestamptz deleted_at "nullable"
     }
 
+    INSPECTION_RECORD {
+        bigint id PK
+        bigint equipment_id FK
+        bigint product_id FK "nullable"
+        bigint process_record_id FK "nullable"
+        timestamptz inspected_at
+        timestamptz available_at "nullable"
+        varchar verdict
+        varchar defect_type "nullable"
+        varchar reason "nullable"
+        boolean is_demo
+        integer version
+        timestamptz deleted_at "nullable"
+    }
+
     PROCESS_REPLAY {
         bigint id PK
         bigint source_import_id FK,UK
@@ -134,6 +149,9 @@ erDiagram
     SOURCE_IMPORT ||--o| PROCESS_REPLAY : controls
     EQUIPMENT ||--o{ PROCESS_RECORD : produces
     PRODUCT o|--o{ PROCESS_RECORD : identifies
+    EQUIPMENT ||--o{ INSPECTION_RECORD : inspects
+    PRODUCT o|--o{ INSPECTION_RECORD : identifies
+    PROCESS_RECORD o|--o{ INSPECTION_RECORD : inspected_by
     APP_USER ||--o{ AUTH_SESSION : owns
     AUTH_SESSION ||--o{ REFRESH_CREDENTIAL : rotates
     AUTH_SESSION ||--o{ WORK_EXTENSION : records
@@ -170,6 +188,10 @@ erDiagram
   계정은 null로 두어 시간 만료를 적용하지 않는다.
 - `account_audit_event`는 계정 생성·초기화·수정·비활성화·재활성화 조치를 추가 기록 방식으로 남긴다.
   `detail`에는 변경 필드의 전후 값만 넣고 임시 비밀번호 원문·해시·만료 시각은 저장하지 않는다.
+- `inspection_record.verdict`는 `good`(양품)·`defect`(불량)만 허용한다. 불량이고 `defect_type`이 비면
+  화면·집계에서 ‘미분류’로 본다. 공정 기록과 연결할 키가 없으면 `process_record_id`는 null이다.
+- 이력 조회는 `process_record`·`inspection_record`를 `occurred_at`·`inspected_at` 기준으로 조회하며,
+  `available_at` 조건 없이 저장된 기록을 조회한다. `available_at`은 미공개 행을 구분하는 값으로 표시한다.
 
 ## 구현 위치
 
@@ -177,5 +199,6 @@ erDiagram
   `BE/app/models/account_audit.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
-  `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`
+  `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
+  `20261123_0009_inspection_record.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

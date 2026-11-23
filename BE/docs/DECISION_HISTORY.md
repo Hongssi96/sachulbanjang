@@ -1694,3 +1694,30 @@
 - 검증: Ruff check, mypy, 전체 pytest 160건 통과. 일회용 PostgreSQL 18 DB에 Alembic head를 적용해 계정 생성·초기화·목록·수정·비활성화·재활성화·감사 기록·세션 폐기와 만료 거부를 확인하고 DB를 삭제했다. 저장소 전체 `ruff format --check .`는 기존 파일 CRLF로 재포맷 대상이 보고되어 변경·추가 파일만 검사했다.
 - 기록일: 2026-11-23.
 
+## DEC-206 — 생산·검사 이력 조회의 공개 범위와 판정 값 (Q-206)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-026·027의 생산·검사 이력, DEC-165의 검사 판정
+- 확인한 문서 상태: DEC-026은 기간·설비·품목·판정 필터와 목록·상세 조회를 요구하나 공개 시점 조건은 정하지 않았다. ERD는 `available_at`을 ‘재생 중 조회 가능해진 시각’으로 정의하고 `/process/current`는 null 행을 제외한다. DEC-165는 양품·불량 판정과 ‘미분류’ 불량 유형을 확정했으나 저장 값 명칭은 정하지 않았다.
+- 질문 1: 이력 조회에서 아직 공개되지 않은 행(`available_at` null)을 포함할지?
+- 답변 1(2026-11-23): 전체 기록을 조회한다.
+- 확정 결과 1: 이력 목록·상세는 soft delete되지 않은 적재·저장 기록을 `available_at` 조건 없이 조회한다. 응답에 `available_at`을 포함해 시연 공개 여부를 구분한다. 실시간 공개 게이팅은 `/process/current`에만 유지한다.
+- 질문 2: 검사 판정 값 명칭을 무엇으로 할지?
+- 답변 2(2026-11-23): `good`·`defect`로 한다.
+- 확정 결과 2: `inspection_record.verdict`는 `good`(양품)·`defect`(불량) 두 값만 허용한다. 불량이지만 유형이 없으면 `defect_type`은 null로 두고 화면·집계에서 ‘미분류’로 표시한다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 실제 자동 검사 데이터의 수집 필드·판정 매핑·원천 식별자와 이상 검사 적재 경로, 감사 이력 보존 기간
+
+## TECH-015 — 생산·검사 이력 조회 API와 검사 기록 테이블 구현
+
+- 최신 `origin/dev`(abacb3a)에서 `.worktrees/process-records` 워크트리와 `codex/be-feature-record-history` 브랜치로 작업했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `GET /process-records`·`GET /process-records/{id}`·`GET /inspection-records`·`GET /inspection-records/{id}`를 추가했다. 관리자·고용자 모두 조회할 수 있고 soft delete된 기록은 제외한다(DEC-058·DEC-162).
+- 필터는 기간(`from` 포함·`to` 제외, 한국 기준 날짜를 UTC 경계로 변환), 설비·품목, 검사 판정이다. DEC-122의 페이지네이션(기본 10, 최대 100, offset)과 안정 정렬(`occurred_at`/`inspected_at` 내림차순, `id` 내림차순)을 적용한다.
+- `inspection_record` 테이블을 마이그레이션 `20261123_0009`로 추가하고 history 조회 인덱스(`process_record(occurred_at, id)`, 검사 설비·품목·판정·시각 인덱스)를 만들었다. 기존 dev head가 `20261123_0008`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `RecordHistoryRepository`가 목록·상세 조회와 조인(설비 inner, 품목 outer)을 담당하고, `RecordHistoryService`가 기간 변환·페이지 계산·404 판단을 담당한다. Router·Service·Repository 책임을 기존 구조대로 분리했다. 삭제된 설비·품목의 과거 기록도 조회에 남긴다(DEC-147).
+- 검증: Ruff check, mypy, 전체 pytest 176건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0009)를 적용해 기간 경계·필터·페이지네이션·정렬·soft delete 제외·판정 필터·미공개 행 포함·삭제 설비 이력 보존·인덱스 존재를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-record-history)만 수정하도록 작성자를 1인으로 지정했다. 다른 작업이 두 문서를 동시에 수정하지 않도록 한다.
+- 기록일: 2026-11-23.
+
