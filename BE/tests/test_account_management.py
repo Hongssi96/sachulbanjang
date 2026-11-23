@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import UTC, datetime, time
 from unittest.mock import MagicMock
 
 import pytest
@@ -6,16 +6,21 @@ from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.passwords import verify_password
 from app.services.account_management import (
+    AccountAlreadyActiveError,
+    AccountAlreadyInactiveError,
     AccountManagementService,
     CreateUserCommand,
     EmployeeNumberAlreadyExistsError,
     LastAdminRequiredError,
+    SelfDeactivationNotAllowedError,
     SelfRoleChangeNotAllowedError,
     UpdateUserCommand,
     UserVersionConflictError,
 )
 from app.services.password_reset import UserNotFoundError
 from sqlalchemy.exc import IntegrityError
+
+NOW = datetime.now(UTC)
 
 
 def command(employee_no: str = "E200") -> CreateUserCommand:
@@ -170,6 +175,88 @@ def test_update_user_keeps_the_last_active_administrator() -> None:
         actor, 7, UpdateUserCommand(version=2, role="worker")
     )
     assert target.role == "worker"
+
+
+def test_deactivate_user_soft_deletes_and_revokes_sessions() -> None:
+    actor = make_target(id=1, role="admin")
+    target = make_target()
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = target
+    repository.find_sessions_for_update.return_value = []
+    repository.find_credentials_for_update.return_value = []
+
+    result = AccountManagementService(session, repository, clock=lambda: NOW).deactivate_user(
+        actor, 7, 2
+    )
+
+    assert result is target
+    assert target.deleted_at == NOW
+    assert target.version == 3
+    repository.find_sessions_for_update.assert_called_once_with(7)
+    session.commit.assert_called_once_with()
+
+
+def test_deactivate_user_protects_self_and_last_admin() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    admin = make_target(id=7, role="admin")
+    repository.find_any_user_for_update.return_value = admin
+
+    with pytest.raises(SelfDeactivationNotAllowedError):
+        AccountManagementService(session, repository).deactivate_user(admin, 7, 2)
+
+    other = make_target(id=1, role="admin")
+    repository.count_other_active_admins.return_value = 0
+    with pytest.raises(LastAdminRequiredError):
+        AccountManagementService(session, repository).deactivate_user(other, 7, 2)
+
+    repository.count_other_active_admins.return_value = 1
+    AccountManagementService(session, repository).deactivate_user(other, 7, 2)
+    assert admin.deleted_at is not None
+
+
+def test_deactivate_user_rejects_inactive_account_and_stale_version() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    actor = make_target(id=1, role="admin")
+
+    repository.find_any_user_for_update.return_value = make_target(deleted_at=NOW)
+    with pytest.raises(AccountAlreadyInactiveError):
+        AccountManagementService(session, repository).deactivate_user(actor, 7, 2)
+
+    repository.find_any_user_for_update.return_value = make_target(version=9)
+    with pytest.raises(UserVersionConflictError):
+        AccountManagementService(session, repository).deactivate_user(actor, 7, 2)
+
+    session.commit.assert_not_called()
+
+
+def test_reactivate_user_restores_account() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = make_target(deleted_at=NOW)
+
+    result = AccountManagementService(session, repository).reactivate_user(7, 2)
+
+    assert result.deleted_at is None
+    assert result.version == 3
+    session.commit.assert_called_once_with()
+
+
+def test_reactivate_user_rejects_active_account_and_unknown_user() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.find_any_user_for_update.return_value = make_target()
+
+    with pytest.raises(AccountAlreadyActiveError):
+        AccountManagementService(session, repository).reactivate_user(7, 2)
+
+    repository.find_any_user_for_update.return_value = None
+    with pytest.raises(UserNotFoundError):
+        AccountManagementService(session, repository).reactivate_user(7, 2)
+
+    session.commit.assert_not_called()
 
 
 def test_list_users_trims_query_and_paginates() -> None:

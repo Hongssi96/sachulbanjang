@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import time
+from datetime import UTC, datetime, time
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -10,6 +11,13 @@ from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password
 from app.services.password_reset import UserNotFoundError, generate_temporary_password
+from app.services.session_revocation import revoke_sessions_for_user
+
+Clock = Callable[[], datetime]
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class EmployeeNumberAlreadyExistsError(Exception):
@@ -30,6 +38,18 @@ class SelfRoleChangeNotAllowedError(Exception):
 
 class LastAdminRequiredError(Exception):
     """Raised when an edit would leave no active administrator."""
+
+
+class AccountAlreadyInactiveError(Exception):
+    """Raised when a deactivation targets an account that is already inactive."""
+
+
+class AccountAlreadyActiveError(Exception):
+    """Raised when a reactivation targets an account that is still active."""
+
+
+class SelfDeactivationNotAllowedError(Exception):
+    """Raised when an administrator deactivates their own account."""
 
 
 @dataclass(frozen=True)
@@ -65,9 +85,12 @@ class UserListResult:
 class AccountManagementService:
     """Create administrator-managed accounts with one-time temporary credentials."""
 
-    def __init__(self, session: Session, repository: AuthRepository) -> None:
+    def __init__(
+        self, session: Session, repository: AuthRepository, clock: Clock = _utc_now
+    ) -> None:
         self._session = session
         self._repository = repository
+        self._clock = clock
 
     def list_users(
         self,
@@ -97,6 +120,40 @@ class AccountManagementService:
         user = self._repository.find_any_user_by_id(user_id)
         if user is None:
             raise UserNotFoundError
+        return user
+
+    def deactivate_user(self, actor: AppUser, user_id: int, version: int) -> AppUser:
+        user = self._repository.find_any_user_for_update(user_id)
+        if user is None:
+            raise UserNotFoundError
+        if user.version != version:
+            raise UserVersionConflictError(user.version)
+        if user.deleted_at is not None:
+            raise AccountAlreadyInactiveError
+        if actor.id == user.id:
+            raise SelfDeactivationNotAllowedError
+        if user.role == "admin" and self._repository.count_other_active_admins(user.id) == 0:
+            raise LastAdminRequiredError
+
+        now = self._clock()
+        user.deleted_at = now
+        user.version += 1
+        revoke_sessions_for_user(self._repository, user.id, now)
+        self._session.commit()
+        return user
+
+    def reactivate_user(self, user_id: int, version: int) -> AppUser:
+        user = self._repository.find_any_user_for_update(user_id)
+        if user is None:
+            raise UserNotFoundError
+        if user.version != version:
+            raise UserVersionConflictError(user.version)
+        if user.deleted_at is None:
+            raise AccountAlreadyActiveError
+
+        user.deleted_at = None
+        user.version += 1
+        self._session.commit()
         return user
 
     def update_user(self, actor: AppUser, user_id: int, command: UpdateUserCommand) -> AppUser:

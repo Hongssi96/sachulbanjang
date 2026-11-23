@@ -11,6 +11,7 @@ from app.dependencies.auth import (
 )
 from app.models.master import AppUser
 from app.schemas.users import (
+    AccountStatusChangeRequest,
     Pagination,
     PasswordResetResponse,
     UserCreateRequest,
@@ -21,10 +22,13 @@ from app.schemas.users import (
     UserUpdateRequest,
 )
 from app.services.account_management import (
+    AccountAlreadyActiveError,
+    AccountAlreadyInactiveError,
     AccountManagementService,
     CreateUserCommand,
     EmployeeNumberAlreadyExistsError,
     LastAdminRequiredError,
+    SelfDeactivationNotAllowedError,
     SelfRoleChangeNotAllowedError,
     UpdateUserCommand,
     UserVersionConflictError,
@@ -163,6 +167,96 @@ def update_user(
                 "code": "LAST_ADMIN_REQUIRED",
                 "message": "활성 관리자가 최소 한 명 있어야 합니다.",
             },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _user_detail(user)
+
+
+@router.post(
+    "/{user_id}/deactivation",
+    response_model=UserDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def deactivate_user(
+    user_id: Annotated[int, Path(ge=1)],
+    request: AccountStatusChangeRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserDetail:
+    try:
+        user = service.deactivate_user(actor, user_id, request.version)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+    except UserVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except AccountAlreadyInactiveError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ACCOUNT_ALREADY_INACTIVE", "message": "이미 비활성화된 계정입니다."},
+        ) from None
+    except SelfDeactivationNotAllowedError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "SELF_DEACTIVATION_NOT_ALLOWED",
+                "message": "본인 계정은 비활성화할 수 없습니다.",
+            },
+        ) from None
+    except LastAdminRequiredError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "LAST_ADMIN_REQUIRED",
+                "message": "활성 관리자가 최소 한 명 있어야 합니다.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _user_detail(user)
+
+
+@router.post(
+    "/{user_id}/reactivation",
+    response_model=UserDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def reactivate_user(
+    user_id: Annotated[int, Path(ge=1)],
+    request: AccountStatusChangeRequest,
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserDetail:
+    try:
+        user = service.reactivate_user(user_id, request.version)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+    except UserVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except AccountAlreadyActiveError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ACCOUNT_ALREADY_ACTIVE", "message": "이미 활성화된 계정입니다."},
         ) from None
 
     response.headers["Cache-Control"] = "no-store"

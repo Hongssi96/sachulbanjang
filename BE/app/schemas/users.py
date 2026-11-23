@@ -99,6 +99,10 @@ class UserUpdateRequest(BaseModel):
         return self
 
 
+class AccountStatusChangeRequest(BaseModel):
+    version: int = Field(ge=1)
+
+
 class PasswordResetResponse(BaseModel):
     user_id: int
     employee_no: str
