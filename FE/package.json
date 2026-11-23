@@ -6,6 +6,8 @@
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --configLoader runner",
+    "dev:demo": "vite --host 127.0.0.1 --configLoader runner --mode demo",
+    "dev:demo:share": "vite --host 0.0.0.0 --configLoader runner --mode demo",
     "build": "tsc -b && vite build --configLoader runner",
     "lint": "eslint .",
     "format:check": "prettier --check .",
