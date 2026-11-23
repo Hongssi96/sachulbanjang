@@ -13,7 +13,7 @@ from app.dependencies.auth import (
     require_csrf_token,
 )
 from app.models.master import AppUser
-from app.schemas.auth import AuthenticatedUser, LoginRequest
+from app.schemas.auth import AuthenticatedUser, LoginRequest, PasswordChangeRequest
 from app.security.cookies import (
     clear_auth_cookies,
     create_csrf_token,
@@ -23,8 +23,10 @@ from app.security.cookies import (
 from app.services.auth import (
     AccountLockedError,
     AuthService,
+    CurrentPasswordMismatchError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    PasswordUnchangedError,
     RefreshInProgressError,
     SessionRevokedError,
 )
@@ -168,3 +170,41 @@ def read_current_user(
     user: Annotated[AppUser, Depends(get_current_user)],
 ) -> AuthenticatedUser:
     return AuthenticatedUser.model_validate(user)
+
+
+@router.patch(
+    "/password",
+    response_model=AuthenticatedUser,
+    dependencies=[Depends(require_csrf_token)],
+)
+def change_password(
+    payload: PasswordChangeRequest,
+    user: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    response: Response,
+) -> AuthenticatedUser:
+    try:
+        changed_user = service.change_password(
+            user,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+        )
+    except CurrentPasswordMismatchError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "CURRENT_PASSWORD_MISMATCH",
+                "message": "현재 비밀번호가 올바르지 않습니다.",
+            },
+        ) from None
+    except PasswordUnchangedError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PASSWORD_UNCHANGED",
+                "message": "새 비밀번호는 현재 비밀번호와 달라야 합니다.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return AuthenticatedUser.model_validate(changed_user)

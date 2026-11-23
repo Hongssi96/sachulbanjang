@@ -11,8 +11,10 @@ from app.security.passwords import hash_password
 from app.services.auth import (
     AccountLockedError,
     AuthService,
+    CurrentPasswordMismatchError,
     InvalidCredentialsError,
     LoginResult,
+    PasswordUnchangedError,
     SessionRevokedError,
 )
 from fastapi import FastAPI
@@ -281,3 +283,88 @@ def test_logout_requires_csrf_and_clears_cookies() -> None:
     cleared = response.headers.get_list("set-cookie")
     assert len(cleared) == 3
     assert all("Max-Age=0" in item for item in cleared)
+
+
+def test_change_password_requires_authentication_and_csrf() -> None:
+    application, settings = make_app_with_settings()
+
+    with TestClient(application) as client:
+        unauthenticated = client.patch(
+            "/api/v1/auth/password",
+            json={"current_password": "old", "new_password": "new"},
+        )
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        missing_auth = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={"current_password": "old", "new_password": "new"},
+        )
+
+    assert unauthenticated.status_code == 403
+    assert unauthenticated.json()["detail"]["code"] == "CSRF_VALIDATION_FAILED"
+    assert missing_auth.status_code == 401
+    assert missing_auth.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def test_change_password_returns_updated_user() -> None:
+    user = make_user()
+    user.must_change_password = True
+    service = MagicMock(spec=AuthService)
+
+    def change_password(
+        changed_user: AppUser, *, current_password: str, new_password: str
+    ) -> AppUser:
+        assert changed_user is user
+        assert current_password == "old-password"
+        assert new_password == "new-password"
+        changed_user.must_change_password = False
+        return changed_user
+
+    service.change_password.side_effect = change_password
+    application, settings = make_app_with_settings()
+    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        response = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={
+                "current_password": "old-password",
+                "new_password": "new-password",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["must_change_password"] is False
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_change_password_maps_domain_errors() -> None:
+    user = make_user()
+    application, settings = make_app_with_settings()
+    service = MagicMock(spec=AuthService)
+    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        service.change_password.side_effect = CurrentPasswordMismatchError
+        mismatch = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={"current_password": "wrong", "new_password": "new"},
+        )
+
+        service.change_password.side_effect = PasswordUnchangedError
+        unchanged = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={"current_password": "same", "new_password": "same"},
+        )
+
+    assert mismatch.status_code == 400
+    assert mismatch.json()["detail"]["code"] == "CURRENT_PASSWORD_MISMATCH"
+    assert unchanged.status_code == 400
+    assert unchanged.json()["detail"]["code"] == "PASSWORD_UNCHANGED"
