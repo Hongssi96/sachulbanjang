@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0006` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0008` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -16,8 +16,18 @@ erDiagram
         time shift_end_local
         integer failed_login_count
         timestamptz locked_until "nullable"
+        timestamptz temporary_password_expires_at "nullable"
         integer version
         timestamptz deleted_at "nullable"
+    }
+
+    ACCOUNT_AUDIT_EVENT {
+        bigint id PK
+        bigint user_id FK
+        bigint actor_id FK
+        varchar action
+        jsonb detail "nullable"
+        timestamptz created_at
     }
 
     AUTH_SESSION {
@@ -128,6 +138,8 @@ erDiagram
     AUTH_SESSION ||--o{ REFRESH_CREDENTIAL : rotates
     AUTH_SESSION ||--o{ WORK_EXTENSION : records
     APP_USER ||--o{ WORK_EXTENSION : performs
+    APP_USER ||--o{ ACCOUNT_AUDIT_EVENT : targets
+    APP_USER ||--o{ ACCOUNT_AUDIT_EVENT : performs
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -154,10 +166,16 @@ erDiagram
   않는다. 액세스 토큰 만료는 DB에 저장하지 않고 JWT claim으로 관리한다.
 - `auth_session.work_ends_at`과 `work_session_version`은 같은 로그인 세션의 여러 탭이 공유한다.
   성공한 수동·자동 연장은 `work_extension`에 변경 전후 시각과 실행자를 기록한다.
+- `app_user.temporary_password_expires_at`은 API로 발급한 임시 비밀번호의 만료 시각이다. CLI 시드
+  계정은 null로 두어 시간 만료를 적용하지 않는다.
+- `account_audit_event`는 계정 생성·초기화·수정·비활성화·재활성화 조치를 추가 기록 방식으로 남긴다.
+  `detail`에는 변경 필드의 전후 값만 넣고 임시 비밀번호 원문·해시·만료 시각은 저장하지 않는다.
 
 ## 구현 위치
 
-- ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`
+- ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`,
+  `BE/app/models/account_audit.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
-  `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`
+  `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
+  `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)
