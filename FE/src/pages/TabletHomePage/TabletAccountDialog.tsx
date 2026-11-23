@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LogIn, LogOut, X } from 'lucide-react';
 import profileAvatar from './profile-avatar.svg';
+import TabletPasswordDialog from './TabletPasswordDialog';
 import './TabletAccountDialog.css';
 
 type Screen = 'profile' | 'login' | 'password' | 'signup';
@@ -42,6 +43,7 @@ export default function TabletAccountDialog({
   const [confirmation, setConfirmation] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [choosingCharacter, setChoosingCharacter] = useState(false);
   const [characterId, setCharacterId] = useState(() => {
     try {
@@ -65,6 +67,7 @@ export default function TabletAccountDialog({
       element.style.right = `${Math.max(16, window.innerWidth - rect.right)}px`;
     };
     const dismiss = (event: PointerEvent) => {
+      if (element.querySelector('.th-profile-password-form')) return;
       if (
         event.target instanceof Node &&
         !element.contains(event.target) &&
@@ -73,7 +76,7 @@ export default function TabletAccountDialog({
         onClose();
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape' && !element.querySelector('.th-profile-password-form')) onClose();
     };
     position();
     element.show();
@@ -188,8 +191,8 @@ export default function TabletAccountDialog({
               <dd>현장 관리 · 설비 점검</dd>
             </div>
           </dl>
-          <button className="button button-primary" onClick={() => go('login')}>
-            로그인 화면으로
+          <button className="button button-primary" onClick={() => setPasswordOpen(true)}>
+            비밀번호 변경
           </button>
           <button className="button button-white" onClick={onLoginOpen}>
             <LogOut size={18} />
@@ -450,6 +453,13 @@ export default function TabletAccountDialog({
         </button>
       </div>
       {content}
+      {passwordOpen && (
+        <TabletPasswordDialog
+          password={password}
+          onSave={onPasswordChange}
+          onClose={() => setPasswordOpen(false)}
+        />
+      )}
     </dialog>
   );
 }

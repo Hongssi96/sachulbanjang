@@ -484,3 +484,37 @@
 .th-character-picker small {
   font-size: var(--fs-xs);
 }
+.modal:has(.th-profile-password-form) {
+  position: fixed;
+  margin: 0;
+  max-height: none;
+  max-width: none;
+  box-sizing: border-box;
+  border-radius: 24px;
+  scrollbar-width: none;
+}
+.modal:has(.th-profile-password-form)::-webkit-scrollbar {
+  display: none;
+}
+.modal:has(.th-profile-password-form) .modal-heading {
+  padding: 16px 20px;
+}
+.modal:has(.th-profile-password-form) .modal-body {
+  padding: 16px 20px;
+}
+.th-profile-password-form {
+  gap: 10px;
+}
+.th-profile-password-form label {
+  font-size: var(--fs-sm);
+  gap: 4px;
+}
+.th-profile-password-form input {
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.th-profile-password-form .th-account-demo,
+.th-profile-password-form > small {
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
