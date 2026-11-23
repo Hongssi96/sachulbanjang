@@ -114,6 +114,38 @@ class InspectionRecord(TimestampMixin, SoftDeleteMixin, Base):
     version: Mapped[int] = mapped_column(default=1, nullable=False)
 
 
+class RecordChange(Base):
+    __tablename__ = "record_change"
+    __table_args__ = (
+        CheckConstraint("operation IN ('update', 'delete')", name="ck_record_change_operation"),
+        CheckConstraint(
+            "((process_record_id IS NOT NULL)::integer "
+            "+ (inspection_record_id IS NOT NULL)::integer) = 1",
+            name="ck_record_change_single_record",
+        ),
+        CheckConstraint("version > 0", name="ck_record_change_version"),
+        Index("ix_record_change_process", "process_record_id", "occurred_at"),
+        Index("ix_record_change_inspection", "inspection_record_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    process_record_id: Mapped[int | None] = mapped_column(
+        ForeignKey("process_record.id", ondelete="RESTRICT")
+    )
+    inspection_record_id: Mapped[int | None] = mapped_column(
+        ForeignKey("inspection_record.id", ondelete="RESTRICT")
+    )
+    actor_id: Mapped[int] = mapped_column(
+        ForeignKey("app_user.id", ondelete="RESTRICT"), nullable=False
+    )
+    operation: Mapped[str] = mapped_column(String(20), nullable=False)
+    before_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    after_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProcessReplay(TimestampMixin, Base):
     __tablename__ = "process_replay"
     __table_args__ = (
