@@ -93,6 +93,13 @@ uvicorn app.main:app --reload
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
+- 일정 목록: `GET http://localhost:8000/api/v1/schedules`
+  (`from`, `to`(한국 기준, 양 끝 포함), `page`, `page_size`. 범위와 겹치는 일정을 시작 순 반환)
+- 일정 상세: `GET .../schedules/{id}`
+- 일정 등록: `POST .../schedules` (`title`, `category`, `all_day`, 종일이면 `start_date`·`end_date_exclusive`,
+  시간 지정이면 `starts_at`·`ends_at`, `X-CSRF-Token` 헤더)
+- 일정 수정·삭제: `PATCH .../schedules/{id}` (`version` + 변경 필드, 날짜·시각 혼용 금지),
+  `DELETE .../schedules/{id}?expected_version=` (soft delete. 관리자 전체·고용자 본인)
 - 보고서 생성 작업 접수: `POST .../report-jobs` (`client_request_key`, `report_kind`, `category`,
   `period`, `targets`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을 반환
 - 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,

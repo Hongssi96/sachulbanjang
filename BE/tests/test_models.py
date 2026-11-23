@@ -21,6 +21,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "report",
         "report_revision",
         "report_status_event",
+        "schedule",
         "source_import",
         "user_assignment",
         "work_extension",

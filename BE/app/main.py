@@ -26,6 +26,7 @@ from app.routers.quality import router as quality_router
 from app.routers.records import router as records_router
 from app.routers.report_jobs import router as report_jobs_router
 from app.routers.reports import router as reports_router
+from app.routers.schedules import router as schedules_router
 from app.routers.users import router as users_router
 from app.routers.work_session import router as work_session_router
 
@@ -69,6 +70,7 @@ def create_app(
     application.include_router(reports_router, prefix="/api/v1")
     application.include_router(report_jobs_router, prefix="/api/v1")
     application.include_router(quality_router, prefix="/api/v1")
+    application.include_router(schedules_router, prefix="/api/v1")
     application.include_router(users_router, prefix="/api/v1")
     application.include_router(work_session_router, prefix="/api/v1")
     return application
