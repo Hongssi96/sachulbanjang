@@ -425,3 +425,62 @@
 .th-login-screen .th-form > .button-primary {
   margin-top: 16px;
 }
+.th-character-trigger {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: #e5eee6;
+  cursor: pointer;
+}
+.th-character-trigger > span {
+  font-size: 36px;
+  line-height: 1;
+}
+.th-character-trigger > small {
+  position: absolute;
+  bottom: -6px;
+  right: -10px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #635b85;
+  color: white;
+  font-size: var(--fs-xs);
+}
+.th-character-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.th-character-picker button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border: 1px solid #e2e2e8;
+  border-radius: 12px;
+  background: #ffffffd9;
+  color: #29263f;
+  cursor: pointer;
+}
+.th-character-picker button[aria-pressed='true'] {
+  border-color: #635b85;
+  background: #eeeaf6;
+}
+.th-character-picker img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+.th-character-picker button > span {
+  font-size: 30px;
+  line-height: 36px;
+}
+.th-character-picker small {
+  font-size: var(--fs-xs);
+}

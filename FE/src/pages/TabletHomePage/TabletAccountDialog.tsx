@@ -5,6 +5,17 @@ import './TabletAccountDialog.css';
 
 type Screen = 'profile' | 'login' | 'password' | 'signup';
 
+const characters = [
+  { id: 'leader', name: '안전 반장', emoji: '' },
+  { id: 'bear', name: '든든한 곰', emoji: '🐻' },
+  { id: 'fox', name: '똑똑한 여우', emoji: '🦊' },
+  { id: 'robot', name: '도우미 로봇', emoji: '🤖' },
+  { id: 'cat', name: '꼼꼼한 고양이', emoji: '🐱' },
+  { id: 'dog', name: '친근한 강아지', emoji: '🐶' },
+  { id: 'rabbit', name: '빠른 토끼', emoji: '🐰' },
+  { id: 'panda', name: '차분한 판다', emoji: '🐼' },
+];
+
 interface AccountProps {
   onClose: () => void;
   onLoginOpen: () => void;
@@ -31,6 +42,17 @@ export default function TabletAccountDialog({
   const [confirmation, setConfirmation] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [choosingCharacter, setChoosingCharacter] = useState(false);
+  const [characterId, setCharacterId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('tablet-profile-character');
+      return characters.some((character) => character.id === saved) ? saved : 'leader';
+    } catch {
+      return 'leader';
+    }
+  });
+  const selectedCharacter =
+    characters.find((character) => character.id === characterId) ?? characters[0];
   const popup = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (page) return;
@@ -84,9 +106,51 @@ export default function TabletAccountDialog({
     <div className="th-account">
       {!page && (
         <div className="th-account-person">
-          <span>
-            <img className="th-profile-photo" src={profileAvatar} alt="기본 프로필 사진" />
-          </span>
+          <button
+            className="th-character-trigger"
+            aria-label={`프로필 캐릭터 선택: ${selectedCharacter.name}`}
+            aria-expanded={choosingCharacter}
+            aria-controls="th-character-picker"
+            onClick={() => setChoosingCharacter(!choosingCharacter)}
+          >
+            {selectedCharacter.emoji ? (
+              <span aria-hidden="true">{selectedCharacter.emoji}</span>
+            ) : (
+              <img className="th-profile-photo" src={profileAvatar} alt="" />
+            )}
+          </button>
+          {choosingCharacter && (
+            <div
+              className="th-character-picker"
+              id="th-character-picker"
+              role="group"
+              aria-label="프로필 캐릭터"
+            >
+              {characters.map((character) => (
+                <button
+                  key={character.id}
+                  aria-label={character.name}
+                  aria-pressed={character.id === characterId}
+                  onClick={() => {
+                    setCharacterId(character.id);
+                    try {
+                      localStorage.setItem('tablet-profile-character', character.id);
+                    } catch {
+                      /* 저장이 제한된 환경에서도 현재 선택은 유지한다. */
+                    }
+                    setChoosingCharacter(false);
+                  }}
+                >
+                  {character.emoji ? (
+                    <span aria-hidden="true">{character.emoji}</span>
+                  ) : (
+                    <img src={profileAvatar} alt="" />
+                  )}
+                  <small>{character.name}</small>
+                </button>
+              ))}
+            </div>
+          )}
           <div>
             <strong>박민규</strong>
             <p>현장을 살피는 든든한 반장</p>
