@@ -61,7 +61,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 영역 | 상태 | 검증 근거 | 갱신일 |
 | --- | --- | --- | --- |
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
-| 인증 | 구현 완료 | 로그인·갱신·로그아웃·현재 사용자 조회·본인 비밀번호 변경·관리자 비밀번호 초기화, Argon2id 검증, 5회 실패 잠금, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 초기 계정 시드 CLI, FE 출처 CORS 구현. pytest 106건·PostgreSQL 18 통합 검증 | 2026-11-23 |
+| 인증 | 검증 완료 | 로그인·갱신·로그아웃·현재 사용자 조회·본인 비밀번호 변경·관리자 계정 생성·비밀번호 초기화, Argon2id 검증, 5회 실패 잠금, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 최초 관리자 시드 CLI, FE 출처 CORS 구현. Ruff·mypy·pytest 113건 및 PostgreSQL 18 계정 생성·해시·중복 방지 통합 검증 | 2026-11-23 |
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정과 인증된 현재 공정 조회 구현. 전체 pytest 및 PostgreSQL 18 replay 검증. FE polling 연동 미확인 | 2026-11-20 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
@@ -103,6 +103,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | POST /auth/refresh, POST /auth/logout | 인증 쿠키·CSRF 계약 | 회전·현재 세션 종료 |
 | GET /auth/me | 현재 사용자 | 역할·담당·비밀번호 변경 필요 여부 |
 | PATCH /auth/password | current_password, new_password | 본인. 임시 비밀번호 변경 제한 처리 |
+| POST /users | employee_no, display_name, role, shift_start_local, shift_end_local | 관리자, CSRF. 임시 비밀번호를 응답에서 1회 반환 |
 | POST /users/{id}/password-reset | 요청 본문 없음 | 관리자, CSRF. 임시 비밀번호를 응답에서 1회 반환하고 기존 세션·리프레시 폐기 |
 | GET /work-session | 현재 종료 시각·서버 시각·세션 버전 | 현재 세션 |
 | POST /work-session/extensions | kind, expected_ends_at, ends_at? | 자동: 구간·중복 검사. 수동: 1시간 또는 지정 시각. 새 종료 시각 |
@@ -144,7 +145,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | POST /stock-movements/{id}/confirmation | 관리자 사후 확인 | 관리자만 |
 | PATCH /products/{id}/minimum-stock | minimum_stock nullable | 관리자만 |
 
-신규 사용자 생성·마스터 편집·검사 수동 등록·재고 원장 삭제·예약 보고·복구 API는 추가하지 않는다. 실제 검사 수집 API는 원천·인증 규격 확보 후 별도 설계한다.
+마스터 편집·검사 수동 등록·재고 원장 삭제·예약 보고·복구 API는 추가하지 않는다. 사용자 목록·수정·비활성화는 후속 계정 관리 범위다. 실제 검사 수집 API는 원천·인증 규격 확보 후 별도 설계한다.
 
 ### GET /process/current
 
@@ -184,7 +185,7 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 
 ### 인증 현재 구현 범위 (2026-11-23)
 
-- 구현: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `PATCH /auth/password`, `POST /users/{user_id}/password-reset`
+- 구현: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`, `PATCH /auth/password`, `POST /users`, `POST /users/{user_id}/password-reset`
 - 비밀번호: Argon2id 해시(`argon2-cffi`). 사번이 없어도 같은 비용의 더미 해시를 검증해 응답 시간 차이를 줄인다
 - 잠금: 같은 계정 5회 연속 실패 시 5분 제한(설정값). 잠긴 동안 올바른 비밀번호도 거부하고 `Retry-After`를 반환한다
 - 쿠키: `imleader_access_token`(Path `/`), `imleader_refresh_token`(Path `/api/v1/auth`)은 HttpOnly·SameSite=Lax, `imleader_csrf_token`(Path `/`)은 JS가 읽는다. Secure는 `APP_AUTH_COOKIE_SECURE`
@@ -193,11 +194,23 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 재사용 감지: 소비·폐기된 리프레시가 다시 제출되면 세션과 현재 리프레시를 폐기하고 `SESSION_REVOKED`를 반환한다. 다른 기기 세션은 유지한다(DEC-107)
 - 동시 갱신: 같은 세션의 직전 세대를 `APP_REFRESH_REUSE_GRACE_SECONDS`(기본 10초) 안에 다시 보내면 재사용으로 보지 않고 `REFRESH_IN_PROGRESS`(409)만 반환한다. FE는 잠시 후 재시도한다
 - 로그아웃: 해당 세션의 리프레시를 폐기하고 쿠키를 지운다. 이미 발급된 액세스 토큰은 남은 만료(최대 15분)까지 유효하다(DEC-054)
-- CSRF: 로그인 시 더블 서브밋 쿠키를 발급하고, `POST /auth/refresh`·`POST /auth/logout`·`PATCH /auth/password`·`POST /users/{user_id}/password-reset`는 `X-CSRF-Token` 헤더가 쿠키와 일치해야 한다. 불일치는 `CSRF_VALIDATION_FAILED`(403)
+- CSRF: 로그인 시 더블 서브밋 쿠키를 발급하고, `POST /auth/refresh`·`POST /auth/logout`·`PATCH /auth/password`·`POST /users`·`POST /users/{user_id}/password-reset`는 `X-CSRF-Token` 헤더가 쿠키와 일치해야 한다. 불일치는 `CSRF_VALIDATION_FAILED`(403)
 - 비밀번호 변경: 현재 비밀번호를 다시 검증하고 새 Argon2id 해시로 교체한다. 임시 비밀번호 변경 필요 상태를 해제하고 사용자 version을 증가시킨다. 현재 비밀번호 불일치는 `CURRENT_PASSWORD_MISMATCH`, 같은 비밀번호 재사용은 `PASSWORD_UNCHANGED`(각 400)로 반환한다
 - 관리자 초기화: 아래 `POST /users/{user_id}/password-reset` 계약을 따른다
-- 오류: 모든 HTTP·입력 검증·서버 오류는 최상위 `{code,message,request_id}` 형식으로 반환한다. 입력 오류만 안전한 필드별 `details`를 추가하며 예상하지 못한 서버 오류의 내부 정보는 노출하지 않는다. 주요 code는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_REVOKED`, `REFRESH_IN_PROGRESS`, `CSRF_VALIDATION_FAILED`, `CURRENT_PASSWORD_MISMATCH`, `PASSWORD_UNCHANGED`, `USER_NOT_FOUND`, `SELF_PASSWORD_RESET_NOT_ALLOWED`, `FORBIDDEN`이다
-- 초기 계정: `python -m app.commands.seed_accounts --employee-no ... --display-name ... --role admin|worker`로 준비한다. 같은 사번이 있으면 덮어쓰지 않고 종료 코드 1로 알린다
+- 오류: 모든 HTTP·입력 검증·서버 오류는 최상위 `{code,message,request_id}` 형식으로 반환한다. 입력 오류만 안전한 필드별 `details`를 추가하며 예상하지 못한 서버 오류의 내부 정보는 노출하지 않는다. 주요 code는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_REVOKED`, `REFRESH_IN_PROGRESS`, `CSRF_VALIDATION_FAILED`, `CURRENT_PASSWORD_MISMATCH`, `PASSWORD_UNCHANGED`, `EMPLOYEE_NO_ALREADY_EXISTS`, `USER_NOT_FOUND`, `SELF_PASSWORD_RESET_NOT_ALLOWED`, `FORBIDDEN`이다
+- 최초 관리자: `python -m app.commands.seed_accounts --employee-no ... --display-name ... --role admin`으로 준비한다. 같은 사번이 있으면 덮어쓰지 않고 종료 코드 1로 알린다. 이후 계정은 `POST /users`로 생성한다
+
+### POST /users
+
+관리자가 계정을 생성한다. 액세스 쿠키와 `X-CSRF-Token`이 필요하다. 요청의 `role`은
+`admin` 또는 `worker`, 사번은 50자 이하, 표시 이름은 100자 이하의 공백이 아닌 문자열이다.
+`shift_start_local`과 `shift_end_local`은 사용자별 한국 현지 근무 시각이다. 삭제 계정까지 포함해
+사번을 재사용할 수 없으며 중복이면 `409 EMPLOYEE_NO_ALREADY_EXISTS`를 반환한다.
+
+성공 시 `201`과 `user_id`, `employee_no`, `display_name`, `role`, `shift_start_local`,
+`shift_end_local`, `temporary_password`, `must_change_password=true`, `version`을 반환한다.
+임시 비밀번호는 영문 대소문자와 숫자를 포함한 16자이며 Argon2id 해시만 저장한다. 원문 응답은
+`Cache-Control: no-store`이고 관리자 화면에서 한 번만 표시한다.
 
 ### POST /users/{user_id}/password-reset
 
@@ -241,7 +254,7 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 쿠키: `imleader_access_token`(Path `/`, 액세스 JWT), `imleader_refresh_token`(Path `/api/v1/auth`), `imleader_csrf_token`(Path `/`, JS가 읽는 CSRF 토큰)
 - 로그인·갱신 응답은 사용자 객체만 반환하고 토큰 원문을 JSON에 넣지 않는다. `Cache-Control: no-store`가 붙는다
 - 인증 실패는 `401` + 최상위 `code`: 잘못된 자격 증명 `INVALID_CREDENTIALS`, 잠금 `ACCOUNT_LOCKED`(`Retry-After`), 쿠키 없음·만료 `AUTHENTICATION_REQUIRED`
-- 상태 변경 요청(`POST /auth/refresh`, `POST /auth/logout`, `PATCH /auth/password`, `POST /users/{user_id}/password-reset`)은 쿠키의 `imleader_csrf_token` 값을 `X-CSRF-Token` 헤더로 함께 보낸다. 헤더가 없거나 다르면 `CSRF_VALIDATION_FAILED`(403)
+- 상태 변경 요청(`POST /auth/refresh`, `POST /auth/logout`, `PATCH /auth/password`, `POST /users`, `POST /users/{user_id}/password-reset`)은 쿠키의 `imleader_csrf_token` 값을 `X-CSRF-Token` 헤더로 함께 보낸다. 헤더가 없거나 다르면 `CSRF_VALIDATION_FAILED`(403)
 - 관리자 비밀번호 초기화 응답의 `temporary_password`는 화면에 한 번 표시한 뒤 보관하지 않는다. 응답은 `Cache-Control: no-store`이며, `403 SELF_PASSWORD_RESET_NOT_ALLOWED`는 본인 비밀번호 변경 화면으로 안내한다
 - 액세스 만료 대응: 업무 API에서 `401 AUTHENTICATION_REQUIRED`를 받으면 `POST /auth/refresh`를 한 번 호출하고, 성공하면 원래 요청을 재시도한다. `INVALID_REFRESH_TOKEN`·`SESSION_REVOKED`면 로그인 화면으로 보낸다
 - 동시 갱신 처리: `409 REFRESH_IN_PROGRESS`는 로그아웃이 아니라 재시도 신호다. FE는 갱신 요청을 한 번에 하나만 보내고, 409를 받으면 `Retry-After`(1초) 후 현재 리프레시 쿠키로 다시 시도한다

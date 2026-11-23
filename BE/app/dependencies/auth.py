@@ -11,6 +11,7 @@ from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
 from app.security.cookies import CSRF_HEADER_NAME
 from app.security.tokens import TokenError, decode_access_token
+from app.services.account_management import AccountManagementService
 from app.services.auth import AuthService
 from app.services.password_reset import PasswordResetService
 
@@ -54,6 +55,12 @@ def get_password_reset_service(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> PasswordResetService:
     return PasswordResetService(session, AuthRepository(session))
+
+
+def get_account_management_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> AccountManagementService:
+    return AccountManagementService(session, AuthRepository(session))
 
 
 def get_current_user(
