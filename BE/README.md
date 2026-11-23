@@ -90,6 +90,10 @@ uvicorn app.main:app --reload
   `DELETE .../reports/{id}?expected_version=` (soft delete)
 - 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
   `GET .../reports/{id}/status-events`
+- 보고서 생성 작업 접수: `POST .../report-jobs` (`client_request_key`, `report_kind`, `category`,
+  `period`, `targets`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을 반환
+- 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,
+  `POST .../jobs/{id}/retry` (요청자 본인, CSRF 필요 시 헤더 포함)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비
@@ -133,6 +137,15 @@ python -m app.commands.seed_master_data --file master.json
 
 재실행해도 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않는다. 없는 사용자·설비나 다른 라인에 이미
 속한 설비가 있으면 전체를 롤백하고 실패한다.
+
+### 보고서 생성 작업 큐 정리
+
+worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`로 정리한다. 실제 AI 실행 worker는
+별도 작업이다. 서버 복구 후 자동 재실행은 하지 않으며 요청자가 재시도한다.
+
+```powershell
+python -m app.commands.reap_report_jobs
+```
 
 ### 공정 CSV 적재
 

@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0012` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0013` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -155,9 +155,30 @@ erDiagram
         timestamptz occurred_at
     }
 
+    GENERATION_JOB {
+        bigint id PK
+        bigint requester_id FK
+        varchar kind
+        varchar client_request_key
+        jsonb request_payload
+        varchar request_digest
+        varchar state
+        timestamptz accepted_at
+        timestamptz data_cutoff_at "nullable"
+        timestamptz claimed_at "nullable"
+        timestamptz heartbeat_at "nullable"
+        timestamptz lease_expires_at "nullable"
+        timestamptz finished_at "nullable"
+        varchar error_code "nullable"
+        varchar safe_error_message "nullable"
+        bigint retry_of_id FK "nullable"
+        integer attempt_count
+    }
+
     REPORT {
         bigint id PK
         bigint author_id FK
+        bigint generation_job_id FK,UK "nullable"
         varchar title
         text body_markdown
         varchar category
@@ -225,6 +246,9 @@ erDiagram
     APP_USER ||--o{ REPORT_STATUS_EVENT : performs
     REPORT ||--o{ REPORT_REVISION : versions
     REPORT ||--o{ REPORT_STATUS_EVENT : status_changes
+    APP_USER ||--o{ GENERATION_JOB : requests
+    GENERATION_JOB o|--o{ GENERATION_JOB : retries
+    REPORT o|--|| GENERATION_JOB : generated_by
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -268,16 +292,20 @@ erDiagram
 - `report`는 본문 Markdown·분류·종류·업무 상태와 version을 갖고 soft delete로 숨긴다. `report_revision`은
   `(report_id, version)` UNIQUE로 최초 버전부터 제목·본문·수정자를 보존하고, `report_status_event`는
   대기·진행 중·완료 전이의 전후 상태·작업자·시각을 남긴다(DEC-137·DEC-188·DEC-209).
-- AI 생성·집계 관련 컬럼(`generation_job_id`, 기간·기준 시각, 집계 스냅샷 등)은 AI 보고서 생성 작업에서
-  추가한다. 현재 `report`는 수동 등록·조회·수정·상태 변경·삭제 범위만 담는다(DEC-209).
+- AI 생성·집계 관련 컬럼(기간·기준 시각, 집계 스냅샷 등)은 AI 보고서 생성 작업에서 추가한다. 현재
+  `report`는 수동 등록·조회·수정·상태 변경·삭제와 `generation_job_id` 연결만 담는다(DEC-209·DEC-210).
+- `generation_job`은 요청자·종류·`client_request_key` UNIQUE로 중복 접수를 막고, `request_digest`로 같은
+  키의 다른 내용 충돌을 판정한다. `state`·`lease_expires_at`·`claimed_at`·`heartbeat_at`으로 PostgreSQL
+  큐의 claim/lease를 관리하며, 임차가 만료된 작업은 `interrupted`로 정리한다. `retry_of_id`는 재시도
+  계보를 잇는다(DEC-094·DEC-210).
 
 ## 구현 위치
 
 - ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`,
-  `BE/app/models/account_audit.py`, `BE/app/models/report.py`
+  `BE/app/models/account_audit.py`, `BE/app/models/report.py`, `BE/app/models/report_job.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
   `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`,
-  `20261123_0011_record_change.py`, `20261123_0012_report.py`
+  `20261123_0011_record_change.py`, `20261123_0012_report.py`, `20261123_0013_generation_job.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

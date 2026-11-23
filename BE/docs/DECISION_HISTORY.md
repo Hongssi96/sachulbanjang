@@ -1814,3 +1814,33 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-report-crud)만 수정하도록 작성자를 1인으로 지정했다.
 - 기록일: 2026-11-23.
 
+## DEC-210 — 보고서 생성 작업 기반의 범위와 중복 처리 (Q-210)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-082·DEC-083·DEC-084·DEC-094·DEC-095·DEC-096·DEC-118·DEC-127
+- 확인한 문서 상태: DEC-082~096은 생성 접수·상태·취소·재시도·중단 처리와 PostgreSQL 작업 큐를 요구하지만 실제 AI 호출 시점은 미정이다. `generation_job`은 설계만 있고 구현되지 않았다. DEC-083은 같은 요청 키 재전송 시 기존 작업/결과 반환을 확정했다.
+- 질문 1: “실제 AI 호출은 별도 작업으로 분리”를 어떻게 나눌지?
+- 답변 1(2026-11-23): 큐 인프라와 중단 정리만 구현한다.
+- 확정 결과 1: PostgreSQL 큐(claim/lease/heartbeat), 접수·상태 조회·취소·재시도, 임차 만료 작업 `interrupted` 정리 명령까지 구현한다. `querying`·`writing` 전이와 `succeeded` 시 보고서 등록 등 실제 AI 실행은 별도 AI 작업에서 구현한다.
+- 질문 2: 생성 요청 payload 검증 수준은?
+- 답변 2(2026-11-23): 보고서 조건을 검증·저장한다.
+- 확정 결과 2: `report_kind`·`category`·`period`·`targets`를 검증해 `request_payload`로 정규화 저장하고 canonical digest로 중복·변경을 판단한다. 분류·종류 연동 규칙은 보고서 생성과 같다.
+- 질문 3: 같은 `client_request_key` 재전송 응답은?
+- 답변 3(2026-11-23): 기존 작업을 202로 반환한다.
+- 확정 결과 3: 요청자·종류·키가 같고 digest가 같으면 기존 작업을 `202`로 반환한다. 같은 키에 내용이 다르면 `409 REQUEST_KEY_CONFLICT`다. 접수 시각과 `data_cutoff_at`(최신 replay `data_time`, 없으면 접수 시각)을 저장한다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 실제 AI 실행 단계와 `succeeded` 보고서 등록, 임차 시간·heartbeat 주기, 같은 조건 중복 안내(`POST /report-duplicate-checks`), 같은 조건 새 생성 시 요청 키 정책
+
+## TECH-019 — 보고서 생성 작업 기반과 PostgreSQL 작업 큐 구현
+
+- 최신 `origin/dev`(61e605f)에서 `.worktrees/report-jobs` 워크트리와 `codex/be-feature-report-jobs` 브랜치로 DEC-210을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `generation_job` 테이블을 마이그레이션 `20261123_0013`로 추가하고, `report.generation_job_id`(nullable, UNIQUE, FK)로 성공 작업과 보고서를 연결할 수 있게 했다. 기존 dev head가 `20261123_0012`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `POST /report-jobs`·`GET /jobs`·`GET /jobs/{id}`·`POST /jobs/{id}/cancel`·`POST /jobs/{id}/retry`를 추가했다. 모든 작업 API는 요청자 본인 범위이며 타인 작업은 404다.
+- 중복 방지: `(requester_id, kind, client_request_key)` UNIQUE와 canonical SHA-256 digest로 같은 키·같은 내용은 기존 작업을 반환하고 다른 내용은 409를 반환한다. 동시 접수의 UNIQUE 충돌은 재조회로 흡수한다.
+- 큐: `ReportJobRepository`가 `FOR UPDATE SKIP LOCKED`로 `accepted` 작업을 잡고, `ReportJobService`가 `querying` 전환·임차(`lease_expires_at`)·`heartbeat_at`·`attempt_count`를 관리한다. `python -m app.commands.reap_report_jobs`가 임차 만료 작업을 `interrupted`(`WORKER_INTERRUPTED`)로 정리한다. 실제 AI 실행 루프는 이번 범위에 포함하지 않는다.
+- 검증: Ruff check, mypy, 전체 pytest 250건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0013)를 적용해 접수·`data_cutoff_at`·중복 반환·키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-report-jobs)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
