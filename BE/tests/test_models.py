@@ -23,6 +23,8 @@ def test_core_schema_registers_expected_tables() -> None:
         "report_status_event",
         "schedule",
         "source_import",
+        "stock_balance",
+        "stock_movement",
         "user_assignment",
         "work_extension",
     }
