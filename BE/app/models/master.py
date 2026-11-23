@@ -8,9 +8,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     String,
     Time,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -95,6 +97,52 @@ class Product(TimestampMixin, SoftDeleteMixin, Base):
     minimum_stock: Mapped[int | None] = mapped_column(BigInteger)
 
     process_records: Mapped[list[ProcessRecord]] = relationship(back_populates="product")
+
+
+class UserAssignment(TimestampMixin, SoftDeleteMixin, Base):
+    __tablename__ = "user_assignment"
+    __table_args__ = (
+        CheckConstraint(
+            "((department_id IS NOT NULL)::integer + (production_line_id IS NOT NULL)::integer "
+            "+ (equipment_id IS NOT NULL)::integer) = 1",
+            name="ck_user_assignment_single_target",
+        ),
+        Index(
+            "uq_user_assignment_department",
+            "user_id",
+            "department_id",
+            unique=True,
+            postgresql_where=text("department_id IS NOT NULL AND deleted_at IS NULL"),
+        ),
+        Index(
+            "uq_user_assignment_production_line",
+            "user_id",
+            "production_line_id",
+            unique=True,
+            postgresql_where=text("production_line_id IS NOT NULL AND deleted_at IS NULL"),
+        ),
+        Index(
+            "uq_user_assignment_equipment",
+            "user_id",
+            "equipment_id",
+            unique=True,
+            postgresql_where=text("equipment_id IS NOT NULL AND deleted_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("app_user.id", ondelete="RESTRICT"), nullable=False
+    )
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("department.id", ondelete="RESTRICT")
+    )
+    production_line_id: Mapped[int | None] = mapped_column(
+        ForeignKey("production_line.id", ondelete="RESTRICT")
+    )
+    equipment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("equipment.id", ondelete="RESTRICT")
+    )
 
 
 from app.models.process import ProcessRecord  # noqa: E402
