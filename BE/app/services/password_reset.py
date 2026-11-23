@@ -4,13 +4,17 @@ import secrets
 import string
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
+from app.models.account_audit import AccountAuditEvent
 from app.models.master import AppUser
+from app.repositories.account_audit import AccountAuditRepository
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password
+from app.services.session_revocation import revoke_sessions_for_user
 
 _TEMPORARY_PASSWORD_ALPHABET = string.ascii_letters + string.digits
 _TEMPORARY_PASSWORD_LENGTH = 16
@@ -64,10 +68,14 @@ class PasswordResetService:
         self,
         session: Session,
         repository: AuthRepository,
+        settings: Settings,
+        audit_repository: AccountAuditRepository,
         clock: Clock = _utc_now,
     ) -> None:
         self._session = session
         self._repository = repository
+        self._settings = settings
+        self._audit_repository = audit_repository
         self._clock = clock
 
     def reset_password(self, actor: AppUser, user_id: int) -> PasswordResetResult:
@@ -82,20 +90,17 @@ class PasswordResetService:
         temporary_password = generate_temporary_password()
         user.password_hash = hash_password(temporary_password)
         user.must_change_password = True
+        user.temporary_password_expires_at = now + timedelta(
+            seconds=self._settings.temporary_password_ttl_seconds
+        )
         user.version += 1
         user.failed_login_count = 0
         user.locked_until = None
 
-        sessions = self._repository.find_sessions_for_update(user.id)
-        credentials = self._repository.find_credentials_for_update(
-            [auth_session.id for auth_session in sessions]
+        revoke_sessions_for_user(self._repository, user.id, now)
+        self._audit_repository.add_event(
+            AccountAuditEvent(user_id=user.id, actor_id=actor.id, action="password_reset")
         )
-        for auth_session in sessions:
-            if auth_session.revoked_at is None:
-                auth_session.revoked_at = now
-        for credential in credentials:
-            if credential.revoked_at is None:
-                credential.revoked_at = now
 
         self._session.commit()
         return PasswordResetResult(user=user, temporary_password=temporary_password)

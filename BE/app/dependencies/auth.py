@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 from app.models.master import AppUser
+from app.repositories.account_audit import AccountAuditRepository
 from app.repositories.auth import AuthRepository
 from app.security.cookies import CSRF_HEADER_NAME
 from app.security.tokens import TokenError, decode_access_token
@@ -53,21 +54,23 @@ def get_auth_service(
 
 def get_password_reset_service(
     session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> PasswordResetService:
-    return PasswordResetService(session, AuthRepository(session))
+    return PasswordResetService(
+        session, AuthRepository(session), settings, AccountAuditRepository(session)
+    )
 
 
 def get_account_management_service(
     session: Annotated[Session, Depends(get_db_session)],
-) -> AccountManagementService:
-    return AccountManagementService(session, AuthRepository(session))
-
-
-def get_current_user(
-    request: Request,
-    session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
-) -> AppUser:
+) -> AccountManagementService:
+    return AccountManagementService(
+        session, AuthRepository(session), settings, AccountAuditRepository(session)
+    )
+
+
+def load_authenticated_user(request: Request, session: Session, settings: Settings) -> AppUser:
     token = request.cookies.get(settings.access_cookie_name)
     if token is None:
         raise authentication_required()
@@ -93,6 +96,33 @@ def get_current_user(
     if user is None:
         raise authentication_required()
     return user
+
+
+def get_current_user(
+    request: Request,
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AppUser:
+    """Reject business requests until an issued temporary password is replaced."""
+    user = load_authenticated_user(request, session, settings)
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "PASSWORD_CHANGE_REQUIRED",
+                "message": "임시 비밀번호를 먼저 변경해 주세요.",
+            },
+        )
+    return user
+
+
+def get_current_user_allow_password_change(
+    request: Request,
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AppUser:
+    """Allow the account to read itself and change its own password."""
+    return load_authenticated_user(request, session, settings)
 
 
 def require_admin(

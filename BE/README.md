@@ -21,7 +21,8 @@ Copy-Item .env.example .env
 `.env`의 `APP_DATABASE_URL`, `APP_JWT_SECRET`을 개인 개발 값으로 변경한다. JWT 비밀값은
 32자 이상이어야 한다. `APP_AI_API_KEY`는 선택값이며 비어 있어도 일반 기능은 실행된다.
 `APP_ACCESS_TOKEN_TTL_SECONDS`, `APP_REFRESH_TOKEN_TTL_SECONDS`, `APP_LOGIN_MAX_FAILURES`,
-`APP_LOGIN_LOCK_SECONDS`, `APP_REFRESH_REUSE_GRACE_SECONDS`로 인증 기본값을 조정한다. 실제 HTTPS
+`APP_LOGIN_LOCK_SECONDS`, `APP_REFRESH_REUSE_GRACE_SECONDS`, `APP_TEMPORARY_PASSWORD_TTL_SECONDS`로
+인증 기본값을 조정한다. 실제 HTTPS
 배포에서는 `APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON
 배열로 나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다. 실제 `.env`와 비밀값은 커밋하지 않는다.
 
@@ -55,6 +56,14 @@ uvicorn app.main:app --reload
   `new_password`, 액세스 쿠키 + `X-CSRF-Token` 헤더)
 - 관리자 비밀번호 초기화: `POST http://localhost:8000/api/v1/users/{user_id}/password-reset`
   (관리자, 액세스 쿠키 + `X-CSRF-Token` 헤더, 응답의 `temporary_password`는 1회만 표시)
+- 사용자 목록·상세: `GET http://localhost:8000/api/v1/users`, `GET .../users/{user_id}` (관리자)
+- 사용자 수정: `PATCH http://localhost:8000/api/v1/users/{user_id}` (`version` 필수 + 변경 필드,
+  관리자, `X-CSRF-Token` 헤더)
+- 계정 비활성화·재활성화: `POST .../users/{user_id}/deactivation`, `POST .../users/{user_id}/reactivation`
+  (`version`, 관리자, `X-CSRF-Token` 헤더. 비활성화 시 기존 세션·리프레시 폐기)
+- 계정 감사 이력: `GET .../users/{user_id}/audit-events` (관리자)
+- 임시 비밀번호로 로그인한 계정은 비밀번호 변경 전까지 업무 API가 `403 PASSWORD_CHANGE_REQUIRED`로
+  차단되고, 만료된 임시 비밀번호 로그인은 `401 TEMPORARY_PASSWORD_EXPIRED`로 거부된다
 - 근무 종료 조회: `GET http://localhost:8000/api/v1/work-session`
 - 근무 종료 연장: `POST http://localhost:8000/api/v1/work-session/extensions`
   (`automatic` 또는 `manual`, 액세스 쿠키 + `X-CSRF-Token` 헤더)

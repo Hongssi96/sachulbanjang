@@ -1659,3 +1659,38 @@
 - Router는 관리자 역할과 CSRF를 검사하고, 입력 문자열의 공백 정규화·길이·역할을 Pydantic으로 검증한다. 기존 `app_user` 스키마와 제약을 사용하므로 마이그레이션은 추가하지 않았다.
 - 검증: Ruff lint, mypy, 전체 pytest 113건을 통과했다. 일회용 PostgreSQL 18 DB에 Alembic head를 적용해 계정 생성, Argon2id 검증, 삭제 계정을 포함한 사번 중복 거부를 확인하고 DB를 삭제했다. 제한된 샌드박스에서는 Windows Python 3.14의 내부 socketpair 생성이 멈췄으나 동일 테스트를 샌드박스 밖에서 실행해 통과했다.
 
+## DEC-205 — 관리자 계정 관리 범위와 임시 비밀번호 정책 (Q-205)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-063·DEC-204의 계정 생성·초기화 후속 범위
+- 확인한 문서 상태: DEC-204가 사용자 목록·상세·수정·비활성화 API와 계정 생성 화면을 후속 작업으로 남겼고, DEC-203이 임시 비밀번호 만료 정책과 감사 이력을 미확정으로 남겼다. DEC-093은 사용자 대상 삭제 복구 기능을 MVP에서 보류했다.
+- 질문 1: 이번 작업에 FE 관리자 계정 화면과 임시 비밀번호 표시·복사 UI를 포함할지?
+- 답변 1(2026-11-23): BE API만 구현한다.
+- 확정 결과 1: 사용자 목록·상세·수정·비활성화·재활성화·감사 이력·임시 비밀번호 만료만 BE에서 구현한다. FE 관리자 계정 관리 화면과 임시 비밀번호 1회 표시·복사 UI는 FE 후속 작업으로 남긴다.
+- 질문 2: 계정 비활성화와 재활성화를 어떤 방식으로 처리할지?
+- 답변 2(2026-11-23): soft delete와 재활성화를 사용한다.
+- 확정 결과 2: 비활성화는 `app_user.deleted_at`을 설정하고 재활성화는 해제한다. 목록은 기본 비활성 계정을 제외하고 `include_inactive=true`로 포함해 재활성화할 수 있다. 사번은 삭제 계정을 포함해 계속 고유하다. DEC-093의 휴지통·복구 기능 보류는 사용자 대상 일반 리소스에 유지하고 계정 재활성화만 관리자 작업으로 허용한다.
+- 질문 3: 역할 변경과 비활성화에 어떤 제한을 둘지?
+- 답변 3(2026-11-23): 본인과 마지막 관리자를 보호한다.
+- 확정 결과 3: 본인 역할 변경(`SELF_ROLE_CHANGE_NOT_ALLOWED`)과 본인 비활성화(`SELF_DEACTIVATION_NOT_ALLOWED`)를 차단한다. 마지막 활성 관리자의 강등·비활성화는 `LAST_ADMIN_REQUIRED`로 차단한다.
+- 질문 4: 임시 비밀번호 만료와 미변경 계정 접근 제한을 어떻게 할지?
+- 답변 4(2026-11-23): 만료와 업무 API 제한을 적용한다.
+- 확정 결과 4: API로 발급한 임시 비밀번호는 `APP_TEMPORARY_PASSWORD_TTL_SECONDS`(기본 86400초) 뒤 만료되고, 만료 후 로그인은 `TEMPORARY_PASSWORD_EXPIRED`로 거부한다. `must_change_password=true`인 계정은 본인 조회와 비밀번호 변경만 허용하고 다른 업무 API는 `PASSWORD_CHANGE_REQUIRED`로 차단한다. CLI 시드 계정의 비밀번호에는 시간 만료를 적용하지 않는다.
+- 질문 5: 계정 생성·초기화 감사 이력의 범위는?
+- 답변 5(2026-11-23): 기록과 관리자 조회 API를 구현한다.
+- 확정 결과 5: 계정 생성·비밀번호 초기화·정보 수정·비활성화·재활성화 이벤트를 `account_audit_event`에 기록하고 관리자 전용 `GET /users/{user_id}/audit-events`로 조회한다. 임시 비밀번호 원문과 만료 시각은 저장하지 않는다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변. 기존 계정 관리 구현(DEC-204)과 계정 초기화 구현(DEC-203)을 이어가는 후속 범위다.
+- 남은 쟁점: FE 관리자 계정 화면과 임시 비밀번호 표시 UX, 감사 이력 보존 기간과 화면 노출, 미변경 상태에서 허용할 부가 API 범위
+
+## TECH-014 — 사용자 관리·비활성화·임시 비밀번호 만료·감사 이력 구현
+
+- 최신 `origin/dev`에서 `codex/be-feature-user-management` 브랜치로 DEC-205를 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `GET /users`(검색·역할·비활성 포함·페이지), `GET /users/{user_id}`, `PATCH /users/{user_id}`, `POST /users/{user_id}/deactivation`, `POST /users/{user_id}/reactivation`, `GET /users/{user_id}/audit-events`를 추가했다. 모두 관리자 전용이고 변경 API는 CSRF를 요구한다.
+- `AccountManagementService`가 목록·상세·수정·비활성화·재활성화·감사 조회를 담당한다. 버전 충돌은 `VERSION_CONFLICT`, 본인·마지막 관리자 보호는 각각 전용 오류로 매핑한다. 비활성화는 공통 `session_revocation` 헬퍼로 세션과 리프레시 자격 증명을 폐기한 뒤 커밋한다.
+- 임시 비밀번호 만료: `app_user.temporary_password_expires_at`(마이그레이션 `20261123_0007`)과 `APP_TEMPORARY_PASSWORD_TTL_SECONDS`를 추가했다. 계정 생성·초기화 시 만료 시각을 기록하고, 만료 로그인은 `TEMPORARY_PASSWORD_EXPIRED`, `must_change_password=true` 업무 요청은 `PASSWORD_CHANGE_REQUIRED`로 처리한다. 비밀번호 변경 시 만료 시각을 지운다.
+- 감사 이력: `account_audit_event`(마이그레이션 `20261123_0008`)와 `AccountAuditRepository`를 추가했다. 계정 조치를 같은 트랜잭션에서 기록하고 관리자 조회 API를 제공한다. 임시 비밀번호 원문·해시·만료 시각은 기록하지 않는다.
+- 검증: Ruff check, mypy, 전체 pytest 160건 통과. 일회용 PostgreSQL 18 DB에 Alembic head를 적용해 계정 생성·초기화·목록·수정·비활성화·재활성화·감사 기록·세션 폐기와 만료 거부를 확인하고 DB를 삭제했다. 저장소 전체 `ruff format --check .`는 기존 파일 CRLF로 재포맷 대상이 보고되어 변경·추가 파일만 검사했다.
+- 기록일: 2026-11-23.
+

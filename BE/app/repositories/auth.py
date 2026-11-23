@@ -1,10 +1,30 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.auth import AuthSession, RefreshCredential, WorkExtension
 from app.models.master import AppUser
+
+
+def _user_search_filters(
+    *, query: str | None, role: str | None, include_inactive: bool
+) -> list[ColumnElement[bool]]:
+    conditions: list[ColumnElement[bool]] = []
+    if not include_inactive:
+        conditions.append(AppUser.deleted_at.is_(None))
+    if role is not None:
+        conditions.append(AppUser.role == role)
+    if query:
+        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        conditions.append(
+            or_(
+                AppUser.employee_no.ilike(pattern, escape="\\"),
+                AppUser.display_name.ilike(pattern, escape="\\"),
+            )
+        )
+    return conditions
 
 
 class AuthRepository:
@@ -26,6 +46,27 @@ class AuthRepository:
             select(AppUser).where(AppUser.id == user_id, AppUser.deleted_at.is_(None))
         )
 
+    def find_any_user_by_id(self, user_id: int) -> AppUser | None:
+        """Include soft-deleted accounts so administrators can inspect them."""
+        return self._session.scalar(select(AppUser).where(AppUser.id == user_id))
+
+    def find_any_user_for_update(self, user_id: int) -> AppUser | None:
+        return self._session.scalar(select(AppUser).where(AppUser.id == user_id).with_for_update())
+
+    def count_other_active_admins(self, user_id: int) -> int:
+        return (
+            self._session.scalar(
+                select(func.count())
+                .select_from(AppUser)
+                .where(
+                    AppUser.deleted_at.is_(None),
+                    AppUser.role == "admin",
+                    AppUser.id != user_id,
+                )
+            )
+            or 0
+        )
+
     def find_active_user_for_update(self, user_id: int) -> AppUser | None:
         """Lock an active account before an administrator changes its password."""
         return self._session.scalar(
@@ -37,6 +78,32 @@ class AuthRepository:
     def find_user_by_employee_no(self, employee_no: str) -> AppUser | None:
         """Include soft-deleted accounts because employee_no stays unique with them."""
         return self._session.scalar(select(AppUser).where(AppUser.employee_no == employee_no))
+
+    def count_users(self, *, query: str | None, role: str | None, include_inactive: bool) -> int:
+        conditions = _user_search_filters(query=query, role=role, include_inactive=include_inactive)
+        return (
+            self._session.scalar(select(func.count()).select_from(AppUser).where(*conditions)) or 0
+        )
+
+    def find_users(
+        self,
+        *,
+        query: str | None,
+        role: str | None,
+        include_inactive: bool,
+        offset: int,
+        limit: int,
+    ) -> list[AppUser]:
+        conditions = _user_search_filters(query=query, role=role, include_inactive=include_inactive)
+        return list(
+            self._session.scalars(
+                select(AppUser)
+                .where(*conditions)
+                .order_by(AppUser.employee_no.asc(), AppUser.id.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+        )
 
     def add_user(self, user: AppUser) -> None:
         self._session.add(user)

@@ -45,6 +45,10 @@ class AccountLockedError(LoginError):
         super().__init__("account is temporarily locked")
 
 
+class TemporaryPasswordExpiredError(LoginError):
+    """Raised when a login uses a temporary password past its expiry time."""
+
+
 class RefreshRejectedError(LoginError):
     """Base exception for a refresh request that cannot issue new tokens."""
 
@@ -123,6 +127,10 @@ class AuthService:
         if not verify_password(password, user.password_hash):
             self._record_failure(user, now)
             raise InvalidCredentialsError
+
+        expires_at = user.temporary_password_expires_at
+        if user.must_change_password and expires_at is not None and expires_at <= now:
+            raise TemporaryPasswordExpiredError
 
         return self._start_session(user, now)
 
@@ -250,6 +258,7 @@ class AuthService:
 
         user.password_hash = hash_password(new_password)
         user.must_change_password = False
+        user.temporary_password_expires_at = None
         user.version += 1
         self._session.commit()
         return user
