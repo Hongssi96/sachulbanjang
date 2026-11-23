@@ -117,7 +117,7 @@ export default function TabletTasksPage() {
           <div className="card tp-empty">해당 상태의 작업이 없습니다.</div>
         )}
       </section>
-      <p className="th-demo">태블릿 전용 예시 작업 · 실제 작업 지시 서버와 연결되지 않습니다.</p>
+      <p className="th-demo">태블릿 전용 작업입니다.</p>
       {task && (
         <Modal title={task.title} onClose={() => setSelected(null)}>
           <div className="th-form">
@@ -127,7 +127,7 @@ export default function TabletTasksPage() {
             <p>{task.note}</p>
             {task.status === '완료' ? (
               <p className="tp-success">
-                <Check size={18} /> 완료된 예시 작업입니다.
+                <Check size={18} /> 완료된 작업입니다.
               </p>
             ) : (
               <>
@@ -173,7 +173,7 @@ export default function TabletTasksPage() {
                     setSelected(null);
                   }}
                 >
-                  <ClipboardCheck size={18} /> 예시 작업 완료
+                  <ClipboardCheck size={18} /> 작업 완료
                 </button>
               </>
             )}

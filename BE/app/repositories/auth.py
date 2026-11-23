@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.auth import AuthSession, RefreshCredential
+from app.models.auth import AuthSession, RefreshCredential, WorkExtension
 from app.models.master import AppUser
 
 
@@ -41,6 +41,9 @@ class AuthRepository:
             select(AuthSession).where(AuthSession.id == session_id).with_for_update()
         )
 
+    def find_session(self, session_id: int) -> AuthSession | None:
+        return self._session.get(AuthSession, session_id)
+
     def find_credential_for_update(self, token_digest: str) -> RefreshCredential | None:
         return self._session.scalar(
             select(RefreshCredential)
@@ -58,3 +61,6 @@ class AuthRepository:
 
     def add_refresh_credential(self, credential: RefreshCredential) -> None:
         self._session.add(credential)
+
+    def add_work_extension(self, extension: WorkExtension) -> None:
+        self._session.add(extension)

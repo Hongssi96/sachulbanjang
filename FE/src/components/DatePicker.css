@@ -11,13 +11,13 @@
   gap: 12px;
   border: 1px solid var(--border, #e2e2e8);
   background: var(--surface, #fff);
-  border-radius: var(--radius-control, 10px);
+  border-radius: var(--radius-control);
   padding: 10px 12px;
   width: 100%;
   min-height: 44px;
   color: inherit;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -42,7 +42,7 @@
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e2e2e8);
   box-shadow: 0 12px 36px #29263f24;
-  border-radius: var(--radius-card, 16px);
+  border-radius: var(--radius-card);
 }
 .date-picker-month {
   display: flex;
@@ -51,7 +51,7 @@
   margin-bottom: 14px;
 }
 .date-picker-month strong {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: inherit;
 }
 .date-picker .date-picker-month button,
@@ -61,13 +61,13 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  border-radius: 7px;
+  border-radius: var(--radius-small);
   color: inherit;
   cursor: pointer;
   padding: 0;
   min-height: 32px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .date-picker-month button {
   width: 32px;
@@ -79,7 +79,7 @@
 }
 .date-picker-weekday {
   text-align: center;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #8b849c;
   padding-bottom: 7px;
 }
@@ -93,7 +93,7 @@
   font-weight: 700;
 }
 .date-picker-footer {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #8b849c;
   border-top: 1px solid var(--border, #e2e2e8);
   padding-top: 12px;
@@ -118,12 +118,12 @@
   }
   .date-picker .date-picker-grid button {
     min-height: 29px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .date-picker-weekday {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .date-picker-footer {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
 }

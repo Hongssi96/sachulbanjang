@@ -1,5 +1,8 @@
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
+import QueryFilterCard from '../../components/QueryFilterCard';
+import SegmentedControl from '../../components/SegmentedControl';
+import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
 import DatePicker from '../../components/DatePicker';
 import { useState, useTransition } from 'react';
 import { useSearchParams } from 'react-router';
@@ -7,7 +10,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ArrowRight,
-  CalendarDays,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -34,6 +36,7 @@ import {
   filterInspections,
   formatRate,
   inspectionThreshold,
+  inspectionDataRange,
   percentage,
   previousQualityPeriod,
   qualityByProduct,
@@ -48,7 +51,16 @@ import {
   summarizeQuality,
 } from '../../services/inspectionData';
 import type { InspectionBatch, QualityFilters } from '../../services/inspectionData';
+import { shiftDateISO, todayISO } from '../../utils/dateFormat';
 import './QualityReportPage.css';
+
+const PAGE_SIZE = 10;
+const PERIOD_OPTIONS = [
+  { value: 'day', label: '일간' },
+  { value: 'week', label: '주간' },
+  { value: 'month', label: '월간' },
+] as const;
+type PeriodKey = (typeof PERIOD_OPTIONS)[number]['value'];
 
 type QualityDialog =
   { kind: 'inspection'; record: InspectionBatch } | { kind: 'preview' } | { kind: 'basis' } | null;
@@ -74,6 +86,20 @@ export default function QualityReportPage() {
     equipment: qualityEquipment.find((value) => value === params.get('equipment')) ?? '',
   };
   const rangeError = qualityRangeError(filters);
+  const today = todayISO();
+  const periods: Record<PeriodKey, { from: string; to: string }> = {
+    day: { from: today, to: today },
+    week: { from: shiftDateISO(today, -6), to: today },
+    month: { from: `${today.slice(0, 7)}-01`, to: today },
+  };
+  const periodKey: PeriodKey | 'custom' =
+    filters.from === periods.day.from && filters.to === periods.day.to
+      ? 'day'
+      : filters.from === periods.week.from && filters.to === periods.week.to
+        ? 'week'
+        : filters.from === periods.month.from && filters.to === periods.month.to
+          ? 'month'
+          : 'custom';
   const records = rangeError ? [] : filterInspections(filters);
   const summary = summarizeQuality(records);
   const previousFilters = previousQualityPeriod(filters);
@@ -102,12 +128,12 @@ export default function QualityReportPage() {
               : true),
     )
     .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
-  const pageCount = Math.max(1, Math.ceil(rows.length / 8));
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const requestedPage = Number(params.get('page') ?? 1);
   const page = Number.isInteger(requestedPage)
     ? Math.max(1, Math.min(pageCount, requestedPage))
     : 1;
-  const visibleRows = rows.slice((page - 1) * 8, page * 8);
+  const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const setFilter = (key: string, value: string) => {
     setParams(
       (previousParams) => {
@@ -120,6 +146,15 @@ export default function QualityReportPage() {
       { replace: key !== 'page' },
     );
   };
+  const {
+    input: queryInput,
+    setInput: setQueryInput,
+    searchNow: clearQuery,
+    compositionHandlers,
+  } = useDebouncedSearch({
+    value: query,
+    onSearch: (value) => setFilter('q', value),
+  });
   const setPeriod = (from: string, to: string) => {
     setParams(
       (previousParams) => {
@@ -187,111 +222,71 @@ export default function QualityReportPage() {
           </button>
         </div>
       )}
-      <section className="card qr-filter-card" aria-label="품질 리포트 조회 조건">
-        <div className="qr-filter-heading">
-          <strong>
-            <CalendarDays size={18} />
-            조회 조건
-          </strong>
-          <div
-            className="qr-period-buttons"
-            role="group"
-            aria-label="품질 조회 기간"
-            data-active={
-              filters.to !== '2026-11-17'
-                ? 'custom'
-                : filters.from === '2026-11-17'
-                  ? '0'
-                  : filters.from === '2026-11-11'
-                    ? '1'
-                    : filters.from === '2026-11-01'
-                      ? '2'
-                      : 'custom'
-            }
-          >
-            {[
-              { label: '일간', from: '2026-11-17' },
-              { label: '주간', from: '2026-11-11' },
-              { label: '월간', from: '2026-11-01' },
-            ].map((period) => (
-              <button
-                key={period.label}
-                aria-pressed={filters.from === period.from && filters.to === '2026-11-17'}
-                className={
-                  filters.from === period.from && filters.to === '2026-11-17' ? 'selected' : ''
-                }
-                onClick={() => setPeriod(period.from, '2026-11-17')}
-              >
-                {period.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="qr-filter-fields">
-          <fieldset>
-            <legend>조회 기간</legend>
-            <div className="qr-date-range">
-              <DatePicker
-                aria-label="품질 조회 시작일"
-                value={filters.from}
-                onChange={(event) => setFilter('from', event.target.value)}
-              />
-              <span>—</span>
-              <DatePicker
-                aria-label="품질 조회 종료일"
-                value={filters.to}
-                onChange={(event) => setFilter('to', event.target.value)}
-              />
-            </div>
-          </fieldset>
-          <label>
-            제품
-            <FilterSelect
-              label="품질 제품 필터"
-              value={filters.product}
-              onChange={(value) => setFilter('product', value)}
-              options={[
-                { value: '', label: '전체 제품' },
-                ...qualityProducts.map((product) => ({ value: product, label: product })),
-              ]}
+      <QueryFilterCard
+        presets={
+          <SegmentedControl
+            label="품질 조회 기간"
+            value={periodKey}
+            options={PERIOD_OPTIONS}
+            onChange={(value) => {
+              if (value !== 'custom') {
+                const range = periods[value];
+                setPeriod(range.from, range.to);
+              }
+            }}
+          />
+        }
+        onReset={() => setParams({})}
+        error={rangeError}
+        caption={`조회 가능 기간 ${qualityDateLabel(inspectionDataRange.from)}–${qualityDateLabel(inspectionDataRange.to)}`}
+      >
+        <fieldset>
+          <legend>조회 기간</legend>
+          <div className="query-date-range">
+            <DatePicker
+              aria-label="품질 조회 시작일"
+              value={filters.from}
+              onChange={(event) => setFilter('from', event.target.value)}
             />
-          </label>
-          <label>
-            설비
-            <FilterSelect
-              label="품질 설비 필터"
-              value={filters.equipment}
-              onChange={(value) => setFilter('equipment', value)}
-              options={[
-                { value: '', label: '전체 설비' },
-                ...qualityEquipment.map((equipment, index) => ({
-                  value: equipment,
-                  label: `${equipment} · 사출 ${index + 1}호기`,
-                })),
-              ]}
+            <span aria-hidden="true">—</span>
+            <DatePicker
+              aria-label="품질 조회 종료일"
+              value={filters.to}
+              onChange={(event) => setFilter('to', event.target.value)}
             />
-          </label>
-        </div>
-        {rangeError && (
-          <div className="qr-range-error" role="alert">
-            <TriangleAlert size={17} />
-            <span>{rangeError}</span>
-            <button onClick={() => setParams({})}>기간 초기화</button>
           </div>
-        )}
-        <p className="qr-filter-caption">
-          시연 기준일 2026.11.17 · 조회 가능한 예시 검사 기록은 2026.11.04–2026.11.17입니다.
-        </p>
-      </section>
+        </fieldset>
+        <div className="query-field">
+          <span>제품</span>
+          <FilterSelect
+            label="품질 제품 필터"
+            value={filters.product}
+            onChange={(value) => setFilter('product', value)}
+            options={[
+              { value: '', label: '전체 제품' },
+              ...qualityProducts.map((product) => ({ value: product, label: product })),
+            ]}
+          />
+        </div>
+        <div className="query-field">
+          <span>설비</span>
+          <FilterSelect
+            label="품질 설비 필터"
+            value={filters.equipment}
+            onChange={(value) => setFilter('equipment', value)}
+            options={[
+              { value: '', label: '전체 설비' },
+              ...qualityEquipment.map((equipment, index) => ({
+                value: equipment,
+                label: `${equipment} · 사출 ${index + 1}호기`,
+              })),
+            ]}
+          />
+        </div>
+      </QueryFilterCard>
       <section aria-labelledby="quality-summary-heading">
         <div className="section-top">
-          <h2 id="quality-summary-heading">
-            선택 기간 품질 요약
-            <span className="live-label">
-              <i />
-              DEMO
-            </span>
-          </h2>
+          <h2 id="quality-summary-heading">선택 기간 품질 요약</h2>
           <div className="qr-summary-actions">
             <span className="muted">
               {rangeError
@@ -300,7 +295,7 @@ export default function QualityReportPage() {
             </span>
             <div className="qr-intro-actions">
               <button
-                className="button button-white"
+                className="button button-white button-sm"
                 onClick={downloadCsv}
                 disabled={!rows.length || !!rangeError}
               >
@@ -308,7 +303,7 @@ export default function QualityReportPage() {
                 CSV 다운로드
               </button>
               <button
-                className="button button-primary"
+                className="button button-primary button-sm"
                 onClick={() => setDialog({ kind: 'preview' })}
                 disabled={!records.length || !!rangeError}
               >
@@ -511,12 +506,13 @@ export default function QualityReportPage() {
             <Search size={18} />
             <input
               aria-label="검사 기록 검색"
-              value={query}
-              onChange={(event) => setFilter('q', event.target.value)}
+              value={queryInput}
+              onChange={(event) => setQueryInput(event.target.value)}
               placeholder="검사 번호 또는 제품명 검색"
+              {...compositionHandlers}
             />
-            {query && (
-              <button aria-label="검사 검색어 지우기" onClick={() => setFilter('q', '')}>
+            {queryInput && (
+              <button aria-label="검사 검색어 지우기" onClick={() => clearQuery('')}>
                 <X size={15} />
               </button>
             )}
@@ -630,7 +626,8 @@ export default function QualityReportPage() {
         <div className="qr-table-footer">
           <span>
             전체 <strong>{rows.length}건</strong>
-            {rows.length > 0 && ` 중 ${(page - 1) * 8 + 1}–${Math.min(page * 8, rows.length)}건`}
+            {rows.length > 0 &&
+              ` 중 ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, rows.length)}건`}
           </span>
           <div className="qr-pagination">
             <button
@@ -657,7 +654,6 @@ export default function QualityReportPage() {
       </section>
       <footer className="page-footer qr-page-footer">
         <span>검사 불량률은 제공된 검사 수량 기준이며 전체 생산 불량률과 다릅니다.</span>
-        <span>예시 데이터 · 실제 AI·공정 시스템 미연동</span>
       </footer>
       {dialog && (
         <Modal
@@ -679,7 +675,6 @@ export default function QualityReportPage() {
                 <strong>
                   사출반장 <span>QUALITY REPORT</span>
                 </strong>
-                <span className="pill pill-violet">시연용</span>
               </div>
               <h3>{qualityReportLabel(filters)} 품질 리포트</h3>
               <p className="qr-preview-scope">
@@ -726,7 +721,7 @@ export default function QualityReportPage() {
                   : '선택한 검사 범위에서는 점검 기준을 초과한 제품이 없습니다.'}
               </p>
               <p className="qr-preview-note">
-                이 리포트는 시연용 검사 배치 데이터에 기반합니다. 불량 원인이나 전체 생산 품질을
+                이 리포트는 선택한 검사 배치 데이터에 기반합니다. 불량 원인이나 전체 생산 품질을
                 확정하지 않습니다.
               </p>
               <button
@@ -783,8 +778,8 @@ export default function QualityReportPage() {
                 </div>
               ))}
               <p className="qr-preview-note">
-                모든 기록은 예시 데이터입니다. 관찰된 차이는 불량 원인을 증명하지 않으며, 실제 공정
-                조건과 현장 조치를 함께 검토해야 합니다.
+                관찰된 차이는 불량 원인을 증명하지 않으며, 공정 조건과 현장 조치를 함께 검토해야
+                합니다.
               </p>
             </div>
           )}

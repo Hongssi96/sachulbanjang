@@ -65,9 +65,7 @@ export default function InspectionDetail({ record }: { record: InspectionBatch }
             : '해당 배치의 검사 수량과 기록을 확인해 주세요. 다른 기간·제품의 품질 상태를 의미하지 않습니다.'}
         </p>
       </div>
-      <p className="qr-detail-footnote">
-        검사 배치는 여러 제품을 묶어 검사한 단위입니다. 모든 기록은 시연용입니다.
-      </p>
+      <p className="qr-detail-footnote">검사 배치는 여러 제품을 묶어 검사한 단위입니다.</p>
     </div>
   );
 }

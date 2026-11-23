@@ -22,6 +22,7 @@ class RequestContextMiddleware:
             return
 
         request_id = resolve_request_id(Headers(scope=scope))
+        scope.setdefault("state", {})["request_id"] = request_id
         started_at = perf_counter()
         status_code = 500
 
@@ -29,7 +30,9 @@ class RequestContextMiddleware:
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = message["status"]
-                MutableHeaders(scope=message).append("X-Request-ID", request_id)
+                response_headers = MutableHeaders(scope=message)
+                if "X-Request-ID" not in response_headers:
+                    response_headers.append("X-Request-ID", request_id)
             await send(message)
 
         try:

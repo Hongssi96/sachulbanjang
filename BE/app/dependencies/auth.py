@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from secrets import compare_digest
 from typing import Annotated
 
@@ -62,7 +63,32 @@ def get_current_user(
     except TokenError:
         raise authentication_required() from None
 
-    user = AuthRepository(session).find_active_user_by_id(claims.user_id)
+    repository = AuthRepository(session)
+    auth_session = repository.find_session(claims.session_id)
+    now = datetime.now(UTC)
+    if (
+        auth_session is None
+        or auth_session.user_id != claims.user_id
+        or auth_session.revoked_at is not None
+        or auth_session.absolute_expires_at <= now
+        or auth_session.work_ends_at <= now
+    ):
+        raise authentication_required()
+
+    user = repository.find_active_user_by_id(claims.user_id)
     if user is None:
         raise authentication_required()
     return user
+
+
+def get_current_session_id(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> int:
+    token = request.cookies.get(settings.access_cookie_name)
+    if token is None:
+        raise authentication_required()
+    try:
+        return decode_access_token(token, secret=settings.jwt_secret.get_secret_value()).session_id
+    except TokenError:
+        raise authentication_required() from None

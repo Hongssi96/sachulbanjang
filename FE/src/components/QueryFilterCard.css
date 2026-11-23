@@ -1,0 +1,150 @@
+/* 조회 조건 카드: 생산·검사 이력과 품질 리포트가 같은 구조를 쓴다. */
+.query-filter-card {
+  position: relative;
+  z-index: 1;
+  padding: 24px;
+  margin-bottom: 24px;
+  overflow: visible;
+}
+.query-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.query-filter-head > strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: 26px;
+}
+.query-filter-head > strong > svg {
+  color: var(--primary);
+}
+.query-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.query-filter-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.query-filter-reset:hover {
+  color: var(--ink);
+}
+.query-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(280px, 2fr) minmax(160px, 1fr) minmax(170px, 1fr);
+  gap: 16px;
+}
+.query-filter-fields > fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.query-filter-fields legend,
+.query-field {
+  font-size: var(--fs-sm);
+  line-height: 20px;
+  color: var(--muted);
+}
+.query-filter-fields legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.query-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.query-date-range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.query-date-range > span {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.query-date-range .date-picker {
+  flex: 1;
+}
+.query-date-range > .date-picker:last-child .date-picker-popover {
+  left: auto;
+  right: 0;
+}
+.query-filter-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 16px;
+  border: 1px solid #e9c0c7;
+  border-radius: var(--radius-control);
+  background: #fdf0f2;
+  color: #a33b4e;
+  font-size: var(--fs-sm);
+  line-height: 24px;
+}
+.query-filter-error > span {
+  flex: 1;
+}
+.query-filter-error > button {
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.query-filter-caption {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 20px;
+}
+.dark .query-filter-error {
+  border-color: #72424f;
+  background: #4d2c36;
+  color: #f4aabb;
+}
+@media (max-width: 1100px) {
+  .query-filter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .query-filter-fields > fieldset {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 720px) {
+  .query-filter-card {
+    padding: 16px;
+  }
+  .query-filter-head {
+    align-items: flex-start;
+  }
+  .query-filter-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .query-filter-fields {
+    grid-template-columns: 1fr;
+  }
+  .query-filter-fields > fieldset {
+    grid-column: auto;
+  }
+  .query-date-range {
+    gap: 8px;
+  }
+}

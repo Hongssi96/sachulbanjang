@@ -86,7 +86,7 @@ export default function Sidebar({
           <ArrowUpRight size={17} />
         </button>
         <div className="sidebar-status">
-          <span className="status-dot" /> 예시 데이터 모드
+          <span className="status-dot" /> 데이터 연동
         </div>
         <div className="sidebar-footer">
           <button onClick={() => onNavigate('사용 가이드')} title="사용 가이드">

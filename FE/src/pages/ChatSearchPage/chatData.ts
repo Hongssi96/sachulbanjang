@@ -1,3 +1,5 @@
+import { defaultQualityFilters, qualityDateLabel } from '../../services/inspectionData';
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
@@ -9,6 +11,7 @@ export interface Conversation {
   title: string;
   messages: ChatMessage[];
 }
+const exampleRange = `${qualityDateLabel(defaultQualityFilters.from)}–${qualityDateLabel(defaultQualityFilters.to)}`;
 export const initialConversations: Conversation[] = [
   {
     id: 'quality',
@@ -17,7 +20,7 @@ export const initialConversations: Conversation[] = [
       { role: 'user', text: '최근 7일 검사 결과를 알려줘' },
       {
         role: 'assistant',
-        text: '2026.11.11–11.17 검사 기록은 2,480개입니다. 양품 2,420개, 불량 60개로 검사 불량률은 2.42%예요. 검사 표본 기준이며 전체 생산 불량률은 아닙니다.',
+        text: `${exampleRange} 검사 기록은 2,480개입니다. 양품 2,420개, 불량 60개로 검사 불량률은 2.42%예요. 검사 표본 기준이며 전체 생산 불량률은 아닙니다.`,
         href: '/quality-reports',
         source: '최근 7일 품질 리포트',
       },

@@ -11,8 +11,10 @@ from app.security.passwords import hash_password
 from app.services.auth import (
     AccountLockedError,
     AuthService,
+    CurrentPasswordMismatchError,
     InvalidCredentialsError,
     LoginResult,
+    PasswordUnchangedError,
     SessionRevokedError,
 )
 from fastapi import FastAPI
@@ -110,7 +112,7 @@ def test_login_failure_returns_contract_error_code() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["code"] == "INVALID_CREDENTIALS"
 
 
 def test_locked_login_returns_retry_after_header() -> None:
@@ -126,7 +128,7 @@ def test_locked_login_returns_retry_after_header() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "ACCOUNT_LOCKED"
+    assert response.json()["code"] == "ACCOUNT_LOCKED"
     assert int(response.headers["retry-after"]) >= 1
 
 
@@ -135,7 +137,7 @@ def test_me_requires_access_cookie() -> None:
         response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_me_rejects_invalid_access_cookie() -> None:
@@ -148,7 +150,7 @@ def test_me_rejects_invalid_access_cookie() -> None:
         response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_me_returns_authenticated_user() -> None:
@@ -201,7 +203,7 @@ def test_refresh_requires_matching_csrf_header() -> None:
         rejected = client.post("/api/v1/auth/refresh")
 
         assert rejected.status_code == 403
-        assert rejected.json()["detail"]["code"] == "CSRF_VALIDATION_FAILED"
+        assert rejected.json()["code"] == "CSRF_VALIDATION_FAILED"
 
         accepted = client.post(
             "/api/v1/auth/refresh",
@@ -233,7 +235,7 @@ def test_refresh_without_refresh_cookie_requests_login() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_refresh_rejection_clears_auth_cookies() -> None:
@@ -251,7 +253,7 @@ def test_refresh_rejection_clears_auth_cookies() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "SESSION_REVOKED"
+    assert response.json()["code"] == "SESSION_REVOKED"
     assert settings.refresh_cookie_name in response.headers["set-cookie"]
 
 
@@ -281,3 +283,88 @@ def test_logout_requires_csrf_and_clears_cookies() -> None:
     cleared = response.headers.get_list("set-cookie")
     assert len(cleared) == 3
     assert all("Max-Age=0" in item for item in cleared)
+
+
+def test_change_password_requires_authentication_and_csrf() -> None:
+    application, settings = make_app_with_settings()
+
+    with TestClient(application) as client:
+        unauthenticated = client.patch(
+            "/api/v1/auth/password",
+            json={"current_password": "old", "new_password": "new"},
+        )
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        missing_auth = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={"current_password": "old", "new_password": "new"},
+        )
+
+    assert unauthenticated.status_code == 403
+    assert unauthenticated.json()["code"] == "CSRF_VALIDATION_FAILED"
+    assert missing_auth.status_code == 401
+    assert missing_auth.json()["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def test_change_password_returns_updated_user() -> None:
+    user = make_user()
+    user.must_change_password = True
+    service = MagicMock(spec=AuthService)
+
+    def change_password(
+        changed_user: AppUser, *, current_password: str, new_password: str
+    ) -> AppUser:
+        assert changed_user is user
+        assert current_password == "old-password"
+        assert new_password == "new-password"
+        changed_user.must_change_password = False
+        return changed_user
+
+    service.change_password.side_effect = change_password
+    application, settings = make_app_with_settings()
+    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        response = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={
+                "current_password": "old-password",
+                "new_password": "new-password",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["must_change_password"] is False
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_change_password_maps_domain_errors() -> None:
+    user = make_user()
+    application, settings = make_app_with_settings()
+    service = MagicMock(spec=AuthService)
+    application.dependency_overrides[get_current_user] = lambda: user
+    application.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(application) as client:
+        client.cookies.set(settings.csrf_cookie_name, "csrf-token")
+        service.change_password.side_effect = CurrentPasswordMismatchError
+        mismatch = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={"current_password": "wrong", "new_password": "new"},
+        )
+
+        service.change_password.side_effect = PasswordUnchangedError
+        unchanged = client.patch(
+            "/api/v1/auth/password",
+            headers={CSRF_HEADER_NAME: "csrf-token"},
+            json={"current_password": "same", "new_password": "same"},
+        )
+
+    assert mismatch.status_code == 400
+    assert mismatch.json()["code"] == "CURRENT_PASSWORD_MISMATCH"
+    assert unchanged.status_code == 400
+    assert unchanged.json()["code"] == "PASSWORD_UNCHANGED"

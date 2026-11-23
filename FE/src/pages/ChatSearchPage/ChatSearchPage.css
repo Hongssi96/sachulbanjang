@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--rd-muted);
 }
 .cs-mode > span {
@@ -36,10 +36,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 .cs-history-heading > span {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--rd-muted);
 }
 .cs-new {
@@ -61,10 +61,10 @@
   width: 100%;
   box-sizing: border-box;
   padding-left: 32px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 .cs-section-label {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--rd-muted);
   padding-left: 8px;
 }
@@ -75,21 +75,25 @@
 }
 .cs-history-items button {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   text-align: left;
   gap: 10px;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 8px;
-  padding: 13px 10px;
+  border-radius: var(--radius-small);
+  padding: 7px 10px;
   color: var(--rd-ink);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   min-width: 0;
 }
-.cs-history-items button > span {
+/* 한 줄: 제목은 말줄임, 메시지 수는 오른쪽 끝 */
+.cs-history-title {
+  flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cs-history-items button > svg {
   flex-shrink: 0;
@@ -101,10 +105,10 @@
   color: #635b85;
 }
 .cs-history-items small {
-  display: block;
-  font-size: 12px;
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
   color: var(--rd-muted);
-  margin-top: 7px;
+  font-variant-numeric: tabular-nums;
 }
 .cs-history-note {
   margin-top: auto;
@@ -113,11 +117,11 @@
 }
 .cs-history-note strong {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   margin-top: 10px;
 }
 .cs-history-note p {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1.9;
   color: var(--rd-muted);
 }
@@ -137,7 +141,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 22px 26px;
+  padding: 12px 24px;
   border-bottom: 1px solid var(--rd-border);
 }
 .cs-ai-mark {
@@ -146,17 +150,17 @@
   justify-content: center;
   background: #635b85;
   color: #fff;
-  border-radius: 10px;
-  width: 42px;
-  height: 42px;
+  border-radius: var(--radius-control);
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
 }
 .cs-chat-heading strong {
-  font-size: 15px;
+  font-size: var(--fs-md);
   overflow-wrap: anywhere;
 }
 .cs-chat-heading p {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--rd-muted);
   margin: 6px 0 0;
 }
@@ -170,7 +174,7 @@
   min-height: 320px;
   display: flex;
   flex-direction: column;
-  gap: 27px;
+  gap: 16px;
 }
 .cs-message {
   display: flex;
@@ -185,27 +189,27 @@
   height: 29px;
   background: #f0edf7;
   color: #635b85;
-  border-radius: 9px;
-  font-size: 11px;
+  border-radius: var(--radius-control);
+  font-size: var(--fs-xs);
   flex-shrink: 0;
 }
 .cs-message > div {
-  max-width: 88%;
+  max-width: min(88%, 720px); /* 한 줄이 너무 길어지지 않게 */
   min-width: 0;
 }
 .cs-message-author {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--rd-muted);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .cs-bubble {
-  padding: 17px 19px;
+  padding: 10px 14px;
   background: var(--cs-soft);
   border: 1px solid var(--rd-border);
-  border-radius: 0 12px 12px 12px;
-  font-size: 14px;
-  line-height: 2;
+  border-radius: 0 var(--radius-control) var(--radius-control) var(--radius-control);
+  font-size: var(--fs-md);
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .cs-bubble p {
@@ -221,7 +225,7 @@
 }
 .cs-message.user .cs-bubble {
   background: var(--rd-surface);
-  border-radius: 12px 0 12px 12px;
+  border-radius: var(--radius-control) 0 var(--radius-control) var(--radius-control);
 }
 .cs-message.user .cs-message-author {
   text-align: right;
@@ -230,34 +234,40 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   text-decoration: none;
   color: #635b85;
   background: var(--rd-surface);
   border: 1px solid var(--rd-border);
-  padding: 8px 12px;
-  border-radius: 7px;
-  margin-top: 15px;
+  padding: 6px 10px;
+  border-radius: var(--radius-small);
+  margin-top: 10px;
 }
 .cs-source svg:last-child {
   margin-left: auto;
 }
+/* 입력창: 글자 칸과 보내기 버튼을 한 줄에 두고, 안내 문구는 상자 밖 아래에 둔다. */
 .cs-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
   margin: 0 26px;
   border: 1px solid #d5cfe1;
-  border-radius: 12px;
-  padding: 15px;
+  border-radius: var(--radius-control);
+  padding: 5px 5px 5px 14px;
   box-shadow: 0 4px 15px #29263f05;
 }
 .cs-composer textarea {
   box-sizing: border-box;
-  resize: vertical;
-  width: 100%;
-  min-height: 60px;
-  max-height: 180px;
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  min-height: 0; /* 전역 textarea 최소 높이(120px)를 쓰지 않는다 */
+  padding: 7px 0;
+  overflow-y: auto;
   font: inherit;
-  font-size: 14px;
-  line-height: 1.8;
+  font-size: var(--fs-sm);
+  line-height: 22px;
   color: var(--rd-ink);
   border: 0;
   background: transparent;
@@ -267,21 +277,23 @@
   outline: 2px solid #635b85;
   outline-offset: 2px;
 }
-.cs-composer > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+/* 보내기 버튼: 36×36 정사각형(전역 버튼 최소 높이 44px를 쓰지 않는다) */
+.cs-composer button {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
 }
-.cs-composer > div > span {
-  font-size: 12px;
+.cs-composer-hint {
+  margin: 6px 26px 14px;
+  font-size: var(--fs-xs);
   color: var(--rd-muted);
 }
-.cs-composer button {
-  padding: 8px;
-}
 .cs-disclaimer {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-align: center;
   color: var(--rd-muted);
   padding: 0 26px;
@@ -292,11 +304,11 @@
   padding: 27px;
 }
 .cs-search-content h2 {
-  font-size: 18px;
+  font-size: var(--fs-lg);
   margin: 0 0 10px;
 }
 .cs-muted {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--rd-muted);
   line-height: 1.9;
 }
@@ -305,7 +317,7 @@
   align-items: center;
   gap: 10px;
   border: 1px solid #d5cfe1;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   padding: 4px 13px;
   margin-top: 23px;
   color: #635b85;
@@ -334,12 +346,12 @@
   box-sizing: border-box;
 }
 .cs-search-empty h3 {
-  font-size: 16px;
+  font-size: var(--fs-md);
   color: var(--rd-ink);
   margin-top: 22px;
 }
 .cs-search-empty p {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--rd-muted);
 }
 .cs-chips {
@@ -351,10 +363,10 @@
 }
 .cs-chips button {
   border: 1px solid var(--rd-border);
-  border-radius: 18px;
+  border-radius: var(--radius-pill);
   padding: 7px 13px;
   background: var(--rd-surface);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: #635b85;
   cursor: pointer;
 }
@@ -363,18 +375,18 @@
   justify-content: space-between;
   gap: 12px;
   margin: 28px 0 22px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 .cs-results-title span {
   color: var(--rd-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
 .cs-result-group {
   margin-bottom: 25px;
 }
 .cs-result-group h3 {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -383,8 +395,8 @@
   color: #635b85;
   background: #f0edf7;
   padding: 3px 6px;
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--radius-small);
+  font-size: var(--fs-xs);
 }
 .cs-result {
   display: flex;
@@ -395,7 +407,7 @@
   color: var(--rd-ink);
   text-decoration: none;
   border: 1px solid var(--rd-border);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: var(--rd-surface);
   padding: 16px;
   margin-top: 9px;
@@ -412,11 +424,11 @@
   min-width: 0;
 }
 .cs-result strong {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
 .cs-result p {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.9;
   color: var(--rd-muted);
   margin: 6px 0 0;
@@ -424,7 +436,7 @@
 }
 .cs-result small {
   color: var(--rd-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .cs-result:is(a, button):hover {
   background: var(--cs-soft);
@@ -437,12 +449,12 @@
   color: #635b85;
 }
 .cs-welcome h2 {
-  font-size: 20px;
+  font-size: var(--fs-xl);
   color: var(--rd-ink);
   margin: 20px 0 10px;
 }
 .cs-welcome p {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--rd-muted);
   line-height: 1.9;
 }
@@ -459,15 +471,15 @@
   border: 1px solid var(--rd-border);
   background: var(--rd-surface);
   padding: 13px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-small);
+  font-size: var(--fs-sm);
   color: var(--rd-ink);
   text-align: left;
   cursor: pointer;
 }
 .cs-storage-notice {
   padding: 0 26px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: #a15e32;
 }
 .sidebar-search[href] {
@@ -498,8 +510,9 @@
   .cs-search-content {
     padding: 20px;
   }
-  .cs-composer {
-    margin: 0 20px;
+  .cs-composer,
+  .cs-composer-hint {
+    margin-inline: 20px;
   }
   .cs-disclaimer {
     padding: 0 20px;
@@ -543,7 +556,7 @@
     min-height: 240px;
   }
   .cs-mode {
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .cs-chat-heading {
     gap: 9px;
@@ -556,7 +569,7 @@
   }
   .cs-bubble {
     padding: 12px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .cs-search-content {
     padding: 18px;
@@ -565,7 +578,7 @@
     flex-direction: column;
   }
   .cs-global-search input {
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
 }
 .cs-layout > * {
@@ -596,10 +609,11 @@
     padding-inline: 16px;
   }
   .cs-main .rd-tabs button {
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
-  .cs-composer {
-    margin: 0 16px;
+  .cs-composer,
+  .cs-composer-hint {
+    margin-inline: 16px;
   }
   .cs-messages {
     padding: 20px 16px;
@@ -639,7 +653,7 @@
   color: #317756;
 }
 .chat-page .cs-disclaimer {
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .cs-mode {
   margin-left: auto;
@@ -654,7 +668,7 @@
 .chat-page .cs-history-items button,
 .chat-page .cs-chips button {
   font-family: Pretendard, 'Malgun Gothic', sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
   font-weight: 500;
   letter-spacing: 0;
@@ -671,17 +685,6 @@
   min-height: 0;
   padding-block: 18px;
 }
-.chat-focus main {
-  padding-top: 12px;
-  padding-bottom: 12px;
-}
-.chat-focus .chat-display-controls {
-  margin-bottom: 10px;
-}
-.chat-focus .chat-display-controls > .button {
-  min-height: 34px;
-  padding-block: 7px;
-}
 .chat-focus .chat-page > .rd-heading {
   margin-bottom: 10px;
 }
@@ -691,21 +694,9 @@
 .chat-focus .cs-main > .rd-tabs button {
   padding-block: 10px;
 }
-.chat-focus .cs-chat-heading {
-  padding: 12px 20px;
-}
-.chat-focus .cs-ai-mark {
-  width: 34px;
-  height: 34px;
-}
-.chat-focus .cs-composer {
-  padding: 10px 12px;
+.chat-focus .cs-composer,
+.chat-focus .cs-composer-hint {
   margin-inline: 20px;
-}
-.chat-focus .cs-composer textarea {
-  height: 44px;
-  min-height: 44px;
-  max-height: 100px;
 }
 .chat-focus .cs-disclaimer {
   margin-block: 8px;
@@ -721,4 +712,42 @@
   outline: none;
   box-shadow: none;
   background: transparent;
+}
+/* 데스크톱: 대화 목록·메시지·검색 결과만 안에서 스크롤한다(공통 규칙은 global.css .fit-viewport). */
+@media (min-width: 801px) {
+  /* width: 새 대화처럼 내용이 적어도 카드가 좁아지지 않게 폭을 채운다. */
+  .fit-viewport .chat-page {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    padding-bottom: 0; /* 아래 여백은 main의 32px만 쓴다(메뉴 숨김/보임 동일) */
+    display: flex;
+    flex-direction: column;
+  }
+  .fit-viewport .cs-layout {
+    flex: 1;
+    min-height: 480px; /* 이보다 낮은 화면에서는 페이지 스크롤로 넘긴다. */
+    align-items: stretch;
+  }
+  .fit-viewport .cs-history {
+    min-height: 0;
+  }
+  .fit-viewport .cs-history-items {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+  }
+  .fit-viewport .cs-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .fit-viewport .cs-messages,
+  .fit-viewport .cs-search-content {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
 }

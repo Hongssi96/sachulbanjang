@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import ProductionChart from '../components/ProductionChart';
-import { equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
+import SegmentedControl from '../components/SegmentedControl';
+import { demoAsOf, equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
 import { useCalendarEvents } from '../services/calendarStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
 import type { HandoverNote, Report } from '../types';
@@ -74,9 +75,10 @@ function loadNotes(): HandoverNote[] {
 interface HomePageProps {
   onToast: (message: string) => void;
   extended: boolean;
-  onToggleExtended: () => void;
+  onLogout: () => void;
+  loggingOut: boolean;
 }
-export default function HomePage({ onToast, extended, onToggleExtended }: HomePageProps) {
+export default function HomePage({ onToast, extended, onLogout, loggingOut }: HomePageProps) {
   // 일정관리 탭과 같이 오늘 날짜를 기본으로 보여준다.
   const today = new Date();
   const [period, setPeriod] = useState<'today' | 'week'>('today');
@@ -131,14 +133,14 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
   };
   const downloadSummary = () => {
     const csv =
-      '\uFEFF구분,값,기준\n생산량,"5,232개",예시 데이터\n검사 불량률,1.15%,예시 검사 기록\n가동률,60%,예시 데이터\n미처리 보고,2건,예시 데이터\n';
+      '\uFEFF구분,값,기준\n생산량,"5,232개",오늘\n검사 불량률,1.15%,오늘\n가동률,60%,오늘\n미처리 보고,2건,오늘\n';
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = '사출반장_홈요약_예시.csv';
+    link.download = '사출반장_홈요약.csv';
     link.click();
     URL.revokeObjectURL(url);
-    onToast('예시 홈 요약을 CSV로 내려받았습니다.');
+    onToast('홈 요약을 CSV로 내려받았습니다.');
   };
   return (
     <>
@@ -179,7 +181,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
       <section className="overview" aria-labelledby="overview-heading">
         <div className="section-top">
           <h2 id="overview-heading">오늘의 공정 요약 </h2>
-          <span className="muted">예시 기준 시각 16:42</span>
+          <span className="muted">마지막 갱신 {demoAsOf}</span>
         </div>
         <div className="kpi-grid">
           <article className="kpi">
@@ -278,22 +280,15 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
               <div>
                 <h2>생산 현황</h2>
               </div>
-              <div className="segmented-control" aria-label="생산 조회 기간">
-                <button
-                  className={period === 'today' ? 'selected' : ''}
-                  aria-pressed={period === 'today'}
-                  onClick={() => setPeriod('today')}
-                >
-                  오늘
-                </button>
-                <button
-                  className={period === 'week' ? 'selected' : ''}
-                  aria-pressed={period === 'week'}
-                  onClick={() => setPeriod('week')}
-                >
-                  최근 9일
-                </button>
-              </div>
+              <SegmentedControl
+                label="생산 조회 기간"
+                value={period}
+                options={[
+                  { value: 'today', label: '오늘' },
+                  { value: 'week', label: '최근 9일' },
+                ]}
+                onChange={setPeriod}
+              />
             </div>
             <div className="chart-summary">
               <div>
@@ -336,20 +331,15 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                 <h2>올라온 보고</h2>
                 <span className="pill pill-neutral">{latestReports.length}</span>
               </div>
-              <div className="report-tabs">
-                <button
-                  onClick={() => setReportFilter('전체')}
-                  className={reportFilter === '전체' ? 'current' : ''}
-                >
-                  전체
-                </button>
-                <button
-                  onClick={() => setReportFilter('미처리')}
-                  className={reportFilter === '미처리' ? 'current' : ''}
-                >
-                  미처리
-                </button>
-              </div>
+              <SegmentedControl
+                label="보고 처리 상태"
+                value={reportFilter}
+                options={[
+                  { value: '전체', label: '전체' },
+                  { value: '미처리', label: '미처리' },
+                ]}
+                onChange={setReportFilter}
+              />
             </div>
             <div className="report-list">
               {visibleReports.map((report) => {
@@ -583,9 +573,11 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           </span>
           <div>
             <strong>{extended ? '연장 근무가 설정되었어요' : '오늘도 안전하게, 함께해요'}</strong>
-            <p>{extended ? '데모 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
+            <p>{extended ? '현재 화면에만 적용됩니다.' : '주간 근무 · 08:00–17:00'}</p>
           </div>
-          <button onClick={onToggleExtended}>{extended ? '취소' : '오늘 야근'}</button>
+          <button onClick={onLogout} disabled={loggingOut}>
+            로그아웃
+          </button>
         </div>
       </div>
       <footer className="page-footer">
@@ -646,7 +638,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
                     <span className="pill pill-violet">{event.kind}</span>
                     <div>
                       <strong>{event.title}</strong>
-                      <p>{event.time} · 생산팀 · 예시 일정</p>
+                      <p>{event.time} · 생산팀 일정</p>
                     </div>
                   </div>
                 ))
@@ -735,7 +727,7 @@ export default function HomePage({ onToast, extended, onToggleExtended }: HomePa
           )}
           {overlay.kind === 'equipment' && (
             <>
-              <p className="muted">설비 배치와 상태를 보여주는 예시입니다.</p>
+              <p className="muted">설비 배치와 상태를 보여줍니다.</p>
               <div className="factory-map">
                 {equipment.map((item, index) => (
                   <div

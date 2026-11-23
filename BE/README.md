@@ -51,6 +51,11 @@ uvicorn app.main:app --reload
 - 현재 사용자: `GET http://localhost:8000/api/v1/auth/me` (로그인 응답의 액세스 쿠키 필요)
 - 토큰 갱신: `POST http://localhost:8000/api/v1/auth/refresh` (리프레시 쿠키 + `X-CSRF-Token` 헤더)
 - 로그아웃: `POST http://localhost:8000/api/v1/auth/logout` (인증 쿠키 + `X-CSRF-Token` 헤더)
+- 비밀번호 변경: `PATCH http://localhost:8000/api/v1/auth/password` (`current_password`,
+  `new_password`, 액세스 쿠키 + `X-CSRF-Token` 헤더)
+- 근무 종료 조회: `GET http://localhost:8000/api/v1/work-session`
+- 근무 종료 연장: `POST http://localhost:8000/api/v1/work-session/extensions`
+  (`automatic` 또는 `manual`, 액세스 쿠키 + `X-CSRF-Token` 헤더)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비

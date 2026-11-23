@@ -1,0 +1,104 @@
+/* 세그먼트 컨트롤: 선택은 흰 pill + 보라 테두리, 채움은 주요 버튼에만 쓴다. */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--soft);
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.segmented::-webkit-scrollbar {
+  display: none;
+}
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 28px;
+  min-width: 72px;
+  padding: 0 12px;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-small);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.segmented-md button {
+  height: 34px;
+  min-width: 90px;
+  padding: 0 14px;
+  font-size: var(--fs-sm);
+}
+.segmented button:hover {
+  color: var(--ink);
+}
+.segmented button.is-active {
+  border-color: var(--primary);
+  background: var(--surface);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px #29263f14;
+}
+.segmented button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.seg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.seg-dot-amber {
+  background: #f59e0b;
+}
+.seg-dot-green {
+  background: #10b981;
+}
+.seg-dot-violet {
+  background: #8b5cf6;
+}
+.seg-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.segmented button.is-active .seg-count {
+  border-color: transparent;
+  background: #f0edf7;
+  color: var(--primary);
+}
+.seg-count.is-warning {
+  border-color: transparent;
+  background: #fff0d6;
+  color: #80530f;
+}
+
+.dark .segmented button.is-active {
+  box-shadow: 0 1px 3px #00000033;
+}
+.dark .segmented button.is-active .seg-count {
+  background: #443958;
+}
+.dark .seg-count.is-warning,
+.dark .segmented button.is-active .seg-count.is-warning {
+  background: #4d3e28;
+  color: #eac789;
+}

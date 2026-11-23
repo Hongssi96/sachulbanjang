@@ -1,5 +1,7 @@
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
+import SegmentedControl from '../../components/SegmentedControl';
+import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useSearchParams } from 'react-router';
 import {
@@ -106,6 +108,15 @@ export default function InventoryPage() {
       { replace: true },
     );
   };
+  const {
+    input: queryInput,
+    setInput: setQueryInput,
+    searchNow: clearQuery,
+    compositionHandlers,
+  } = useDebouncedSearch({
+    value: query,
+    onSearch: (value) => setFilter('q', value),
+  });
   const commitInventory = (next: InventoryState, message: string) => {
     setInventory(next);
     setFeedback(
@@ -170,7 +181,7 @@ export default function InventoryPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = '사출반장_완제품재고_예시.csv';
+    anchor.download = '사출반장_완제품재고.csv';
     anchor.click();
     URL.revokeObjectURL(url);
     setFeedback(`조회 결과 ${rows.length}개 품목을 CSV로 내려받았어요.`);
@@ -211,22 +222,7 @@ export default function InventoryPage() {
   return (
     <div className="inventory-page">
       {isPending && <LoadingState compact label="재고 데이터를 조회하는 중이에요" />}
-      <section className="page-intro inv-compact-intro">
-        <div className="section-top">
-          <h2 id="inventory-summary-title">전체 재고 요약 </h2>
-          <span className="muted">전체 완제품 {inventory.items.length}개 품목 기준</span>
-        </div>
-        <div className="inv-intro-actions">
-          <button className="button button-white" onClick={download} disabled={!rows.length}>
-            <Download size={18} />
-            재고 다운로드
-          </button>
-          <button className="button button-primary" onClick={() => setDialog({ kind: 'movement' })}>
-            <Plus size={18} />
-            입출고 등록
-          </button>
-        </div>
-      </section>
+      <h1 className="sr-only">재고 관리</h1>
       {feedback && (
         <div className="inv-feedback" role="status">
           <Check size={18} />
@@ -359,10 +355,27 @@ export default function InventoryPage() {
             <h2 id="inventory-table-heading">품목별 재고 현황</h2>
             <span className="pill pill-neutral">{inventory.items.length}품목</span>
           </div>
-          <button className="text-link" onClick={() => setDialog({ kind: 'help' })}>
-            <CircleHelp size={16} />
-            재고 기준 안내
-          </button>
+          <div className="inv-intro-actions">
+            <button className="text-link" onClick={() => setDialog({ kind: 'help' })}>
+              <CircleHelp size={16} />
+              재고 기준 안내
+            </button>
+            <button
+              className="button button-white button-sm"
+              onClick={download}
+              disabled={!rows.length}
+            >
+              <Download size={18} />
+              재고 다운로드
+            </button>
+            <button
+              className="button button-primary button-sm"
+              onClick={() => setDialog({ kind: 'movement' })}
+            >
+              <Plus size={18} />
+              입출고 등록
+            </button>
+          </div>
         </div>
         <div className="inv-category-bar">
           <div className="inv-category">
@@ -382,11 +395,12 @@ export default function InventoryPage() {
             <input
               aria-label="재고 품목 검색"
               placeholder="제품명 또는 품목 코드 검색"
-              value={query}
-              onChange={(event) => setFilter('q', event.target.value)}
+              value={queryInput}
+              onChange={(event) => setQueryInput(event.target.value)}
+              {...compositionHandlers}
             />
-            {query && (
-              <button aria-label="검색어 지우기" onClick={() => setFilter('q', '')}>
+            {queryInput && (
+              <button aria-label="검색어 지우기" onClick={() => clearQuery('')}>
                 <X size={15} />
               </button>
             )}
@@ -413,22 +427,17 @@ export default function InventoryPage() {
               ]}
             />
           </div>
-          <div className="inv-status-filters" aria-label="재고 상태 필터">
-            <button
-              className={!onlyLow ? 'selected' : ''}
-              aria-pressed={!onlyLow}
-              onClick={() => setFilter('status', '')}
-            >
-              전체
-            </button>
-            <button
-              className={onlyLow ? 'selected' : ''}
-              aria-pressed={onlyLow}
-              onClick={() => setFilter('status', 'low')}
-            >
-              부족·품절 <span>{summary.low}</span>
-            </button>
-          </div>
+          <SegmentedControl
+            label="재고 상태 필터"
+            size="md"
+            className="inv-status-filter"
+            value={onlyLow ? 'low' : 'all'}
+            options={[
+              { value: 'all', label: '전체' },
+              { value: 'low', label: '부족·품절', count: summary.low, countTone: 'warning' },
+            ]}
+            onChange={(value) => setFilter('status', value === 'low' ? 'low' : '')}
+          />
         </div>
         {onlyLow && (
           <div className="inv-shortage-summary" role="status">

@@ -1,12 +1,13 @@
 from datetime import UTC, datetime, time, timedelta
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 from app.core.config import Settings
-from app.models.auth import AuthSession, RefreshCredential
+from app.models.auth import AuthSession, RefreshCredential, WorkExtension
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
-from app.security.passwords import hash_password
+from app.security.passwords import hash_password, verify_password
 from app.security.tokens import (
     create_refresh_token,
     decode_access_token,
@@ -15,10 +16,14 @@ from app.security.tokens import (
 from app.services.auth import (
     AccountLockedError,
     AuthService,
+    CurrentPasswordMismatchError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    PasswordUnchangedError,
     RefreshInProgressError,
     SessionRevokedError,
+    WorkSessionConflictError,
+    WorkSessionExtensionNotAllowedError,
 )
 from sqlalchemy.orm import Session
 
@@ -75,6 +80,7 @@ class RecordingAuthRepository(AuthRepository):
         self.user = user
         self.sessions: list[AuthSession] = []
         self.credentials: list[RefreshCredential] = []
+        self.extensions: list[WorkExtension] = []
 
     def find_active_user_for_login(self, employee_no: str) -> AppUser | None:
         return self.user
@@ -91,8 +97,14 @@ class RecordingAuthRepository(AuthRepository):
     def find_session_for_update(self, session_id: int) -> AuthSession | None:
         return next((item for item in self.sessions if item.id == session_id), None)
 
+    def find_session(self, session_id: int) -> AuthSession | None:
+        return next((item for item in self.sessions if item.id == session_id), None)
+
     def add_refresh_credential(self, credential: RefreshCredential) -> None:
         self.credentials.append(credential)
+
+    def add_work_extension(self, extension: WorkExtension) -> None:
+        self.extensions.append(extension)
 
     def find_credential_for_update(self, token_digest: str) -> RefreshCredential | None:
         return next((item for item in self.credentials if item.token_digest == token_digest), None)
@@ -298,6 +310,19 @@ def test_refresh_rejects_expired_credential_row() -> None:
         service.refresh(login.refresh_token)
 
 
+def test_refresh_revokes_session_after_work_end() -> None:
+    user = make_user()
+    service, repository, _, clock = build_service(user)
+    login = service.login("E001", "correct-password")
+    repository.sessions[0].work_ends_at = clock.now
+
+    with pytest.raises(SessionRevokedError):
+        service.refresh(login.refresh_token)
+
+    assert repository.sessions[0].revoked_at == clock.now
+    assert repository.credentials[0].revoked_at == clock.now
+
+
 def test_refresh_rejects_expired_and_unknown_tokens() -> None:
     user = make_user()
     service, _, _, _ = build_service(user)
@@ -364,3 +389,130 @@ def test_logout_uses_refresh_cookie_when_access_token_is_expired() -> None:
 
     assert repository.sessions[0].revoked_at == clock.now
     session.commit.assert_called_once_with()
+
+
+def test_change_password_replaces_hash_and_clears_temporary_flag() -> None:
+    user = make_user(must_change_password=True, version=3)
+    service, _, session, _ = build_service(user)
+
+    changed = service.change_password(
+        user,
+        current_password="correct-password",
+        new_password="new-password",
+    )
+
+    assert changed is user
+    assert verify_password("new-password", user.password_hash)
+    assert not verify_password("correct-password", user.password_hash)
+    assert user.must_change_password is False
+    assert user.version == 4
+    session.commit.assert_called_once_with()
+
+
+def test_change_password_rejects_wrong_current_password() -> None:
+    user = make_user()
+    original_hash = user.password_hash
+    service, _, session, _ = build_service(user)
+
+    with pytest.raises(CurrentPasswordMismatchError):
+        service.change_password(
+            user,
+            current_password="wrong-password",
+            new_password="new-password",
+        )
+
+    assert user.password_hash == original_hash
+    session.commit.assert_not_called()
+
+
+def test_change_password_rejects_same_password() -> None:
+    user = make_user()
+    service, _, session, _ = build_service(user)
+
+    with pytest.raises(PasswordUnchangedError):
+        service.change_password(
+            user,
+            current_password="correct-password",
+            new_password="correct-password",
+        )
+
+    session.commit.assert_not_called()
+
+
+def test_login_sets_work_end_to_scheduled_shift_end() -> None:
+    user = make_user(shift_end_local=time(23, 59))
+    service, repository, _, clock = build_service(user)
+
+    service.login("E001", "correct-password")
+
+    local_now = clock.now.astimezone(ZoneInfo("Asia/Seoul"))
+    expected = datetime.combine(
+        local_now.date(), user.shift_end_local, tzinfo=ZoneInfo("Asia/Seoul")
+    ).astimezone(UTC)
+    assert repository.sessions[0].work_ends_at == expected
+    assert repository.sessions[0].work_session_version == 1
+
+
+def test_automatic_extension_is_limited_to_warning_window_and_once_per_end_time() -> None:
+    user = make_user()
+    service, repository, session, clock = build_service(user)
+    login = service.login("E001", "correct-password")
+    auth_session = repository.sessions[0]
+    auth_session.work_ends_at = clock.now + timedelta(minutes=5)
+    expected_ends_at = auth_session.work_ends_at
+    session.commit.reset_mock()
+
+    extended = service.extend_work_session(
+        login.session_id,
+        kind="automatic",
+        expected_ends_at=expected_ends_at,
+        requested_ends_at=None,
+    )
+
+    assert extended.work_ends_at == expected_ends_at + timedelta(hours=1)
+    assert extended.auto_extended_for == expected_ends_at
+    assert extended.work_session_version == 2
+    assert repository.extensions[0].kind == "automatic"
+    assert repository.extensions[0].previous_ends_at == expected_ends_at
+    session.commit.assert_called_once_with()
+
+    with pytest.raises(WorkSessionConflictError):
+        service.extend_work_session(
+            login.session_id,
+            kind="automatic",
+            expected_ends_at=expected_ends_at,
+            requested_ends_at=None,
+        )
+
+
+def test_automatic_extension_is_rejected_before_warning_window() -> None:
+    user = make_user()
+    service, repository, _, clock = build_service(user)
+    login = service.login("E001", "correct-password")
+    repository.sessions[0].work_ends_at = clock.now + timedelta(minutes=11)
+
+    with pytest.raises(WorkSessionExtensionNotAllowedError):
+        service.extend_work_session(
+            login.session_id,
+            kind="automatic",
+            expected_ends_at=repository.sessions[0].work_ends_at,
+            requested_ends_at=None,
+        )
+
+
+def test_manual_extension_accepts_requested_future_time() -> None:
+    user = make_user()
+    service, repository, _, clock = build_service(user)
+    login = service.login("E001", "correct-password")
+    repository.sessions[0].work_ends_at = clock.now + timedelta(minutes=5)
+    expected_ends_at = repository.sessions[0].work_ends_at
+    requested = clock.now + timedelta(hours=2)
+
+    extended = service.extend_work_session(
+        login.session_id,
+        kind="manual",
+        expected_ends_at=expected_ends_at,
+        requested_ends_at=requested,
+    )
+
+    assert extended.work_ends_at == requested

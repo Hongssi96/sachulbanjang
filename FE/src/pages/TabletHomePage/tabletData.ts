@@ -17,7 +17,7 @@ export const tabletEquipment = [
     pressure: '120',
     output: 412,
     target: 450,
-    note: '공정 조건이 예시 관리 범위에 있습니다.',
+    note: '공정 조건이 관리 범위에 있습니다.',
   },
   {
     id: 'S08',

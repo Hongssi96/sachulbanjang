@@ -3,14 +3,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.models.auth import AuthSession, RefreshCredential
+from app.models.auth import AuthSession, RefreshCredential, WorkExtension
 from app.models.master import AppUser
 from app.repositories.auth import AuthRepository
-from app.security.passwords import dummy_password_hash, verify_password
+from app.security.passwords import dummy_password_hash, hash_password, verify_password
 from app.security.tokens import (
     TokenError,
     TokenExpiredError,
@@ -58,6 +59,26 @@ class SessionRevokedError(RefreshRejectedError):
 
 class RefreshInProgressError(RefreshRejectedError):
     """Raised for a duplicated refresh request that must not end the session."""
+
+
+class CurrentPasswordMismatchError(Exception):
+    """Raised when a password change does not prove the current password."""
+
+
+class PasswordUnchangedError(Exception):
+    """Raised when the requested password is the same as the current password."""
+
+
+class WorkSessionExtensionError(Exception):
+    """Base exception for a rejected work-session extension."""
+
+
+class WorkSessionConflictError(WorkSessionExtensionError):
+    """Raised when another tab already changed the expected end time."""
+
+
+class WorkSessionExtensionNotAllowedError(WorkSessionExtensionError):
+    """Raised when an extension violates the allowed time window."""
 
 
 @dataclass(frozen=True)
@@ -120,6 +141,8 @@ class AuthService:
         auth_session = AuthSession(
             user_id=user.id,
             absolute_expires_at=absolute_expires_at,
+            work_ends_at=self._initial_work_end(user, now, absolute_expires_at),
+            work_session_version=1,
             current_refresh_generation=1,
         )
         self._repository.add_session(auth_session)
@@ -181,7 +204,14 @@ class AuthService:
         auth_session = self._repository.find_session_for_update(claims.session_id)
         if auth_session is None or auth_session.user_id != claims.user_id:
             raise InvalidRefreshTokenError("login session not found")
-        if auth_session.revoked_at is not None or auth_session.absolute_expires_at <= now:
+        if (
+            auth_session.revoked_at is not None
+            or auth_session.absolute_expires_at <= now
+            or auth_session.work_ends_at <= now
+        ):
+            if auth_session.revoked_at is None:
+                self._revoke_session(auth_session, now)
+                self._session.commit()
             raise SessionRevokedError("login session is no longer active")
         if credential.expires_at <= now:
             raise InvalidRefreshTokenError("refresh credential expired")
@@ -208,6 +238,84 @@ class AuthService:
 
         self._revoke_session(auth_session, self._clock())
         self._session.commit()
+
+    def change_password(
+        self, user: AppUser, *, current_password: str, new_password: str
+    ) -> AppUser:
+        """Change the authenticated user's password after verifying the old value."""
+        if not verify_password(current_password, user.password_hash):
+            raise CurrentPasswordMismatchError
+        if verify_password(new_password, user.password_hash):
+            raise PasswordUnchangedError
+
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+        user.version += 1
+        self._session.commit()
+        return user
+
+    def get_work_session(self, session_id: int) -> AuthSession:
+        auth_session = self._repository.find_session(session_id)
+        if auth_session is None or auth_session.revoked_at is not None:
+            raise SessionRevokedError("login session is no longer active")
+        now = self._clock()
+        if auth_session.absolute_expires_at <= now or auth_session.work_ends_at <= now:
+            raise SessionRevokedError("work session ended")
+        return auth_session
+
+    def extend_work_session(
+        self,
+        session_id: int,
+        *,
+        kind: str,
+        expected_ends_at: datetime,
+        requested_ends_at: datetime | None,
+    ) -> AuthSession:
+        now = self._clock()
+        auth_session = self._repository.find_session_for_update(session_id)
+        if auth_session is None or auth_session.revoked_at is not None:
+            raise SessionRevokedError("login session is no longer active")
+        if auth_session.work_ends_at != expected_ends_at:
+            raise WorkSessionConflictError
+        if auth_session.work_ends_at <= now or auth_session.absolute_expires_at <= now:
+            self._revoke_session(auth_session, now)
+            self._session.commit()
+            raise SessionRevokedError("work session ended")
+
+        previous_ends_at = auth_session.work_ends_at
+        if kind == "automatic":
+            warning_starts_at = auth_session.work_ends_at - timedelta(minutes=10)
+            if now < warning_starts_at or auth_session.auto_extended_for == expected_ends_at:
+                raise WorkSessionExtensionNotAllowedError
+            new_ends_at = auth_session.work_ends_at + timedelta(hours=1)
+            auth_session.auto_extended_for = expected_ends_at
+        else:
+            new_ends_at = requested_ends_at or auth_session.work_ends_at + timedelta(hours=1)
+
+        new_ends_at = min(new_ends_at, auth_session.absolute_expires_at)
+        if new_ends_at <= auth_session.work_ends_at:
+            raise WorkSessionExtensionNotAllowedError
+        auth_session.work_ends_at = new_ends_at
+        auth_session.work_session_version += 1
+        self._repository.add_work_extension(
+            WorkExtension(
+                session_id=auth_session.id,
+                actor_id=auth_session.user_id,
+                previous_ends_at=previous_ends_at,
+                new_ends_at=new_ends_at,
+                kind=kind,
+            )
+        )
+        self._session.commit()
+        return auth_session
+
+    @staticmethod
+    def _initial_work_end(user: AppUser, now: datetime, absolute_expires_at: datetime) -> datetime:
+        korea = ZoneInfo("Asia/Seoul")
+        local_now = now.astimezone(korea)
+        scheduled = datetime.combine(local_now.date(), user.shift_end_local, tzinfo=korea)
+        work_end = scheduled if local_now < scheduled else local_now + timedelta(hours=1)
+        return min(work_end.astimezone(UTC), absolute_expires_at)
 
     def _reject_replayed_credential(
         self, auth_session: AuthSession, credential: RefreshCredential, now: datetime
