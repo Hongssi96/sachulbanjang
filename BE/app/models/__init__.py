@@ -17,6 +17,7 @@ from app.models.process import (
 )
 from app.models.report import Report, ReportRevision, ReportStatusEvent
 from app.models.report_job import GenerationJob
+from app.models.schedule import Schedule
 
 __all__ = [
     "AccountAuditEvent",
@@ -35,6 +36,7 @@ __all__ = [
     "Report",
     "ReportRevision",
     "ReportStatusEvent",
+    "Schedule",
     "SourceImport",
     "UserAssignment",
 ]
