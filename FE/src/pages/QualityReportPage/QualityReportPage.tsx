@@ -552,9 +552,7 @@ export default function QualityReportPage() {
                 </th>
                 <th scope="col">검사 결과</th>
                 <th scope="col">담당자</th>
-                <th scope="col">
-                  <span className="sr-only">상세</span>
-                </th>
+                <th scope="col">상세</th>
               </tr>
             </thead>
             <tbody>
@@ -600,11 +598,11 @@ export default function QualityReportPage() {
                   <td className="qr-inspector">{record.inspector}</td>
                   <td>
                     <button
-                      className="icon-button"
-                      aria-label={`${record.id} 검사 상세`}
+                      className="qr-detail-link"
+                      aria-label={`${record.id} 상세 보기`}
                       onClick={() => setDialog({ kind: 'inspection', record })}
                     >
-                      <ChevronRight size={17} />
+                      상세 보기 <ArrowUpRight size={15} />
                     </button>
                   </td>
                 </tr>
