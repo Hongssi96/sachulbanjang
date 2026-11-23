@@ -1,5 +1,6 @@
 from app.models.account_audit import AccountAuditEvent
 from app.models.auth import AuthSession, RefreshCredential
+from app.models.handover import HandoverNote, HandoverRead, HandoverTarget
 from app.models.master import (
     AppUser,
     Department,
@@ -17,7 +18,6 @@ from app.models.process import (
 )
 from app.models.report import Report, ReportRevision, ReportStatusEvent
 from app.models.report_job import GenerationJob
-from app.models.handover import HandoverNote, HandoverRead, HandoverTarget
 from app.models.schedule import Schedule
 from app.models.stock import StockBalance, StockMovement
 
