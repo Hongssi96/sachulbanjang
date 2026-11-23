@@ -29,7 +29,7 @@ import SegmentedControl from '../components/SegmentedControl';
 import { demoAsOf, equipment, reportPosts, sortedReportPosts } from '../constants/demoData';
 import { useCalendarEvents } from '../services/calendarStore';
 import { getReportStatus, useReportStatusVersion } from '../services/reportStatus';
-import type { HandoverNote, Report } from '../types';
+import type { CalendarEvent, HandoverNote, Report } from '../types';
 
 type Overlay =
   | { kind: 'report'; report: Report }
@@ -40,6 +40,11 @@ type Overlay =
   | null;
 
 const NOTE_KEY = 'sachul-home-notes-v1';
+// 일정 예시 데이터는 2026년 기준이다. 연도별 일정이 늘어나면 이 기준을 함께 바꾼다.
+const DEMO_YEAR = 2026;
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const calendarMonth = (event: CalendarEvent) => event.month ?? 10;
+const byTime = (a: CalendarEvent, b: CalendarEvent) => a.time.localeCompare(b.time);
 const demoNote: HandoverNote = {
   id: 'demo-1',
   content:
@@ -81,6 +86,10 @@ interface HomePageProps {
 export default function HomePage({ onToast, extended, onLogout, loggingOut }: HomePageProps) {
   // 일정관리 탭과 같이 오늘 날짜를 기본으로 보여준다.
   const today = new Date();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDay = today.getDate();
+  const todayLabel = `${todayYear}.${String(todayMonth + 1).padStart(2, '0')}.${String(todayDay).padStart(2, '0')} (${WEEKDAYS[today.getDay()]})`;
   const [period, setPeriod] = useState<'today' | 'week'>('today');
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [month, setMonth] = useState(today.getMonth());
@@ -107,10 +116,38 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     : 0;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
-  const eventsForDay = (day: number) =>
-    year === 2026
-      ? allEvents.filter((event) => (event.month ?? 10) === month && event.day === day)
+  const eventsOn = (targetYear: number, targetMonth: number, targetDay: number) =>
+    targetYear === DEMO_YEAR
+      ? allEvents.filter((event) => calendarMonth(event) === targetMonth && event.day === targetDay)
       : [];
+  const eventsForDay = (day: number) => eventsOn(year, month, day);
+  // 오늘 일정이 있으면 그 일정을, 없으면 가장 가까운 다음 일정을 공지로 보여준다.
+  const notice = (() => {
+    for (let offset = 0; offset <= 60; offset += 1) {
+      const date = new Date(todayYear, todayMonth, todayDay + offset);
+      const dayEvents = eventsOn(date.getFullYear(), date.getMonth(), date.getDate())
+        .slice()
+        .sort(byTime);
+      if (!dayEvents.length) continue;
+      const event = dayEvents.find((value) => value.kind === '점검') ?? dayEvents[0];
+      return { event, date, total: dayEvents.length };
+    }
+    return null;
+  })();
+  const noticeIsToday =
+    notice !== null &&
+    notice.date.getFullYear() === todayYear &&
+    notice.date.getMonth() === todayMonth &&
+    notice.date.getDate() === todayDay;
+  const noticeText = notice
+    ? noticeIsToday
+      ? `${notice.event.time}부터 ${notice.event.title} 일정이 예정되어 있습니다.${
+          notice.total > 1 ? ` 외 ${notice.total - 1}건이 더 있습니다.` : ''
+        } 작업 전 확인해 주세요.`
+      : `${formatDate(
+          `${notice.date.getFullYear()}-${String(notice.date.getMonth() + 1).padStart(2, '0')}-${String(notice.date.getDate()).padStart(2, '0')}`,
+        )} ${notice.event.time}에 ${notice.event.title} 일정이 예정되어 있습니다.`
+    : '오늘 예정된 안전 점검이나 일정이 없습니다.';
   // 선택한 날짜의 일정은 시간순으로 보여준다.
   const selectedEvents = eventsForDay(selectedDay)
     .slice()
@@ -153,7 +190,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
         <div className="intro-actions">
           <span className="date-label">
             <CalendarDays size={17} />
-            2026.11.17 (화)
+            {todayLabel}
           </span>
           <button className="button button-white" onClick={downloadSummary}>
             <Download size={17} /> 요약 다운로드
@@ -162,16 +199,18 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       </section>
       <div className="notice-strip">
         <span className="notice-tag">
-          <ShieldCheck size={16} /> 안전 공지
+          <ShieldCheck size={16} />{' '}
+          {!notice || notice.event.kind === '점검' ? '안전 공지' : '일정 공지'}
         </span>
-        <p>14:00부터 사출 3호기 정기 점검이 예정되어 있습니다. 작업 전 확인해 주세요.</p>
+        <p>{noticeText}</p>
         <button
           onClick={() => {
+            const target = notice?.date ?? today;
             setAnnouncementRead(true);
-            setYear(2026);
-            setMonth(10);
-            setSelectedDay(17);
-            setOverlay({ kind: 'schedule', day: 17 });
+            setYear(target.getFullYear());
+            setMonth(target.getMonth());
+            setSelectedDay(target.getDate());
+            setOverlay({ kind: 'schedule', day: target.getDate() });
           }}
         >
           {announcementRead ? '확인 완료' : '일정 확인'}
