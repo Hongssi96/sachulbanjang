@@ -5,16 +5,24 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 
 def test_core_schema_registers_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
+        "account_audit_event",
         "app_user",
         "auth_session",
         "department",
         "equipment",
+        "generation_job",
+        "inspection_record",
         "process_record",
         "process_replay",
         "product",
         "production_line",
+        "record_change",
         "refresh_credential",
+        "report",
+        "report_revision",
+        "report_status_event",
         "source_import",
+        "user_assignment",
         "work_extension",
     }
 
@@ -41,6 +49,21 @@ def test_process_record_preserves_source_identity_and_explicit_cycle_unit() -> N
     assert any(
         isinstance(constraint, CheckConstraint)
         and constraint.name == "ck_process_record_cycle_time_seconds"
+        for constraint in table.constraints
+    )
+
+
+def test_inspection_record_requires_verdict_and_allows_missing_details() -> None:
+    table = Base.metadata.tables["inspection_record"]
+
+    assert not table.c.verdict.nullable
+    assert table.c.product_id.nullable
+    assert table.c.process_record_id.nullable
+    assert table.c.defect_type.nullable
+    assert table.c.reason.nullable
+    assert any(
+        isinstance(constraint, CheckConstraint)
+        and constraint.name == "ck_inspection_record_verdict"
         for constraint in table.constraints
     )
 

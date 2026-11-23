@@ -1,8 +1,8 @@
 # DB 설계 초안
 
-기준일: 2026-11-20. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생과 인증 세션 테이블은 Alembic `20261120_0005`까지 구현했으며 [ERD](ERD.md)에 실제 구조를
-표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
+기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블, 생성 작업 큐는 Alembic `20261123_0013`까지 구현했으며 [ERD](ERD.md)에
+실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
 
@@ -17,12 +17,13 @@ CSV 공정 재생과 인증 세션 테이블은 Alembic `20261120_0005`까지 �
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| app_user | employee_no UNIQUE(삭제 계정 포함), display_name, password_hash, role(admin/worker), must_change_password, shift_start_local, shift_end_local, failed_login_count, locked_until?, deleted_at |
+| app_user | employee_no UNIQUE(삭제 계정 포함), display_name, password_hash, role(admin/worker), must_change_password, shift_start_local, shift_end_local, failed_login_count, locked_until?, temporary_password_expires_at?, deleted_at |
+| account_audit_event | user_id·actor_id FK, action(user_created/password_reset/user_updated/user_deactivated/user_reactivated), detail? JSONB. 계정 조치 이력이며 임시 비밀번호 원문·만료 시각은 저장하지 않음 |
 | department | code UNIQUE 범위 검증 필요, name, deleted_at |
 | production_line | department_id FK, code, name, deleted_at. 부서 내 코드 UNIQUE는 데이터 확인 후 결정 |
 | equipment | production_line_id? FK, equipment_code UNIQUE, name, deleted_at. CSV에 라인 값이 없어 현재 소속은 비울 수 있음 |
 | product | product_code? UNIQUE, name, minimum_stock? >= 0, deleted_at. PART_NO가 없는 CSV 품목도 허용 |
-| user_assignment | user_id FK, department_id?·production_line_id?·equipment_id? FK. 세 대상 중 정확히 하나만 NOT NULL. 대상별 활성 배정 중복 방지 |
+| user_assignment | user_id FK, department_id?·production_line_id?·equipment_id? FK. 세 대상 중 정확히 하나만 NOT NULL. 대상별 활성 배정 중복 방지(부분 UNIQUE). 20261123_0010으로 구현 |
 | auth_session | user_id FK, absolute_expires_at, work_ends_at, work_session_version, auto_extended_for?, revoked_at?, current_refresh_generation. 로그인별 현재 종료 시각과 최초 로그인 기준 7일 상한 |
 | refresh_credential | session_id FK, token_digest UNIQUE, generation, expires_at, consumed_at?, revoked_at?. 재사용 감지를 위해 사용된 토큰의 식별 정보를 보존하고 토큰 원문은 저장하지 않음 |
 | work_extension | session_id FK, previous_ends_at, new_ends_at, kind(manual/automatic), actor_id FK. 자동 연장은 (session_id, previous_ends_at)에 부분 UNIQUE |
@@ -31,15 +32,25 @@ CSV 공정 재생과 인증 세션 테이블은 Alembic `20261120_0005`까지 �
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
 
+`generation_job`은 20261123_0013으로 구현했다. `(requester_id, kind, client_request_key)` UNIQUE와 `request_digest`로 중복·충돌을 판정하고, `state`·`lease_expires_at`·`claimed_at`·`heartbeat_at`으로 PostgreSQL 큐의 claim/lease를 관리한다. `report.generation_job_id`(nullable UNIQUE)로 성공 작업과 보고서를 연결한다. 실제 AI 실행·집계 스냅샷·input_snapshot은 후속 작업에서 채운다.
+
+`report`·`report_revision`·`report_status_event`는 20261123_0012로 구현했다. 수동 등록 기준으로 `report`는 제목·본문·분류·종류·업무 상태·version·마지막 수정자를 저장하고 soft delete한다. 수정은 `(report_id, version)` UNIQUE인 revision을 남기고, 상태 변경은 전후 상태·작업자·시각을 event로 남긴다. AI 생성·집계 스냅샷·보고 대상 컬럼은 생성 작업에서 후속 마이그레이션으로 추가한다.
+
+`record_change`는 20261123_0011로 구현했다. 관리자 정정 한 건마다 변경 필드의 전후 값(JSONB)·사유·작업자·결과 version·시각을 남기며, 공정·검사 FK 중 정확히 하나만 갖는다. 정정은 version 조건으로 원자적 갱신하고 변경 이력은 `(process_record_id|inspection_record_id, occurred_at)` 인덱스로 조회한다.
+
+`user_assignment`는 20261123_0010으로 구현했다. 담당 대상 하나만 갖도록 CHECK로 제한하고, 대상별 활성 배정 중복은 `(user_id, department_id)`·`(user_id, production_line_id)`·`(user_id, equipment_id)` 부분 UNIQUE 인덱스로 막는다. 조직·담당 초기 데이터는 `python -m app.commands.seed_master_data --file <JSON>`로 적재한다.
+
+`account_audit_event`와 `app_user.temporary_password_expires_at`은 20261123_0007·0008로 구현했다. 계정 비활성화는 `app_user.deleted_at`을 재사용하고 목록은 기본 비활성 계정을 제외한다. 감사 이벤트는 계정 조치와 같은 트랜잭션에서 기록하며 FK는 RESTRICT다.
+
 ## 공정·검사·품질
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
 | source_import | source_name, source_fingerprint UNIQUE, status, started_at, finished_at?, error_code?. 파일 해시만으로 행의 업무 식별자를 대체하지 않음 |
 | process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number), (source_namespace, source_record_key) UNIQUE |
-| inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at, verdict, defect_type?, reason?, is_demo, version, deleted_at |
+| inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at?, verdict(good/defect), defect_type?, reason?, is_demo, version, deleted_at. 검사 이력과 품질 집계의 원천이며 20261123_0009로 구현 |
 | operation_day | equipment_id FK, local_date, planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, local_date) UNIQUE |
-| record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation, before_value, after_value, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나 |
+| record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation(update/delete), before_value?, after_value?, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나. 20261123_0011로 구현(현재 update만) |
 | process_replay | source_import_id FK, cursor, data_time?, last_advanced_at?, state. 재시작 절차는 Q-167 보류 |
 
 확인한 세 CSV 모두 `_id`를 제공하며 elice_v1과 labeled 데이터에 같은 키가 재등장한다. 원본 파일과 1부터 시작하는 행 번호로 파일 내 위치를 식별하고, source namespace와 `_id` 조합의 UNIQUE로 교차 파일 중복 적재를 막는다. 같은 키·같은 원본 내용은 건너뛰고 내용이 다르면 충돌로 전체 적재를 롤백한다. 같은 파일 fingerprint의 재적재도 거부하고 원본 행 전체를 source_payload에 보존한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.
@@ -48,17 +59,19 @@ CSV 공정 재생과 인증 세션 테이블은 Alembic `20261120_0005`까지 �
 
 검사 데이터에 공정과 연결할 키가 없으면 process_record_id는 비워 두며 시간·설비가 비슷하다는 이유로 억지 연결하지 않는다. verdict는 시연 데이터에 양품/불량을 명시한다. 불량 유형 누락은 표시·집계에서 ‘미분류’로 처리한다. 실제 수집 필드·판정 매핑은 미확정이다.
 
+`inspection_record`와 이력 조회 인덱스는 `20261123_0009`로 구현했다. 목록 조회는 `process_record(occurred_at, id)`, 검사 `(equipment_id, inspected_at, id)`·`(product_id, inspected_at, id)`·`(verdict, inspected_at, id)`·`(inspected_at, id)` 인덱스를 사용한다. 판정 저장 값은 `good`·`defect`이고 불량 유형 누락은 null이며 표시·집계에서 ‘미분류’로 처리한다(DEC-165·DEC-206).
+
 불량률은 불량/(양품+불량)이다. 가동률은 기간별 실제 시간 합계/계획 시간 합계이며 일별 비율의 평균을 사용하지 않는다. 분모 0은 null과 표시용 ‘—’로 구분한다. 가동률 시연의 기본 조회 단위는 설비·날짜이며 품목별 실제 가동률로 확장하지 않는다. 임의 기간의 시연 시간 배분과 화면 필터는 데이터 준비 때 확인한다. CSV 행 수는 생산 기록 건수이며 생산 개수로 바꾸지 않는다.
 
 ## 보고서·생성 작업
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| generation_job | requester_id FK, kind(report/chat), client_request_key, request_payload, request_digest, input_snapshot?, resolved_scope_snapshot?, retry_of_id? FK, accepted_at, data_cutoff_at, state, error_code?, safe_error_message?, claimed_at?, finished_at?. (requester_id, kind, client_request_key) UNIQUE |
-| report | author_id FK, generation_job_id UNIQUE FK, title, body_markdown, category, report_kind, business_status, period_start, period_end_exclusive, data_cutoff_at, aggregate_snapshot, resolved_scope_snapshot, chart_style_version, version, last_editor_id FK, deleted_at |
+| generation_job | requester_id FK, kind(report/chat), client_request_key, request_payload, request_digest, state, accepted_at, data_cutoff_at?, claimed_at?, heartbeat_at?, lease_expires_at?, finished_at?, error_code?, safe_error_message?, retry_of_id? FK, attempt_count. (requester_id, kind, client_request_key) UNIQUE. 20261123_0013로 구현 |
+| report | author_id FK, title, body_markdown, category, report_kind, business_status(pending/in_progress/completed), version, last_editor_id FK?, deleted_at. 20261123_0012로 구현(AI·집계 컬럼은 생성 작업에서 추가) |
 | report_target | report_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나의 대상. 원래 선택과 고정된 설비 목록을 구분 |
-| report_revision | report_id FK, version, title, body_markdown, editor_id FK, created_at. (report_id, version) UNIQUE. 최초 버전도 보존 |
-| report_status_event | report_id FK, before_status, after_status, actor_id FK, created_at |
+| report_revision | report_id FK, version, title, body_markdown, editor_id FK, created_at. (report_id, version) UNIQUE. 최초 버전도 보존. 20261123_0012로 구현 |
+| report_status_event | report_id FK, before_status, after_status, actor_id FK, created_at. 20261123_0012로 구현 |
 | report_download | report_id FK, report_revision_id FK, user_id FK, provided_at. 요청당 이벤트를 기록하고 횟수는 이벤트 수로 계산 |
 
 집계 스냅샷은 수치·단위·시연 여부·누락 사유·계산 규칙 버전을 담는 JSONB 구조로 고정한다. 코드의 스키마 검증을 거쳐 저장하며 일반 테이블의 관계·검색 필드를 무차별 JSON으로 대체하지 않는다.

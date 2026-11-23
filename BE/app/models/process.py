@@ -60,6 +60,7 @@ class ProcessRecord(TimestampMixin, SoftDeleteMixin, Base):
         ),
         Index("ix_process_record_equipment_occurred", "equipment_id", "occurred_at", "id"),
         Index("ix_process_record_product_occurred", "product_id", "occurred_at", "id"),
+        Index("ix_process_record_occurred", "occurred_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -83,6 +84,66 @@ class ProcessRecord(TimestampMixin, SoftDeleteMixin, Base):
     source_import: Mapped[SourceImport] = relationship(back_populates="process_records")
     equipment: Mapped[Equipment] = relationship(back_populates="process_records")
     product: Mapped[Product | None] = relationship(back_populates="process_records")
+
+
+class InspectionRecord(TimestampMixin, SoftDeleteMixin, Base):
+    __tablename__ = "inspection_record"
+    __table_args__ = (
+        CheckConstraint("verdict IN ('good', 'defect')", name="ck_inspection_record_verdict"),
+        CheckConstraint("version > 0", name="ck_inspection_record_version"),
+        Index("ix_inspection_record_equipment_inspected", "equipment_id", "inspected_at", "id"),
+        Index("ix_inspection_record_product_inspected", "product_id", "inspected_at", "id"),
+        Index("ix_inspection_record_verdict_inspected", "verdict", "inspected_at", "id"),
+        Index("ix_inspection_record_inspected", "inspected_at", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    equipment_id: Mapped[int] = mapped_column(
+        ForeignKey("equipment.id", ondelete="RESTRICT"), nullable=False
+    )
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("product.id", ondelete="RESTRICT"))
+    process_record_id: Mapped[int | None] = mapped_column(
+        ForeignKey("process_record.id", ondelete="RESTRICT")
+    )
+    inspected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verdict: Mapped[str] = mapped_column(String(20), nullable=False)
+    defect_type: Mapped[str | None] = mapped_column(String(100))
+    reason: Mapped[str | None] = mapped_column(String(500))
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    version: Mapped[int] = mapped_column(default=1, nullable=False)
+
+
+class RecordChange(Base):
+    __tablename__ = "record_change"
+    __table_args__ = (
+        CheckConstraint("operation IN ('update', 'delete')", name="ck_record_change_operation"),
+        CheckConstraint(
+            "((process_record_id IS NOT NULL)::integer "
+            "+ (inspection_record_id IS NOT NULL)::integer) = 1",
+            name="ck_record_change_single_record",
+        ),
+        CheckConstraint("version > 0", name="ck_record_change_version"),
+        Index("ix_record_change_process", "process_record_id", "occurred_at"),
+        Index("ix_record_change_inspection", "inspection_record_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    process_record_id: Mapped[int | None] = mapped_column(
+        ForeignKey("process_record.id", ondelete="RESTRICT")
+    )
+    inspection_record_id: Mapped[int | None] = mapped_column(
+        ForeignKey("inspection_record.id", ondelete="RESTRICT")
+    )
+    actor_id: Mapped[int] = mapped_column(
+        ForeignKey("app_user.id", ondelete="RESTRICT"), nullable=False
+    )
+    operation: Mapped[str] = mapped_column(String(20), nullable=False)
+    before_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    after_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ProcessReplay(TimestampMixin, Base):

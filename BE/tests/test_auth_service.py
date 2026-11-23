@@ -22,6 +22,7 @@ from app.services.auth import (
     PasswordUnchangedError,
     RefreshInProgressError,
     SessionRevokedError,
+    TemporaryPasswordExpiredError,
     WorkSessionConflictError,
     WorkSessionExtensionNotAllowedError,
 )
@@ -389,6 +390,33 @@ def test_logout_uses_refresh_cookie_when_access_token_is_expired() -> None:
 
     assert repository.sessions[0].revoked_at == clock.now
     session.commit.assert_called_once_with()
+
+
+def test_expired_temporary_password_is_rejected() -> None:
+    user = make_user(
+        must_change_password=True,
+        temporary_password_expires_at=NOW - timedelta(seconds=1),
+    )
+    service, repository, session, _ = build_service(user)
+
+    with pytest.raises(TemporaryPasswordExpiredError):
+        service.login("E001", "correct-password")
+
+    assert repository.sessions == []
+    session.commit.assert_not_called()
+
+
+def test_unexpired_temporary_password_logs_in() -> None:
+    user = make_user(
+        must_change_password=True,
+        temporary_password_expires_at=NOW + timedelta(hours=1),
+    )
+    service, repository, _, _ = build_service(user)
+
+    result = service.login("E001", "correct-password")
+
+    assert result.user is user
+    assert len(repository.sessions) == 1
 
 
 def test_change_password_replaces_hash_and_clears_temporary_flag() -> None:

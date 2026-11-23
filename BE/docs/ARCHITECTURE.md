@@ -9,7 +9,7 @@
 | 구성 | 책임·의존 대상 |
 | --- | --- |
 | Router | 인증·입력 스키마·Service 호출·응답 변환. DB 쿼리·집계 업무를 작성하지 않음 |
-| AuthService / WorkSessionService | 비밀번호 검증·토큰 교체·로그아웃, 서버 시각 기반 종료·연장. 사용자·세션 Repository와 해시/토큰 도구 의존 |
+| AuthService / AccountManagementService / WorkSessionService | 비밀번호 검증·토큰 교체·로그아웃, 관리자 계정 생성·임시 비밀번호 발급, 서버 시각 기반 종료·연장. 사용자·세션 Repository와 해시/토큰 도구 의존 |
 | ProcessService / InspectionService | 조회·관리자 정정·감사 이력·버전 충돌. 기록 Repository 의존 |
 | ProcessReplayService / Replay Worker | CSV 다음 레코드의 5초 간격 공개와 정상 종료. replay 행 잠금으로 동시 진행을 직렬화 |
 | CurrentProcessService | 최신 replay의 공개 레코드를 설비별 최신 1건으로 조회하고 15초 지연 상태를 계산. ProcessReplayRepository 의존 |

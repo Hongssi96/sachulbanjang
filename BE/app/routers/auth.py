@@ -9,7 +9,7 @@ from app.core.config import Settings, get_settings
 from app.dependencies.auth import (
     authentication_required,
     get_auth_service,
-    get_current_user,
+    get_current_user_allow_password_change,
     require_csrf_token,
 )
 from app.errors import error_response
@@ -30,6 +30,7 @@ from app.services.auth import (
     PasswordUnchangedError,
     RefreshInProgressError,
     SessionRevokedError,
+    TemporaryPasswordExpiredError,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -77,6 +78,14 @@ def login(
                 "message": "로그인 시도가 제한되었습니다. 잠시 후 다시 시도해 주세요.",
             },
             headers={"Retry-After": str(retry_after)},
+        ) from None
+    except TemporaryPasswordExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "TEMPORARY_PASSWORD_EXPIRED",
+                "message": "임시 비밀번호가 만료되었습니다. 관리자에게 재발급을 요청해 주세요.",
+            },
         ) from None
     except InvalidCredentialsError:
         raise HTTPException(
@@ -174,7 +183,7 @@ def logout(
 
 @router.get("/me", response_model=AuthenticatedUser)
 def read_current_user(
-    user: Annotated[AppUser, Depends(get_current_user)],
+    user: Annotated[AppUser, Depends(get_current_user_allow_password_change)],
 ) -> AuthenticatedUser:
     return AuthenticatedUser.model_validate(user)
 
@@ -186,7 +195,7 @@ def read_current_user(
 )
 def change_password(
     payload: PasswordChangeRequest,
-    user: Annotated[AppUser, Depends(get_current_user)],
+    user: Annotated[AppUser, Depends(get_current_user_allow_password_change)],
     service: Annotated[AuthService, Depends(get_auth_service)],
     response: Response,
 ) -> AuthenticatedUser:

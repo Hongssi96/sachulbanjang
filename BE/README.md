@@ -21,7 +21,8 @@ Copy-Item .env.example .env
 `.env`의 `APP_DATABASE_URL`, `APP_JWT_SECRET`을 개인 개발 값으로 변경한다. JWT 비밀값은
 32자 이상이어야 한다. `APP_AI_API_KEY`는 선택값이며 비어 있어도 일반 기능은 실행된다.
 `APP_ACCESS_TOKEN_TTL_SECONDS`, `APP_REFRESH_TOKEN_TTL_SECONDS`, `APP_LOGIN_MAX_FAILURES`,
-`APP_LOGIN_LOCK_SECONDS`, `APP_REFRESH_REUSE_GRACE_SECONDS`로 인증 기본값을 조정한다. 실제 HTTPS
+`APP_LOGIN_LOCK_SECONDS`, `APP_REFRESH_REUSE_GRACE_SECONDS`, `APP_TEMPORARY_PASSWORD_TTL_SECONDS`로
+인증 기본값을 조정한다. 실제 HTTPS
 배포에서는 `APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON
 배열로 나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다. 실제 `.env`와 비밀값은 커밋하지 않는다.
 
@@ -55,9 +56,47 @@ uvicorn app.main:app --reload
   `new_password`, 액세스 쿠키 + `X-CSRF-Token` 헤더)
 - 관리자 비밀번호 초기화: `POST http://localhost:8000/api/v1/users/{user_id}/password-reset`
   (관리자, 액세스 쿠키 + `X-CSRF-Token` 헤더, 응답의 `temporary_password`는 1회만 표시)
+- 사용자 목록·상세: `GET http://localhost:8000/api/v1/users`, `GET .../users/{user_id}` (관리자)
+- 사용자 수정: `PATCH http://localhost:8000/api/v1/users/{user_id}` (`version` 필수 + 변경 필드,
+  관리자, `X-CSRF-Token` 헤더)
+- 계정 비활성화·재활성화: `POST .../users/{user_id}/deactivation`, `POST .../users/{user_id}/reactivation`
+  (`version`, 관리자, `X-CSRF-Token` 헤더. 비활성화 시 기존 세션·리프레시 폐기)
+- 계정 감사 이력: `GET .../users/{user_id}/audit-events` (관리자)
+- 임시 비밀번호로 로그인한 계정은 비밀번호 변경 전까지 업무 API가 `403 PASSWORD_CHANGE_REQUIRED`로
+  차단되고, 만료된 임시 비밀번호 로그인은 `401 TEMPORARY_PASSWORD_EXPIRED`로 거부된다
 - 근무 종료 조회: `GET http://localhost:8000/api/v1/work-session`
 - 근무 종료 연장: `POST http://localhost:8000/api/v1/work-session/extensions`
   (`automatic` 또는 `manual`, 액세스 쿠키 + `X-CSRF-Token` 헤더)
+- 생산 이력: `GET http://localhost:8000/api/v1/process-records`,
+  `GET .../process-records/{id}` (`equipment_id`, `product_id`, `from`, `to`, `page`, `page_size`)
+- 검사 이력: `GET http://localhost:8000/api/v1/inspection-records`,
+  `GET .../inspection-records/{id}` (위 필터 + `verdict=good|defect`)
+- 이력 조회는 관리자·고용자 모두 가능하며, `from`은 포함·`to`는 제외하는 한국 기준 날짜다
+- 기록 정정: `PATCH http://localhost:8000/api/v1/process-records/{id}`,
+  `PATCH .../inspection-records/{id}` (`version`, `change_reason` 필수 + 수정 필드, 관리자,
+  `X-CSRF-Token` 헤더. 원천 식별자·`is_demo` 변경 불가)
+- 변경 이력: `GET .../process-records/{id}/changes`, `GET .../inspection-records/{id}/changes` (관리자)
+- 마스터 목록: `GET http://localhost:8000/api/v1/departments`, `GET .../production-lines`
+  (`department_id`), `GET .../equipment` (`production_line_id`), `GET .../products` (`q`).
+  활성 데이터 전체를 반환한다
+- 본인 담당: `GET http://localhost:8000/api/v1/assignments/me`
+  (`departments`·`production_lines`·`equipment`로 묶어 id·코드·이름 반환)
+- 보고서 목록·상세: `GET http://localhost:8000/api/v1/reports` (`q`, `category`, `business_status`,
+  `from`, `to`, `page`, `page_size`), `GET .../reports/{id}`
+- 보고서 등록(AI 생성 전 임시): `POST .../reports` (`title`, `body_markdown`, `category`,
+  `report_kind`, `X-CSRF-Token` 헤더)
+- 보고서 수정·상태 변경·삭제: `PATCH .../reports/{id}` (`version`, `title?`, `body_markdown?`),
+  `PATCH .../reports/{id}/status` (`version`, `business_status`, 관리자),
+  `DELETE .../reports/{id}?expected_version=` (soft delete)
+- 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
+  `GET .../reports/{id}/status-events`
+- 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
+  (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
+  유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
+- 보고서 생성 작업 접수: `POST .../report-jobs` (`client_request_key`, `report_kind`, `category`,
+  `period`, `targets`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을 반환
+- 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,
+  `POST .../jobs/{id}/retry` (요청자 본인, CSRF 필요 시 헤더 포함)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비
@@ -73,6 +112,43 @@ python -m app.commands.seed_accounts `
 
 기본값은 근무 시작 `09:00`, 종료 `18:00`이고 최초 로그인 시 비밀번호 변경이 필요하다
 (`--no-must-change-password`로 해제).
+
+### 조직·담당 초기 데이터 적재
+
+부서·라인·설비 연결과 사용자 담당을 JSON 파일로 적재한다. 설비는 CSV 적재 등으로 이미 존재해야 한다.
+
+```json
+{
+  "departments": [{"code": "D1", "name": "생산1부"}],
+  "production_lines": [
+    {"department_code": "D1", "code": "L1", "name": "1라인", "equipment_codes": ["S01", "S02"]}
+  ],
+  "assignments": [
+    {
+      "employee_no": "W9001",
+      "department_codes": ["D1"],
+      "production_lines": [{"department_code": "D1", "code": "L1"}],
+      "equipment_codes": ["S01"]
+    }
+  ]
+}
+```
+
+```powershell
+python -m app.commands.seed_master_data --file master.json
+```
+
+재실행해도 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않는다. 없는 사용자·설비나 다른 라인에 이미
+속한 설비가 있으면 전체를 롤백하고 실패한다.
+
+### 보고서 생성 작업 큐 정리
+
+worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`로 정리한다. 실제 AI 실행 worker는
+별도 작업이다. 서버 복구 후 자동 재실행은 하지 않으며 요청자가 재시도한다.
+
+```powershell
+python -m app.commands.reap_report_jobs
+```
 
 ### 공정 CSV 적재
 

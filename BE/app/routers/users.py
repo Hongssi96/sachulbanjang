@@ -1,14 +1,40 @@
-from typing import Annotated
+from math import ceil
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from app.dependencies.auth import (
+    get_account_management_service,
     get_password_reset_service,
     require_admin,
     require_csrf_token,
 )
 from app.models.master import AppUser
-from app.schemas.users import PasswordResetResponse
+from app.schemas.users import (
+    AccountAuditEventItem,
+    AccountAuditEventListResponse,
+    AccountStatusChangeRequest,
+    Pagination,
+    PasswordResetResponse,
+    UserCreateRequest,
+    UserCreateResponse,
+    UserDetail,
+    UserListItem,
+    UserListResponse,
+    UserUpdateRequest,
+)
+from app.services.account_management import (
+    AccountAlreadyActiveError,
+    AccountAlreadyInactiveError,
+    AccountManagementService,
+    CreateUserCommand,
+    EmployeeNumberAlreadyExistsError,
+    LastAdminRequiredError,
+    SelfDeactivationNotAllowedError,
+    SelfRoleChangeNotAllowedError,
+    UpdateUserCommand,
+    UserVersionConflictError,
+)
 from app.services.password_reset import (
     PasswordResetService,
     SelfPasswordResetNotAllowedError,
@@ -16,6 +42,312 @@ from app.services.password_reset import (
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _user_list_item(user: AppUser) -> UserListItem:
+    return UserListItem(
+        user_id=user.id,
+        employee_no=user.employee_no,
+        display_name=user.display_name,
+        role=user.role,
+        is_active=user.deleted_at is None,
+        shift_start_local=user.shift_start_local,
+        shift_end_local=user.shift_end_local,
+        version=user.version,
+    )
+
+
+def _user_detail(user: AppUser) -> UserDetail:
+    return UserDetail(
+        user_id=user.id,
+        employee_no=user.employee_no,
+        display_name=user.display_name,
+        role=user.role,
+        is_active=user.deleted_at is None,
+        shift_start_local=user.shift_start_local,
+        shift_end_local=user.shift_end_local,
+        must_change_password=user.must_change_password,
+        version=user.version,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        deactivated_at=user.deleted_at,
+    )
+
+
+@router.get("", response_model=UserListResponse)
+def list_users(
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    role: Annotated[Literal["admin", "worker"] | None, Query()] = None,
+    include_inactive: bool = False,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> UserListResponse:
+    result = service.list_users(
+        query=q,
+        role=role,
+        include_inactive=include_inactive,
+        page=page,
+        page_size=page_size,
+    )
+    return UserListResponse(
+        items=[_user_list_item(user) for user in result.users],
+        pagination=Pagination(
+            page=page,
+            page_size=page_size,
+            total_items=result.total_items,
+            total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
+        ),
+    )
+
+
+@router.get("/{user_id}", response_model=UserDetail)
+def read_user(
+    user_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+) -> UserDetail:
+    try:
+        return _user_detail(service.get_user(user_id))
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+
+
+@router.patch(
+    "/{user_id}",
+    response_model=UserDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def update_user(
+    user_id: Annotated[int, Path(ge=1)],
+    request: UserUpdateRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserDetail:
+    try:
+        user = service.update_user(
+            actor,
+            user_id,
+            UpdateUserCommand(
+                version=request.version,
+                display_name=request.display_name,
+                role=request.role,
+                shift_start_local=request.shift_start_local,
+                shift_end_local=request.shift_end_local,
+            ),
+        )
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+    except UserVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except SelfRoleChangeNotAllowedError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "SELF_ROLE_CHANGE_NOT_ALLOWED",
+                "message": "본인의 역할은 변경할 수 없습니다.",
+            },
+        ) from None
+    except LastAdminRequiredError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "LAST_ADMIN_REQUIRED",
+                "message": "활성 관리자가 최소 한 명 있어야 합니다.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _user_detail(user)
+
+
+@router.post(
+    "/{user_id}/deactivation",
+    response_model=UserDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def deactivate_user(
+    user_id: Annotated[int, Path(ge=1)],
+    request: AccountStatusChangeRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserDetail:
+    try:
+        user = service.deactivate_user(actor, user_id, request.version)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+    except UserVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except AccountAlreadyInactiveError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ACCOUNT_ALREADY_INACTIVE", "message": "이미 비활성화된 계정입니다."},
+        ) from None
+    except SelfDeactivationNotAllowedError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "SELF_DEACTIVATION_NOT_ALLOWED",
+                "message": "본인 계정은 비활성화할 수 없습니다.",
+            },
+        ) from None
+    except LastAdminRequiredError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "LAST_ADMIN_REQUIRED",
+                "message": "활성 관리자가 최소 한 명 있어야 합니다.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _user_detail(user)
+
+
+@router.post(
+    "/{user_id}/reactivation",
+    response_model=UserDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def reactivate_user(
+    user_id: Annotated[int, Path(ge=1)],
+    request: AccountStatusChangeRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserDetail:
+    try:
+        user = service.reactivate_user(actor, user_id, request.version)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+    except UserVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except AccountAlreadyActiveError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ACCOUNT_ALREADY_ACTIVE", "message": "이미 활성화된 계정입니다."},
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _user_detail(user)
+
+
+@router.get("/{user_id}/audit-events", response_model=AccountAuditEventListResponse)
+def list_user_audit_events(
+    user_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> AccountAuditEventListResponse:
+    try:
+        result = service.list_audit_events(user_id, page=page, page_size=page_size)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+
+    return AccountAuditEventListResponse(
+        items=[
+            AccountAuditEventItem(
+                event_id=event.id,
+                action=event.action,
+                actor_id=event.actor_id,
+                actor_display_name=actor_name,
+                target_user_id=event.user_id,
+                detail=event.detail,
+                created_at=event.created_at,
+            )
+            for event, actor_name in result.events
+        ],
+        pagination=Pagination(
+            page=page,
+            page_size=page_size,
+            total_items=result.total_items,
+            total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
+        ),
+    )
+
+
+@router.post(
+    "",
+    response_model=UserCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_csrf_token)],
+)
+def create_user(
+    request: UserCreateRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    response: Response,
+) -> UserCreateResponse:
+    try:
+        result = service.create_user(
+            actor,
+            CreateUserCommand(
+                employee_no=request.employee_no,
+                display_name=request.display_name,
+                role=request.role,
+                shift_start_local=request.shift_start_local,
+                shift_end_local=request.shift_end_local,
+            ),
+        )
+    except EmployeeNumberAlreadyExistsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "EMPLOYEE_NO_ALREADY_EXISTS",
+                "message": "이미 사용 중인 사번입니다.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    user = result.user
+    return UserCreateResponse(
+        user_id=user.id,
+        employee_no=user.employee_no,
+        display_name=user.display_name,
+        role=user.role,
+        shift_start_local=user.shift_start_local,
+        shift_end_local=user.shift_end_local,
+        temporary_password=result.temporary_password,
+        must_change_password=user.must_change_password,
+        version=user.version,
+    )
 
 
 @router.post(

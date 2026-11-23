@@ -1640,3 +1640,237 @@
 - 검증: Ruff lint, mypy, 전체 pytest 106건 통과. 일회용 PostgreSQL 18 DB에 Alembic head를 적용해 초기화 성공, Argon2id 검증, 이전 비밀번호 로그인 거부, 임시 비밀번호 로그인, 세션·리프레시 폐기, soft delete 404, 본인 403을 확인하고 DB를 삭제했다. 저장소 전체 `ruff format --check .`는 기존 파일의 CRLF로 56개 파일이 재포맷 대상으로 보고되어, 이번에 추가·수정한 파일만 별도로 검사했다.
 - 기록일: 2026-11-23.
 
+## DEC-204 — 관리자 계정 생성 API를 MVP에 포함
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 기존 결정: DEC-063은 계정 생성 화면·API를 제외하고 관리자·고용자 계정을 DB 초기 데이터로 준비하도록 했다.
+- 후속 질문: 관리자가 비밀번호를 초기화하려면 실제 운영에서 관리자가 계정을 생성할 수도 있어야 하지 않는지 요청자가 확인했다.
+- 답변: 다른 AI 작업을 병합한 뒤 관리자 계정 생성 기능을 진행하도록 요청했다.
+- 변경 결과: 최초 관리자만 CLI로 준비하고 이후 관리자는 `admin`·`worker` 계정을 API로 생성한다. 사번·표시 이름·역할·사용자별 기본 근무 시작·종료 시각을 입력한다.
+- 보안·전달: 생성 시 임시 비밀번호를 생성해 Argon2id 해시만 저장하고 원문은 `Cache-Control: no-store` 응답에서 한 번만 관리자에게 제공한다. 생성 계정은 `must_change_password=true`로 시작한다.
+- 데이터 규칙: 삭제된 계정까지 사번 고유성을 유지한다. 계정 생성은 관리자 액세스 쿠키와 CSRF 검증을 요구한다.
+- 후속 범위: 사용자 목록·상세·수정·비활성화 API와 계정 생성 화면은 별도 작업으로 남긴다.
+
+## TECH-013 — 관리자 계정 생성 구현
+
+- `POST /api/v1/users`를 추가했다. 요청은 `employee_no`, `display_name`, `role`, `shift_start_local`, `shift_end_local`이며 성공 시 `201`과 생성 계정 및 임시 비밀번호를 반환한다.
+- `AccountManagementService`가 사번 중복 확인, 임시 비밀번호 생성·해시, 계정 저장을 하나의 트랜잭션으로 처리한다. 동시 생성의 UNIQUE 충돌도 `409 EMPLOYEE_NO_ALREADY_EXISTS`로 변환하고 트랜잭션을 롤백한다.
+- Router는 관리자 역할과 CSRF를 검사하고, 입력 문자열의 공백 정규화·길이·역할을 Pydantic으로 검증한다. 기존 `app_user` 스키마와 제약을 사용하므로 마이그레이션은 추가하지 않았다.
+- 검증: Ruff lint, mypy, 전체 pytest 113건을 통과했다. 일회용 PostgreSQL 18 DB에 Alembic head를 적용해 계정 생성, Argon2id 검증, 삭제 계정을 포함한 사번 중복 거부를 확인하고 DB를 삭제했다. 제한된 샌드박스에서는 Windows Python 3.14의 내부 socketpair 생성이 멈췄으나 동일 테스트를 샌드박스 밖에서 실행해 통과했다.
+
+## DEC-205 — 관리자 계정 관리 범위와 임시 비밀번호 정책 (Q-205)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-063·DEC-204의 계정 생성·초기화 후속 범위
+- 확인한 문서 상태: DEC-204가 사용자 목록·상세·수정·비활성화 API와 계정 생성 화면을 후속 작업으로 남겼고, DEC-203이 임시 비밀번호 만료 정책과 감사 이력을 미확정으로 남겼다. DEC-093은 사용자 대상 삭제 복구 기능을 MVP에서 보류했다.
+- 질문 1: 이번 작업에 FE 관리자 계정 화면과 임시 비밀번호 표시·복사 UI를 포함할지?
+- 답변 1(2026-11-23): BE API만 구현한다.
+- 확정 결과 1: 사용자 목록·상세·수정·비활성화·재활성화·감사 이력·임시 비밀번호 만료만 BE에서 구현한다. FE 관리자 계정 관리 화면과 임시 비밀번호 1회 표시·복사 UI는 FE 후속 작업으로 남긴다.
+- 질문 2: 계정 비활성화와 재활성화를 어떤 방식으로 처리할지?
+- 답변 2(2026-11-23): soft delete와 재활성화를 사용한다.
+- 확정 결과 2: 비활성화는 `app_user.deleted_at`을 설정하고 재활성화는 해제한다. 목록은 기본 비활성 계정을 제외하고 `include_inactive=true`로 포함해 재활성화할 수 있다. 사번은 삭제 계정을 포함해 계속 고유하다. DEC-093의 휴지통·복구 기능 보류는 사용자 대상 일반 리소스에 유지하고 계정 재활성화만 관리자 작업으로 허용한다.
+- 질문 3: 역할 변경과 비활성화에 어떤 제한을 둘지?
+- 답변 3(2026-11-23): 본인과 마지막 관리자를 보호한다.
+- 확정 결과 3: 본인 역할 변경(`SELF_ROLE_CHANGE_NOT_ALLOWED`)과 본인 비활성화(`SELF_DEACTIVATION_NOT_ALLOWED`)를 차단한다. 마지막 활성 관리자의 강등·비활성화는 `LAST_ADMIN_REQUIRED`로 차단한다.
+- 질문 4: 임시 비밀번호 만료와 미변경 계정 접근 제한을 어떻게 할지?
+- 답변 4(2026-11-23): 만료와 업무 API 제한을 적용한다.
+- 확정 결과 4: API로 발급한 임시 비밀번호는 `APP_TEMPORARY_PASSWORD_TTL_SECONDS`(기본 86400초) 뒤 만료되고, 만료 후 로그인은 `TEMPORARY_PASSWORD_EXPIRED`로 거부한다. `must_change_password=true`인 계정은 본인 조회와 비밀번호 변경만 허용하고 다른 업무 API는 `PASSWORD_CHANGE_REQUIRED`로 차단한다. CLI 시드 계정의 비밀번호에는 시간 만료를 적용하지 않는다.
+- 질문 5: 계정 생성·초기화 감사 이력의 범위는?
+- 답변 5(2026-11-23): 기록과 관리자 조회 API를 구현한다.
+- 확정 결과 5: 계정 생성·비밀번호 초기화·정보 수정·비활성화·재활성화 이벤트를 `account_audit_event`에 기록하고 관리자 전용 `GET /users/{user_id}/audit-events`로 조회한다. 임시 비밀번호 원문과 만료 시각은 저장하지 않는다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변. 기존 계정 관리 구현(DEC-204)과 계정 초기화 구현(DEC-203)을 이어가는 후속 범위다.
+- 남은 쟁점: FE 관리자 계정 화면과 임시 비밀번호 표시 UX, 감사 이력 보존 기간과 화면 노출, 미변경 상태에서 허용할 부가 API 범위
+
+## TECH-014 — 사용자 관리·비활성화·임시 비밀번호 만료·감사 이력 구현
+
+- 최신 `origin/dev`에서 `codex/be-feature-user-management` 브랜치로 DEC-205를 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `GET /users`(검색·역할·비활성 포함·페이지), `GET /users/{user_id}`, `PATCH /users/{user_id}`, `POST /users/{user_id}/deactivation`, `POST /users/{user_id}/reactivation`, `GET /users/{user_id}/audit-events`를 추가했다. 모두 관리자 전용이고 변경 API는 CSRF를 요구한다.
+- `AccountManagementService`가 목록·상세·수정·비활성화·재활성화·감사 조회를 담당한다. 버전 충돌은 `VERSION_CONFLICT`, 본인·마지막 관리자 보호는 각각 전용 오류로 매핑한다. 비활성화는 공통 `session_revocation` 헬퍼로 세션과 리프레시 자격 증명을 폐기한 뒤 커밋한다.
+- 임시 비밀번호 만료: `app_user.temporary_password_expires_at`(마이그레이션 `20261123_0007`)과 `APP_TEMPORARY_PASSWORD_TTL_SECONDS`를 추가했다. 계정 생성·초기화 시 만료 시각을 기록하고, 만료 로그인은 `TEMPORARY_PASSWORD_EXPIRED`, `must_change_password=true` 업무 요청은 `PASSWORD_CHANGE_REQUIRED`로 처리한다. 비밀번호 변경 시 만료 시각을 지운다.
+- 감사 이력: `account_audit_event`(마이그레이션 `20261123_0008`)와 `AccountAuditRepository`를 추가했다. 계정 조치를 같은 트랜잭션에서 기록하고 관리자 조회 API를 제공한다. 임시 비밀번호 원문·해시·만료 시각은 기록하지 않는다.
+- 검증: Ruff check, mypy, 전체 pytest 160건 통과. 일회용 PostgreSQL 18 DB에 Alembic head를 적용해 계정 생성·초기화·목록·수정·비활성화·재활성화·감사 기록·세션 폐기와 만료 거부를 확인하고 DB를 삭제했다. 저장소 전체 `ruff format --check .`는 기존 파일 CRLF로 재포맷 대상이 보고되어 변경·추가 파일만 검사했다.
+- 기록일: 2026-11-23.
+
+## DEC-206 — 생산·검사 이력 조회의 공개 범위와 판정 값 (Q-206)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-026·027의 생산·검사 이력, DEC-165의 검사 판정
+- 확인한 문서 상태: DEC-026은 기간·설비·품목·판정 필터와 목록·상세 조회를 요구하나 공개 시점 조건은 정하지 않았다. ERD는 `available_at`을 ‘재생 중 조회 가능해진 시각’으로 정의하고 `/process/current`는 null 행을 제외한다. DEC-165는 양품·불량 판정과 ‘미분류’ 불량 유형을 확정했으나 저장 값 명칭은 정하지 않았다.
+- 질문 1: 이력 조회에서 아직 공개되지 않은 행(`available_at` null)을 포함할지?
+- 답변 1(2026-11-23): 전체 기록을 조회한다.
+- 확정 결과 1: 이력 목록·상세는 soft delete되지 않은 적재·저장 기록을 `available_at` 조건 없이 조회한다. 응답에 `available_at`을 포함해 시연 공개 여부를 구분한다. 실시간 공개 게이팅은 `/process/current`에만 유지한다.
+- 질문 2: 검사 판정 값 명칭을 무엇으로 할지?
+- 답변 2(2026-11-23): `good`·`defect`로 한다.
+- 확정 결과 2: `inspection_record.verdict`는 `good`(양품)·`defect`(불량) 두 값만 허용한다. 불량이지만 유형이 없으면 `defect_type`은 null로 두고 화면·집계에서 ‘미분류’로 표시한다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 실제 자동 검사 데이터의 수집 필드·판정 매핑·원천 식별자와 이상 검사 적재 경로, 감사 이력 보존 기간
+
+## TECH-015 — 생산·검사 이력 조회 API와 검사 기록 테이블 구현
+
+- 최신 `origin/dev`(abacb3a)에서 `.worktrees/process-records` 워크트리와 `codex/be-feature-record-history` 브랜치로 작업했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `GET /process-records`·`GET /process-records/{id}`·`GET /inspection-records`·`GET /inspection-records/{id}`를 추가했다. 관리자·고용자 모두 조회할 수 있고 soft delete된 기록은 제외한다(DEC-058·DEC-162).
+- 필터는 기간(`from` 포함·`to` 제외, 한국 기준 날짜를 UTC 경계로 변환), 설비·품목, 검사 판정이다. DEC-122의 페이지네이션(기본 10, 최대 100, offset)과 안정 정렬(`occurred_at`/`inspected_at` 내림차순, `id` 내림차순)을 적용한다.
+- `inspection_record` 테이블을 마이그레이션 `20261123_0009`로 추가하고 history 조회 인덱스(`process_record(occurred_at, id)`, 검사 설비·품목·판정·시각 인덱스)를 만들었다. 기존 dev head가 `20261123_0008`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `RecordHistoryRepository`가 목록·상세 조회와 조인(설비 inner, 품목 outer)을 담당하고, `RecordHistoryService`가 기간 변환·페이지 계산·404 판단을 담당한다. Router·Service·Repository 책임을 기존 구조대로 분리했다. 삭제된 설비·품목의 과거 기록도 조회에 남긴다(DEC-147).
+- 검증: Ruff check, mypy, 전체 pytest 176건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0009)를 적용해 기간 경계·필터·페이지네이션·정렬·soft delete 제외·판정 필터·미공개 행 포함·삭제 설비 이력 보존·인덱스 존재를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-record-history)만 수정하도록 작성자를 1인으로 지정했다. 다른 작업이 두 문서를 동시에 수정하지 않도록 한다.
+- 기록일: 2026-11-23.
+
+## DEC-207 — 마스터 데이터 조회 범위와 담당 초기 데이터 방식 (Q-207)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-067·DEC-068·DEC-075·DEC-130의 담당 범위와 시연 조직 데이터
+- 확인한 문서 상태: API_SPEC은 활성 부서·라인·설비·제품과 본인 담당 조회를 후보로 두고 있다. `user_assignment`는 DATABASE_DESIGN에 설계되어 있으나 테이블·초기 데이터가 없다. DEC-130은 사용자별 복수 담당을 DB 초기 데이터로 준비하고 배정·변경 화면은 추후로 두기로 했다. 실제 부서·라인 매핑 데이터는 아직 없다.
+- 질문 1: `GET /assignments/me`에 필요한 `user_assignment`와 초기 담당 데이터 준비 범위를 어떻게 할지?
+- 답변 1(2026-11-23): 테이블·API와 함께 초기 데이터 적재 명령을 구현한다.
+- 확정 결과 1: `user_assignment` 테이블과 담당 조회 API를 구현하고, 조직·담당 초기 데이터를 적재하는 명령을 제공한다.
+- 질문 2: 부서·라인·설비·제품 목록의 응답 방식은?
+- 답변 2(2026-11-23): 전체 활성 목록으로 반환한다.
+- 확정 결과 2: 네 목록은 페이지네이션 없이 활성 데이터 전체를 반환한다. 설비는 `production_line_id`, 라인은 `department_id`, 제품은 `q`(이름·코드 부분 일치) 필터를 제공한다. 선택 목록 용도이므로 DEC-122 페이지네이션을 적용하지 않는다.
+- 질문 3: `GET /assignments/me` 응답 형식은?
+- 답변 3(2026-11-23): 대상 정보를 포함한다.
+- 확정 결과 3: `departments`·`production_lines`·`equipment` 세 배열에 id·코드·이름을 포함해 FE가 그대로 선택 목록과 기본값으로 사용한다. 담당 대상이 soft delete되면 그 항목은 제외하고 담당 배정은 보존한다.
+- 질문 4: 초기 조직·담당 데이터를 어떻게 적재할지?
+- 답변 4(2026-11-23): JSON 입력 파일을 사용한다.
+- 확정 결과 4: `python -m app.commands.seed_master_data --file <JSON>`로 부서·라인·설비 연결·사용자 담당을 적재한다. 실제 매핑 데이터가 생기면 파일만 교체한다. 재실행 시 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않으며, 존재하지 않는 사용자·설비나 다른 라인에 이미 속한 설비는 오류로 전체를 롤백한다(DEC-195·DEC-196).
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 실제 부서·라인·설비 매핑 데이터, 담당 배정·변경 관리 화면과 API, 부서·라인 코드 명명 규칙
+
+## TECH-016 — 마스터 데이터·담당 조회 API와 담당 초기 데이터 적재 명령 구현
+
+- 최신 `origin/dev`(ae5e6d5)에서 `.worktrees/master-data` 워크트리와 `codex/be-feature-master-data` 브랜치로 작업했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `GET /departments`·`GET /production-lines`·`GET /equipment`·`GET /products`·`GET /assignments/me`를 추가했다. 관리자·고용자 모두 사용 가능하고 활성 데이터만 반환한다(DEC-058·DEC-207).
+- `user_assignment` 테이블을 마이그레이션 `20261123_0010`로 추가했다. 부서·라인·설비 중 정확히 하나만 대상으로 갖는 CHECK 제약과, 활성 담당 중복을 막는 부분 UNIQUE 인덱스 세 개를 만들었다. 기존 dev head가 `20261123_0009`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `MasterDataService`가 활성 목록·본인 담당을 조회하고, `MasterDataRepository`가 조회·적재 데이터 접근을 담당한다. `MasterDataSeedService`와 JSON 스키마 기반 `seed_master_data` 명령이 부서·라인·설비 연결·담당을 한 트랜잭션으로 적재한다.
+- 검증: Ruff check, mypy, 전체 pytest 192건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0010)를 적용해 활성 필터·부모/검색 필터·정렬·담당 그룹화·soft delete 대상 제외·적재 명령 중복 방지·존재하지 않는 설비 오류 롤백을 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-master-data)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
+## DEC-208 — 공정·검사 기록 관리자 정정의 수정 필드와 사유 (Q-208)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-158·DEC-160·DEC-162의 관리자 수정·삭제와 변경 이력
+- 확인한 문서 상태: DEC-158은 관리자 수정·삭제와 전후 값·사유·작업자·시각 기록을 확정했다. API_SPEC 초안은 version·사유와 함께 원천 식별자를 변경하지 못하게 하고, 변경 이력 조회를 관리자 전용 후보로 두었다. `record_change` 테이블은 설계만 있고 구현되지 않았다.
+- 질문 1: 정정에서 수정을 허용할 필드 범위는?
+- 답변 1(2026-11-23): 제안 범위 그대로 한다.
+- 확정 결과 1: 공정 기록은 `occurred_at`·`cycle_time_seconds`·`product_id`·`equipment_id`, 검사 기록은 `inspected_at`·`product_id`·`process_record_id`·`verdict`·`defect_type`·`reason`을 수정할 수 있다. `source_import_id`·`source_row_number`·`source_namespace`·`source_record_key`·`source_payload`와 `is_demo`·`version`은 항상 변경할 수 없다.
+- 질문 2: PATCH 요청의 변경 사유 필드명은?
+- 답변 2(2026-11-23): `change_reason`을 사용한다.
+- 확정 결과 2: 변경 사유는 `change_reason`(필수, 공백 불가)로 받고, 검사 기록의 `reason`(불량 사유)은 수정 대상 필드로 유지한다.
+- 질문 3: 감사 이력 조회 API도 이번에 구현할지?
+- 답변 3(2026-11-23): 저장과 조회 API를 함께 구현한다.
+- 확정 결과 3: 정정 시 `record_change`에 기록하고 관리자 전용 `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`로 조회한다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 삭제(soft delete) API와 감사 이력, 변경 시 품질 집계·보고서 스냅샷 영향 검증, 정정 화면(FE)
+
+## TECH-017 — 공정·검사 기록 관리자 정정과 변경 이력 구현
+
+- 최신 `origin/dev`(1c75c38)에서 `.worktrees/record-correction` 워크트리와 `codex/be-feature-record-correction` 브랜치로 DEC-158·DEC-162·DEC-208을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `PATCH /process-records/{id}`·`PATCH /inspection-records/{id}`와 `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`를 추가했다. 정정은 관리자 전용·CSRF이며, version이 다르면 `409 VERSION_CONFLICT`, 없거나 삭제된 기록은 `404 RECORD_NOT_FOUND`, 실제 변경이 없으면 `422 VALIDATION_ERROR`다.
+- `record_change` 테이블을 마이그레이션 `20261123_0011`로 추가했다. 공정·검사 FK 중 정확히 하나만 갖도록 CHECK로 제한하고, 수정 필드의 전후 값(JSONB)·사유·작업자·결과 version·시각을 기록한다. 기존 dev head가 `20261123_0010`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `RecordCorrectionService`가 행 잠금·version 검사·허용 필드 적용·감사 기록·트랜잭션을 담당하고, `RecordCorrectionRepository`가 데이터 접근을 담당한다. 원천 식별자와 `is_demo`·`version`은 수정 경로에서 제외한다.
+- 구현 중 PostgreSQL에서 outer join(품목)에 `FOR UPDATE`를 적용하면 실패하는 문제를 확인해 `with_for_update(of=ProcessRecord)`·`(of=InspectionRecord)`로 행 잠금 대상을 제한했다.
+- 검증: Ruff check, mypy, 전체 pytest 211건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0011)를 적용해 정정 적용·version 충돌·무변경 거부·null 비우기·감사 전후 값·이력 정렬·soft delete 기록 404·원천 식별자 불변·인덱스 생성을 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-record-correction)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
+## DEC-209 — 보고서 기본 CRUD의 생성 경로와 이력 범위 (Q-209)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-010~020·DEC-074·DEC-081·DEC-110·DEC-137·DEC-138·DEC-187·DEC-188
+- 확인한 문서 상태: DEC-064는 보고서를 AI 버튼 생성으로 정의했고 AI는 이번 범위에서 제외한다. DEC-137·138은 version 충돌 처리와 수정 이력 조회를, DEC-188은 상태 변경 이력 기록·조회를 요구한다. `report`·`report_revision`·`report_status_event`는 설계만 있고 구현되지 않았다.
+- 질문 1: AI 생성이 제외된 상태에서 보고서 생성 경로를 어떻게 할지?
+- 답변 1(2026-11-23): 수동 생성 API를 추가한다.
+- 확정 결과 1: 작성자·관리자가 `title`·`body_markdown`·`category`·`report_kind`로 보고서를 등록하는 `POST /reports`를 임시로 제공한다. 상태는 `pending`, version은 1이며 최초 내용을 revision 1로 저장한다. AI 생성이 준비되면 생성 경로만 교체한다.
+- 질문 2: 수정 이력과 상태 변경 이력을 이번 범위에 포함할지?
+- 답변 2(2026-11-23): 저장과 조회 API를 함께 구현한다.
+- 확정 결과 2: `report_revision`과 `report_status_event`를 구현하고, 수정 시 버전별 제목·본문·수정자를, 상태 변경 시 전후 상태·작업자·시각을 기록한다. 조회 권한이 있는 사용자가 `GET /reports/{id}/revisions`·`/revisions/{version}`·`/status-events`로 확인한다.
+- 질문 3: `category`와 `report_kind`의 저장 값은?
+- 답변 3(2026-11-23): category 6값과 kind 3값을 연동한다.
+- 확정 결과 3: `category`는 `equipment_issue`·`quality_report`·`inspection_done`·`periodic_weekly`·`periodic_monthly`·`other`, `report_kind`는 `general`·`weekly`·`monthly`다. `periodic_weekly`→`weekly`, `periodic_monthly`→`monthly`, 그 외는 `general`이어야 하며 불일치는 검증 오류다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: AI 생성 연동 시 수동 생성 유지 여부, 보고 대상(report_target)·집계 스냅샷, PDF·중복 안내·다운로드, 상태 전이의 추가 세분화
+
+## TECH-018 — 보고서 기본 CRUD·상태 변경·이력 조회 구현
+
+- 최신 `origin/dev`(528ae30)에서 `.worktrees/reports` 워크트리와 `codex/be-feature-report-crud` 브랜치로 DEC-209를 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `report`·`report_revision`·`report_status_event`를 마이그레이션 `20261123_0012`로 추가했다. 기존 dev head가 `20261123_0011`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다. AI·집계 관련 컬럼(`generation_job_id`·`aggregate_snapshot`·기간·기준 시각 등)은 AI 생성 작업에서 추가한다.
+- `POST /reports`·`GET /reports`·`GET /reports/{id}`·`PATCH /reports/{id}`·`PATCH /reports/{id}/status`·`DELETE /reports/{id}?expected_version=`·`GET /reports/{id}/revisions`·`/revisions/{version}`·`/status-events`를 추가했다.
+- 권한: 조회·수정·삭제는 관리자 전체·고용자 본인이며 타인 보고는 404로 숨긴다. 고용자는 완료된 보고서를 수정·삭제할 수 없다(`403 REPORT_COMPLETED_LOCKED`). 상태 변경은 관리자 전용이다.
+- version: 수정·상태 변경·삭제 모두 기대 version과 비교하고 불일치는 `409 VERSION_CONFLICT`다. 수정은 `report_revision`, 상태 변경은 `report_status_event`에 같은 트랜잭션으로 기록한다.
+- 목록은 `q`·`category`·`business_status`·기간(한국 기준 `from` 포함·`to` 제외)과 DEC-122 페이지네이션·`created_at` 내림차순 정렬을 적용하고 고용자에게는 `author_id`로 범위를 제한한다.
+- 검증: Ruff check, mypy, 전체 pytest 230건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0012)를 적용해 생성·revision·목록 필터·작성자 범위·타인 404·수정·version 충돌·무변경 거부·상태 전이·완료 잠금·soft delete·이력 정렬·인덱스 생성을 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-report-crud)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
+## DEC-210 — 보고서 생성 작업 기반의 범위와 중복 처리 (Q-210)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-082·DEC-083·DEC-084·DEC-094·DEC-095·DEC-096·DEC-118·DEC-127
+- 확인한 문서 상태: DEC-082~096은 생성 접수·상태·취소·재시도·중단 처리와 PostgreSQL 작업 큐를 요구하지만 실제 AI 호출 시점은 미정이다. `generation_job`은 설계만 있고 구현되지 않았다. DEC-083은 같은 요청 키 재전송 시 기존 작업/결과 반환을 확정했다.
+- 질문 1: “실제 AI 호출은 별도 작업으로 분리”를 어떻게 나눌지?
+- 답변 1(2026-11-23): 큐 인프라와 중단 정리만 구현한다.
+- 확정 결과 1: PostgreSQL 큐(claim/lease/heartbeat), 접수·상태 조회·취소·재시도, 임차 만료 작업 `interrupted` 정리 명령까지 구현한다. `querying`·`writing` 전이와 `succeeded` 시 보고서 등록 등 실제 AI 실행은 별도 AI 작업에서 구현한다.
+- 질문 2: 생성 요청 payload 검증 수준은?
+- 답변 2(2026-11-23): 보고서 조건을 검증·저장한다.
+- 확정 결과 2: `report_kind`·`category`·`period`·`targets`를 검증해 `request_payload`로 정규화 저장하고 canonical digest로 중복·변경을 판단한다. 분류·종류 연동 규칙은 보고서 생성과 같다.
+- 질문 3: 같은 `client_request_key` 재전송 응답은?
+- 답변 3(2026-11-23): 기존 작업을 202로 반환한다.
+- 확정 결과 3: 요청자·종류·키가 같고 digest가 같으면 기존 작업을 `202`로 반환한다. 같은 키에 내용이 다르면 `409 REQUEST_KEY_CONFLICT`다. 접수 시각과 `data_cutoff_at`(최신 replay `data_time`, 없으면 접수 시각)을 저장한다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 실제 AI 실행 단계와 `succeeded` 보고서 등록, 임차 시간·heartbeat 주기, 같은 조건 중복 안내(`POST /report-duplicate-checks`), 같은 조건 새 생성 시 요청 키 정책
+
+## TECH-019 — 보고서 생성 작업 기반과 PostgreSQL 작업 큐 구현
+
+- 최신 `origin/dev`(61e605f)에서 `.worktrees/report-jobs` 워크트리와 `codex/be-feature-report-jobs` 브랜치로 DEC-210을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `generation_job` 테이블을 마이그레이션 `20261123_0013`로 추가하고, `report.generation_job_id`(nullable, UNIQUE, FK)로 성공 작업과 보고서를 연결할 수 있게 했다. 기존 dev head가 `20261123_0012`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `POST /report-jobs`·`GET /jobs`·`GET /jobs/{id}`·`POST /jobs/{id}/cancel`·`POST /jobs/{id}/retry`를 추가했다. 모든 작업 API는 요청자 본인 범위이며 타인 작업은 404다.
+- 중복 방지: `(requester_id, kind, client_request_key)` UNIQUE와 canonical SHA-256 digest로 같은 키·같은 내용은 기존 작업을 반환하고 다른 내용은 409를 반환한다. 동시 접수의 UNIQUE 충돌은 재조회로 흡수한다.
+- 큐: `ReportJobRepository`가 `FOR UPDATE SKIP LOCKED`로 `accepted` 작업을 잡고, `ReportJobService`가 `querying` 전환·임차(`lease_expires_at`)·`heartbeat_at`·`attempt_count`를 관리한다. `python -m app.commands.reap_report_jobs`가 임차 만료 작업을 `interrupted`(`WORKER_INTERRUPTED`)로 정리한다. 실제 AI 실행 루프는 이번 범위에 포함하지 않는다.
+- 검증: Ruff check, mypy, 전체 pytest 250건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0013)를 적용해 접수·`data_cutoff_at`·중복 반환·키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-report-jobs)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
+## DEC-211 — 품질 통계 응답 구성과 미분류·생산 건수 표시 (Q-211)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-028·DEC-029·DEC-165·DEC-190·DEC-206
+- 확인한 문서 상태: REQUIREMENTS는 검사 건수·양품·불량·불량률·유형 분포, 검사 1건 집계 단위, 불량률 공식과 분모 0 ‘—’, 유형 없는 불량의 ‘미분류’ 처리를 확정했다. 생산 기록 수를 실제 생산량으로 쓰지 않는다.
+- 질문 1: “전체 집계와 페이지 목록 분리”를 어떻게 구현할지?
+- 답변 1(2026-11-23): 집계만 구현하고 목록은 기존 API를 재사용한다.
+- 확정 결과 1: `GET /quality/summary`는 필터 범위 전체를 집계해 반환하고, 상세 검사 기록 목록은 기존 `GET /inspection-records`(페이지네이션)를 그대로 사용한다.
+- 질문 2: 불량 유형 분포에서 유형 없는 불량을 어떻게 표현할지?
+- 답변 2(2026-11-23): `type: null` 항목으로 표현한다.
+- 확정 결과 2: `defect_types`는 `{"type": 문자열 또는 null, "count": n}` 목록이며 null이 ‘미분류’다. 건수 내림차순·유형 오름차순(null 마지막)으로 정렬한다.
+- 질문 3: 응답에 생산 기록 건수를 포함할지?
+- 답변 3(2026-11-23): 포함한다.
+- 확정 결과 3: 같은 기간·필터의 `production_record_count`(생산 기록 건수)를 포함하고 실제 생산량이 아님을 명시한다(DEC-190).
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 가동률(`GET /quality/operation`·`operation_day`)과 품질 지표의 시연/실데이터 구분 세부, 품질 요약의 정렬·필터 확장
+
+## TECH-020 — 품질 통계 조회 API 구현
+
+- 최신 `origin/dev`(cb65373)에서 `.worktrees/quality` 워크트리와 `codex/be-feature-quality-summary` 브랜치로 DEC-211을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- 스키마 변경이 없는 읽기 전용 집계이므로 새 마이그레이션을 추가하지 않았고 Alembic head는 `20261123_0013`을 유지한다(진행 중 MR 0건).
+- `GET /quality/summary`를 추가했다. 관리자·고용자 모두 조회하며 `from`·`to`(한국 기준, `from` 포함·`to` 제외), `equipment_id`, `product_id`로 필터한다.
+- `QualityRepository`가 검사 판정 조건부 집계(양품·불량·검사 건수·시연 포함), 불량 유형 그룹 집계, 공정 기록 건수를 조회하고, `QualityService`가 불량률을 계산한다. 불량률은 `불량 ÷ (양품 + 불량) × 100`을 소수 둘째 자리로 반올림(`ROUND_HALF_UP`)하고 분모가 0이면 null이다.
+- 소프트 삭제된 검사·공정 기록은 제외한다. `production_record_count`는 실제 생산량이 아니라 공정 기록 건수임을 응답·문서에 명시한다(DEC-190).
+- 검증: Ruff check, mypy, 전체 pytest 257건 통과. 일회용 PostgreSQL 18 DB에서 기간 경계(한국→UTC)·설비/품목 필터·soft delete 제외·불량률 반올림·분모 0 null·유형 분포 정렬·생산 기록 건수·시연 표시를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-quality-summary)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
