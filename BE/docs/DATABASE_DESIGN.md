@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당 테이블은 Alembic `20261123_0010`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력 테이블은 Alembic `20261123_0011`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -32,6 +32,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
 
+`record_change`는 20261123_0011로 구현했다. 관리자 정정 한 건마다 변경 필드의 전후 값(JSONB)·사유·작업자·결과 version·시각을 남기며, 공정·검사 FK 중 정확히 하나만 갖는다. 정정은 version 조건으로 원자적 갱신하고 변경 이력은 `(process_record_id|inspection_record_id, occurred_at)` 인덱스로 조회한다.
+
 `user_assignment`는 20261123_0010으로 구현했다. 담당 대상 하나만 갖도록 CHECK로 제한하고, 대상별 활성 배정 중복은 `(user_id, department_id)`·`(user_id, production_line_id)`·`(user_id, equipment_id)` 부분 UNIQUE 인덱스로 막는다. 조직·담당 초기 데이터는 `python -m app.commands.seed_master_data --file <JSON>`로 적재한다.
 
 `account_audit_event`와 `app_user.temporary_password_expires_at`은 20261123_0007·0008로 구현했다. 계정 비활성화는 `app_user.deleted_at`을 재사용하고 목록은 기본 비활성 계정을 제외한다. 감사 이벤트는 계정 조치와 같은 트랜잭션에서 기록하며 FK는 RESTRICT다.
@@ -44,7 +46,7 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 | process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number), (source_namespace, source_record_key) UNIQUE |
 | inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at?, verdict(good/defect), defect_type?, reason?, is_demo, version, deleted_at. 검사 이력과 품질 집계의 원천이며 20261123_0009로 구현 |
 | operation_day | equipment_id FK, local_date, planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, local_date) UNIQUE |
-| record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation, before_value, after_value, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나 |
+| record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation(update/delete), before_value?, after_value?, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나. 20261123_0011로 구현(현재 update만) |
 | process_replay | source_import_id FK, cursor, data_time?, last_advanced_at?, state. 재시작 절차는 Q-167 보류 |
 
 확인한 세 CSV 모두 `_id`를 제공하며 elice_v1과 labeled 데이터에 같은 키가 재등장한다. 원본 파일과 1부터 시작하는 행 번호로 파일 내 위치를 식별하고, source namespace와 `_id` 조합의 UNIQUE로 교차 파일 중복 적재를 막는다. 같은 키·같은 원본 내용은 건너뛰고 내용이 다르면 충돌로 전체 적재를 롤백한다. 같은 파일 fingerprint의 재적재도 거부하고 원본 행 전체를 source_payload에 보존한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.

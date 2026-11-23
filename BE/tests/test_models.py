@@ -15,6 +15,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "process_replay",
         "product",
         "production_line",
+        "record_change",
         "refresh_credential",
         "source_import",
         "user_assignment",

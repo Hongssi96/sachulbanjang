@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0010` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0011` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -142,6 +142,19 @@ erDiagram
         timestamptz deleted_at "nullable"
     }
 
+    RECORD_CHANGE {
+        bigint id PK
+        bigint process_record_id FK "nullable"
+        bigint inspection_record_id FK "nullable"
+        bigint actor_id FK
+        varchar operation
+        jsonb before_value "nullable"
+        jsonb after_value "nullable"
+        varchar reason
+        integer version
+        timestamptz occurred_at
+    }
+
     PROCESS_REPLAY {
         bigint id PK
         bigint source_import_id FK,UK
@@ -171,6 +184,9 @@ erDiagram
     DEPARTMENT o|--o{ USER_ASSIGNMENT : covers
     PRODUCTION_LINE o|--o{ USER_ASSIGNMENT : covers
     EQUIPMENT o|--o{ USER_ASSIGNMENT : covers
+    PROCESS_RECORD o|--o{ RECORD_CHANGE : changed
+    INSPECTION_RECORD o|--o{ RECORD_CHANGE : changed
+    APP_USER ||--o{ RECORD_CHANGE : performs
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -208,6 +224,9 @@ erDiagram
 - `user_assignment`는 부서·라인·설비 중 정확히 하나를 대상으로 갖는다(CHECK). 활성 담당은 대상별 부분
   UNIQUE 인덱스로 중복을 막고, 삭제는 soft delete로 처리한다. 담당 대상이 soft delete되면 담당 조회에서
   제외하되 배정은 보존한다(DEC-130·DEC-207).
+- `record_change`는 공정·검사 FK 중 정확히 하나를 갖는다(CHECK). 관리자 정정 한 건마다 변경 필드의
+  전후 값과 사유·작업자·결과 version·시각을 남기며 토큰 원문처럼 민감한 값은 저장하지 않는다.
+  원천 식별자(`source_*`)와 `is_demo`는 정정 대상이 아니다(DEC-158·DEC-208).
 
 ## 구현 위치
 
@@ -216,5 +235,6 @@ erDiagram
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
-  `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`
+  `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`,
+  `20261123_0011_record_change.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

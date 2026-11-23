@@ -8,7 +8,13 @@ from app.models.master import (
     ProductionLine,
     UserAssignment,
 )
-from app.models.process import InspectionRecord, ProcessRecord, ProcessReplay, SourceImport
+from app.models.process import (
+    InspectionRecord,
+    ProcessRecord,
+    ProcessReplay,
+    RecordChange,
+    SourceImport,
+)
 
 __all__ = [
     "AccountAuditEvent",
@@ -21,6 +27,7 @@ __all__ = [
     "ProcessReplay",
     "Product",
     "ProductionLine",
+    "RecordChange",
     "RefreshCredential",
     "SourceImport",
     "UserAssignment",

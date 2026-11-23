@@ -63,10 +63,10 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 공통 BE 실행 기반 | 검증 완료 | FastAPI 앱·환경설정·요청 ID·Alembic 시작 검사, Python 3.14 이미지와 PostgreSQL 18.7 통합 검증(MR !11·!13) | 2026-11-20 |
 | 인증·계정 관리 | 검증 완료 | 로그인·갱신·로그아웃·현재 사용자 조회·본인 비밀번호 변경·관리자 계정 생성·비밀번호 초기화, 관리자 사용자 목록·상세·수정·비활성화·재활성화·감사 이력 조회, Argon2id 검증, 5회 실패 잠금, 임시 비밀번호 24시간(설정값) 만료와 최초 변경 강제, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 최초 관리자 시드 CLI, FE 출처 CORS 구현. Ruff·mypy·pytest 160건 및 PostgreSQL 18 계정 생성·초기화·비활성화 통합 검증 | 2026-11-23 |
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
-| 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션) 구현. 전체 pytest 및 PostgreSQL 18 replay·이력 조회 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
+| 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 전체 pytest 및 PostgreSQL 18 replay·이력·정정 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
 | 마스터·담당 | 구현 완료 | 부서·라인·설비·제품 활성 목록 조회와 본인 담당 조회, 사용자 담당 테이블·조직/담당 초기 데이터 적재 명령 구현. pytest 192건 및 PostgreSQL 18 통합 검증. 담당 배정·변경 관리 화면은 추후 | 2026-11-23 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
-| 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션) 구현. 품질 리포트·가동률 미착수. PostgreSQL 18 이력 조회 검증 | 2026-11-23 |
+| 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 품질 리포트·가동률·삭제 미착수. PostgreSQL 18 이력·정정 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 미착수 | - | 2026-11-20 |
 | 재고 | 미착수 | - | 2026-11-20 |
@@ -122,9 +122,10 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /process/current | 설비·품목과 최근 수치·시연·재생 상태 | 관리자·고용자 전체 |
 | GET /process-records, /inspection-records | 기간·설비·품목·판정 조건 | 페이지 목록 |
 | GET /process-records/{id}, /inspection-records/{id} | 개별 기록 | 일반 조회 권한 |
-| PATCH /process-records/{id}, /inspection-records/{id} | version, reason, 허용 수정 필드 | 관리자. 기술 키·원천 식별자를 임의 변경하지 못함 |
-| DELETE /process-records/{id}, /inspection-records/{id} | expected_version·사유를 query/header 계약으로 확정 | 관리자 soft delete·감사 이력 |
-| GET /process-records/{id}/changes, /inspection-records/{id}/changes | 변경 이력 | 관리자만 |
+| PATCH /process-records/{id} | version, change_reason, occurred_at?, cycle_time_seconds?, product_id?, equipment_id? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
+| PATCH /inspection-records/{id} | version, change_reason, inspected_at?, product_id?, process_record_id?, verdict?, defect_type?, reason? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
+| DELETE /process-records/{id}, /inspection-records/{id} | expected_version·사유를 query/header 계약으로 확정 | 관리자 soft delete·감사 이력. 미구현 |
+| GET /process-records/{id}/changes, /inspection-records/{id}/changes | 없음 | 관리자만. 전후 값·사유·작업자·시각 |
 | GET /quality/summary | 기간·설비·품목 필터 | 판정 건수·불량률·유형. 가동률은 설비·날짜 범위 별도 명시 |
 | GET /quality/operation | 한국 기준 날짜·설비 | 계획/실제 시간·가동률·is_demo |
 | POST /report-duplicate-checks | report_kind, period, targets | 조회 가능한 동일 조건 보고서만 안내 |
@@ -319,6 +320,30 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 담당 배정·변경 관리 화면과 API는 추후 범위다(DEC-130). 초기 조직·담당 데이터는 `python -m app.commands.seed_master_data --file <JSON>`로 준비한다(README 참고)
 - 검증: pytest 192건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 활성 필터·필터·정렬·담당 그룹화·
   soft delete 대상 제외·적재 명령 중복 방지·실패 롤백을 확인했다
+
+### 생산·검사 기록 관리자 정정 현재 구현 범위 (2026-11-23)
+
+관리자만 실행할 수 있고 CSRF 더블 서브밋을 요구한다(DEC-158·DEC-162·DEC-208). 삭제(soft delete)는
+이번 범위에 포함하지 않는다.
+
+- `PATCH /process-records/{id}`: `version`(필수), `change_reason`(필수, 공백 불가), 선택 필드
+  `occurred_at`·`cycle_time_seconds`·`product_id`·`equipment_id`. 원천 식별자(`source_import_id`,
+  `source_row_number`, `source_namespace`, `source_record_key`, `source_payload`)와 `is_demo`·`version`은
+  변경할 수 없다. `occurred_at`·`equipment_id`는 null을 허용하지 않는다
+- `PATCH /inspection-records/{id}`: `version`(필수), `change_reason`(필수), 선택 필드 `inspected_at`·
+  `product_id`·`process_record_id`·`verdict`·`defect_type`·`reason`. `inspected_at`·`verdict`는 null을
+  허용하지 않고 `defect_type`·`reason`·연결 대상은 null로 비울 수 있다
+- 두 API 모두 하나 이상의 수정 필드를 요구한다. 실제 값이 바뀌지 않으면 `422 VALIDATION_ERROR`,
+  version이 다르면 `409 VERSION_CONFLICT`, 없거나 삭제된 기록은 `404 RECORD_NOT_FOUND`다
+- 성공 시 사용자 version을 1 증가시키고 응답은 조회 상세와 같은 형식이며 `Cache-Control: no-store`다.
+  수정한 필드의 전후 값·사유·작업자·시각·결과 version을 `record_change`(operation `update`)에 같은
+  트랜잭션으로 기록한다
+- `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`: 관리자만 조회한다.
+  `items`에 `before_value`·`after_value`(변경 필드만)·`reason`·`actor_id`·`actor_display_name`·`version`·
+  `occurred_at`을 최신순으로 반환한다
+- 검증: pytest 211건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 정정 적용·version 충돌·무변경
+  거부·null 비우기·감사 기록(전후 값·사유·작업자)·이력 정렬·soft delete 기록 404·원천 식별자 불변·
+  인덱스 생성을 확인했다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 

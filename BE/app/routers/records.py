@@ -2,16 +2,23 @@ from datetime import date
 from math import ceil
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_user, require_admin, require_csrf_token
 from app.models.master import AppUser
+from app.repositories.record_correction import RecordChangeView, RecordCorrectionRepository
 from app.repositories.record_history import (
     InspectionRecordView,
     ProcessRecordView,
     RecordHistoryRepository,
+)
+from app.schemas.record_changes import (
+    ChangeHistoryItem,
+    ChangeHistoryResponse,
+    InspectionRecordUpdateRequest,
+    ProcessRecordUpdateRequest,
 )
 from app.schemas.records import (
     InspectionRecordItem,
@@ -20,6 +27,11 @@ from app.schemas.records import (
     ProcessRecordDetail,
     ProcessRecordItem,
     ProcessRecordListResponse,
+)
+from app.services.record_correction import (
+    NoRecordChangeError,
+    RecordCorrectionService,
+    RecordVersionConflictError,
 )
 from app.services.record_history import RecordHistoryService, RecordNotFoundError
 
@@ -30,6 +42,27 @@ def get_record_history_service(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> RecordHistoryService:
     return RecordHistoryService(RecordHistoryRepository(session))
+
+
+def get_record_correction_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> RecordCorrectionService:
+    return RecordCorrectionService(session, RecordCorrectionRepository(session))
+
+
+def _change_history_item(view: RecordChangeView) -> ChangeHistoryItem:
+    change = view.change
+    return ChangeHistoryItem(
+        change_id=change.id,
+        operation=change.operation,
+        actor_id=change.actor_id,
+        actor_display_name=view.actor_display_name,
+        before_value=change.before_value,
+        after_value=change.after_value,
+        reason=change.reason,
+        version=change.version,
+        occurred_at=change.occurred_at,
+    )
 
 
 def validate_period(date_from: date | None, date_to: date | None) -> None:
@@ -91,6 +124,68 @@ def _inspection_item(view: InspectionRecordView) -> InspectionRecordItem:
     )
 
 
+@router.patch(
+    "/process-records/{record_id}",
+    response_model=ProcessRecordDetail,
+    dependencies=[Depends(require_csrf_token)],
+)
+def update_process_record(
+    record_id: Annotated[int, Path(ge=1)],
+    request: ProcessRecordUpdateRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[RecordCorrectionService, Depends(get_record_correction_service)],
+    response: Response,
+) -> ProcessRecordDetail:
+    try:
+        view = service.update_process_record(
+            actor,
+            record_id,
+            version=request.version,
+            change_reason=request.change_reason,
+            changes=request.editable_changes(),
+        )
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
+    except RecordVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except NoRecordChangeError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": "변경된 값이 없습니다. 수정할 필드를 확인해 주세요.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _process_detail(view)
+
+
+@router.get("/process-records/{record_id}/changes", response_model=ChangeHistoryResponse)
+def read_process_record_changes(
+    record_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[RecordCorrectionService, Depends(get_record_correction_service)],
+) -> ChangeHistoryResponse:
+    try:
+        changes = service.list_process_changes(record_id)
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
+    return ChangeHistoryResponse(items=[_change_history_item(view) for view in changes])
+
+
 @router.get("/inspection-records", response_model=InspectionRecordListResponse)
 def list_inspection_records(
     _: Annotated[AppUser, Depends(get_current_user)],
@@ -137,6 +232,68 @@ def read_inspection_record(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
         ) from None
+
+
+@router.patch(
+    "/inspection-records/{record_id}",
+    response_model=InspectionRecordItem,
+    dependencies=[Depends(require_csrf_token)],
+)
+def update_inspection_record(
+    record_id: Annotated[int, Path(ge=1)],
+    request: InspectionRecordUpdateRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[RecordCorrectionService, Depends(get_record_correction_service)],
+    response: Response,
+) -> InspectionRecordItem:
+    try:
+        view = service.update_inspection_record(
+            actor,
+            record_id,
+            version=request.version,
+            change_reason=request.change_reason,
+            changes=request.editable_changes(),
+        )
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
+    except RecordVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+    except NoRecordChangeError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": "변경된 값이 없습니다. 수정할 필드를 확인해 주세요.",
+            },
+        ) from None
+
+    response.headers["Cache-Control"] = "no-store"
+    return _inspection_item(view)
+
+
+@router.get("/inspection-records/{record_id}/changes", response_model=ChangeHistoryResponse)
+def read_inspection_record_changes(
+    record_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[RecordCorrectionService, Depends(get_record_correction_service)],
+) -> ChangeHistoryResponse:
+    try:
+        changes = service.list_inspection_changes(record_id)
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
+    return ChangeHistoryResponse(items=[_change_history_item(view) for view in changes])
 
 
 @router.get("/process-records", response_model=ProcessRecordListResponse)

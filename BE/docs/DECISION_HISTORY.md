@@ -1753,3 +1753,33 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-master-data)만 수정하도록 작성자를 1인으로 지정했다.
 - 기록일: 2026-11-23.
 
+## DEC-208 — 공정·검사 기록 관리자 정정의 수정 필드와 사유 (Q-208)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-158·DEC-160·DEC-162의 관리자 수정·삭제와 변경 이력
+- 확인한 문서 상태: DEC-158은 관리자 수정·삭제와 전후 값·사유·작업자·시각 기록을 확정했다. API_SPEC 초안은 version·사유와 함께 원천 식별자를 변경하지 못하게 하고, 변경 이력 조회를 관리자 전용 후보로 두었다. `record_change` 테이블은 설계만 있고 구현되지 않았다.
+- 질문 1: 정정에서 수정을 허용할 필드 범위는?
+- 답변 1(2026-11-23): 제안 범위 그대로 한다.
+- 확정 결과 1: 공정 기록은 `occurred_at`·`cycle_time_seconds`·`product_id`·`equipment_id`, 검사 기록은 `inspected_at`·`product_id`·`process_record_id`·`verdict`·`defect_type`·`reason`을 수정할 수 있다. `source_import_id`·`source_row_number`·`source_namespace`·`source_record_key`·`source_payload`와 `is_demo`·`version`은 항상 변경할 수 없다.
+- 질문 2: PATCH 요청의 변경 사유 필드명은?
+- 답변 2(2026-11-23): `change_reason`을 사용한다.
+- 확정 결과 2: 변경 사유는 `change_reason`(필수, 공백 불가)로 받고, 검사 기록의 `reason`(불량 사유)은 수정 대상 필드로 유지한다.
+- 질문 3: 감사 이력 조회 API도 이번에 구현할지?
+- 답변 3(2026-11-23): 저장과 조회 API를 함께 구현한다.
+- 확정 결과 3: 정정 시 `record_change`에 기록하고 관리자 전용 `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`로 조회한다.
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 삭제(soft delete) API와 감사 이력, 변경 시 품질 집계·보고서 스냅샷 영향 검증, 정정 화면(FE)
+
+## TECH-017 — 공정·검사 기록 관리자 정정과 변경 이력 구현
+
+- 최신 `origin/dev`(1c75c38)에서 `.worktrees/record-correction` 워크트리와 `codex/be-feature-record-correction` 브랜치로 DEC-158·DEC-162·DEC-208을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `PATCH /process-records/{id}`·`PATCH /inspection-records/{id}`와 `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`를 추가했다. 정정은 관리자 전용·CSRF이며, version이 다르면 `409 VERSION_CONFLICT`, 없거나 삭제된 기록은 `404 RECORD_NOT_FOUND`, 실제 변경이 없으면 `422 VALIDATION_ERROR`다.
+- `record_change` 테이블을 마이그레이션 `20261123_0011`로 추가했다. 공정·검사 FK 중 정확히 하나만 갖도록 CHECK로 제한하고, 수정 필드의 전후 값(JSONB)·사유·작업자·결과 version·시각을 기록한다. 기존 dev head가 `20261123_0010`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `RecordCorrectionService`가 행 잠금·version 검사·허용 필드 적용·감사 기록·트랜잭션을 담당하고, `RecordCorrectionRepository`가 데이터 접근을 담당한다. 원천 식별자와 `is_demo`·`version`은 수정 경로에서 제외한다.
+- 구현 중 PostgreSQL에서 outer join(품목)에 `FOR UPDATE`를 적용하면 실패하는 문제를 확인해 `with_for_update(of=ProcessRecord)`·`(of=InspectionRecord)`로 행 잠금 대상을 제한했다.
+- 검증: Ruff check, mypy, 전체 pytest 211건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0011)를 적용해 정정 적용·version 충돌·무변경 거부·null 비우기·감사 전후 값·이력 정렬·soft delete 기록 404·원천 식별자 불변·인덱스 생성을 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-record-correction)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
