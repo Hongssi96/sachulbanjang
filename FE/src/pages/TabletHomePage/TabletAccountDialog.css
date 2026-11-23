@@ -197,3 +197,231 @@
   margin: 24px 0 0;
   border-top: 1px solid #e2e2e8;
 }
+
+/* 계정 화면에만 적용하는 레퍼런스 스타일 */
+.th-login-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 80px 24px 40px;
+  background: #fff;
+}
+.th-login-page::before,
+.th-login-page::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+}
+.th-login-page::before {
+  inset: 42% -10% -20%;
+  background:
+    radial-gradient(ellipse at 8% 43%, #fff 0 8%, transparent 22%),
+    radial-gradient(ellipse at 22% 65%, #fff 0 12%, transparent 27%),
+    radial-gradient(ellipse at 83% 47%, #fff 0 9%, transparent 23%),
+    radial-gradient(ellipse at 97% 28%, #ffffffd9 0 10%, transparent 26%),
+    radial-gradient(ellipse at 63% 86%, #fff 0 20%, transparent 40%);
+  filter: blur(12px);
+}
+.th-login-page::after {
+  width: 1100px;
+  height: 700px;
+  top: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 1px solid #ffffff8c;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 60px #ffffff18,
+    0 0 0 120px #ffffff18;
+}
+.th-login-corner-brand {
+  position: absolute;
+  top: 28px;
+  left: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #29263f;
+}
+.th-login-corner-brand img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+.th-login-card {
+  position: relative;
+  width: min(100%, 420px);
+  padding: 28px;
+  border: 1px solid #ffffffc9;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #d7faff70, #ffffffd9 34%, #fffffff2);
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 3px 5px #46739512,
+    0 18px 60px #5189a21a,
+    inset 0 1px 0 #fff;
+}
+.th-login-card .th-login-brand {
+  display: none;
+}
+.th-login-symbol {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  border: 1px solid #fff;
+  border-radius: 16px;
+  color: #29263f;
+  background: #ffffff70;
+  box-shadow: 0 4px 10px #5c9fac24;
+}
+.th-login-card h1 {
+  margin: 18px 0 12px;
+  text-align: center;
+  font-size: var(--fs-xl);
+}
+.th-login-card .th-login-description {
+  text-align: center;
+  margin: 0 0 20px;
+  color: #777888;
+}
+.th-login-card .th-form {
+  gap: 12px;
+}
+.th-login-card .th-form label {
+  gap: 6px;
+  font-size: var(--fs-sm);
+}
+.th-login-card input {
+  background: #eef0f5b0;
+  border-color: transparent;
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: var(--fs-sm);
+}
+.th-login-card .button {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+}
+.th-login-card .button-primary {
+  background: linear-gradient(#41404c, #17151f);
+  border-color: #35323f;
+  color: white;
+  box-shadow: inset 0 1px 0 #ffffff30;
+}
+.th-login-card .button-white {
+  background: #ffffff80;
+  border-color: #e7e8ee;
+}
+.th-login-card .th-account-demo,
+.th-login-card .th-account-hint {
+  font-size: var(--fs-xs);
+  color: #7b7d8b;
+}
+.th-login-card .th-login-support {
+  margin-top: 20px;
+  padding-top: 14px;
+  font-size: var(--fs-xs);
+  text-align: center;
+  border-top-style: dashed;
+}
+.th-login-card .th-login-back {
+  margin-top: 12px;
+  font-size: var(--fs-xs);
+}
+.th-profile-popup.th-profile-scenic {
+  width: min(420px, calc(100vw - 32px));
+  padding: 24px;
+  border: 2px solid #fff;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, #ffffff00 0%, #ffffff24 20%, #ffffffe6 48%, #fff 75%),
+    url('./profile-landscape.svg') center top / cover;
+  box-shadow: 0 12px 40px #29263f26;
+}
+.th-profile-scenic .th-profile-heading {
+  margin-bottom: 44px;
+}
+.th-profile-scenic .th-profile-heading h2 {
+  font-size: var(--fs-sm);
+  color: #34483c;
+}
+.th-profile-scenic .th-profile-heading .icon-button {
+  background: #ffffffdb;
+  border-radius: 50%;
+}
+.th-profile-scenic .th-account-person {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.th-profile-scenic .th-account-person > span {
+  width: 64px;
+  height: 64px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: #e5eee6;
+  color: #324e40;
+}
+.th-profile-scenic .th-account-person strong {
+  font-size: var(--fs-xl);
+}
+.th-profile-scenic .th-account-person p {
+  color: #5a625f;
+}
+.th-profile-scenic .th-account-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 12px 0;
+}
+.th-profile-scenic .th-account-details > div {
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 6px;
+  border: 0;
+  padding: 4px 12px;
+}
+.th-profile-scenic .th-account-details > div:first-child {
+  border-right: 1px solid #dcdedb;
+  padding-left: 0;
+}
+.th-profile-scenic .th-account-details > div:last-child {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+  padding-left: 0;
+  margin-top: 12px;
+}
+.th-profile-scenic .th-account-details dt {
+  color: #888f89;
+  font-size: var(--fs-xs);
+}
+.th-profile-scenic .th-account-details dd {
+  font-size: var(--fs-sm);
+}
+.th-profile-scenic .button {
+  border-radius: 999px;
+}
+.th-profile-scenic .button-primary {
+  background: #24272a;
+  color: white;
+  border-color: #24272a;
+}
+.th-profile-scenic .th-account-demo {
+  color: #7d847e;
+}
+.th-account-person .th-profile-photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.th-login-screen .th-form > .button-primary {
+  margin-top: 16px;
+}

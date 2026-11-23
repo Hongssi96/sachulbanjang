@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" fill="none">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="560" gradientUnits="userSpaceOnUse"><stop stop-color="#c7d9cb"/><stop offset="1" stop-color="#f4f6ea"/></linearGradient>
+    <linearGradient id="hill" x2="1" y2="1"><stop stop-color="#637e67"/><stop offset="1" stop-color="#173f37"/></linearGradient>
+    <filter id="mist"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".07" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".09"/></feComponentTransfer><feBlend in="SourceGraphic" mode="soft-light"/></filter>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h900v560H0z"/>
+  <g filter="url(#grain)">
+    <path fill="#9aac98" d="m0 270 90-94 55 48 104-122 98 121 109-77 107 109 125-139 92 78 120-90v456H0Z"/>
+    <path fill="#6c8e77" d="m280 560 177-243 60 19 128-172 42 25 34-60 62 88 117-98v441Z"/>
+    <path fill="url(#hill)" d="m425 560 182-206 61-9 99-170 31 20 102-153v518Z"/>
+    <path stroke="#a7b78b" stroke-width="16" opacity=".4" d="m669 340 53-54 25-73m32-1 28 92-38 104m-110-24-51 115"/>
+    <path fill="#285047" d="m0 560 86-190 61 54 82-103 73 130 137 109Z"/>
+  </g>
+  <g filter="url(#mist)" fill="#f7faf2"><ellipse cx="270" cy="290" rx="340" ry="46" opacity=".68"/><ellipse cx="390" cy="405" rx="350" ry="61" opacity=".8"/><ellipse cx="30" cy="98" rx="310" ry="40" opacity=".5"/></g>
+</svg>
