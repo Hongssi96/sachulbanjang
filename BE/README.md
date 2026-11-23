@@ -67,6 +67,11 @@ uvicorn app.main:app --reload
 - 근무 종료 조회: `GET http://localhost:8000/api/v1/work-session`
 - 근무 종료 연장: `POST http://localhost:8000/api/v1/work-session/extensions`
   (`automatic` 또는 `manual`, 액세스 쿠키 + `X-CSRF-Token` 헤더)
+- 생산 이력: `GET http://localhost:8000/api/v1/process-records`,
+  `GET .../process-records/{id}` (`equipment_id`, `product_id`, `from`, `to`, `page`, `page_size`)
+- 검사 이력: `GET http://localhost:8000/api/v1/inspection-records`,
+  `GET .../inspection-records/{id}` (위 필터 + `verdict=good|defect`)
+- 이력 조회는 관리자·고용자 모두 가능하며, `from`은 포함·`to`는 제외하는 한국 기준 날짜다
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비

@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사 테이블은 Alembic `20261123_0008`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록 테이블은 Alembic `20261123_0009`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -40,7 +40,7 @@ CSV 공정 재생, 인증 세션, 계정 감사 테이블은 Alembic `20261123_0
 | --- | --- |
 | source_import | source_name, source_fingerprint UNIQUE, status, started_at, finished_at?, error_code?. 파일 해시만으로 행의 업무 식별자를 대체하지 않음 |
 | process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number), (source_namespace, source_record_key) UNIQUE |
-| inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at, verdict, defect_type?, reason?, is_demo, version, deleted_at |
+| inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at?, verdict(good/defect), defect_type?, reason?, is_demo, version, deleted_at. 검사 이력과 품질 집계의 원천이며 20261123_0009로 구현 |
 | operation_day | equipment_id FK, local_date, planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, local_date) UNIQUE |
 | record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation, before_value, after_value, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나 |
 | process_replay | source_import_id FK, cursor, data_time?, last_advanced_at?, state. 재시작 절차는 Q-167 보류 |
@@ -50,6 +50,8 @@ CSV 공정 재생, 인증 세션, 계정 감사 테이블은 Alembic `20261123_0
 확인한 공정 CSV에는 EQUIP_CD·EQUIP_NAME·PART_NO(일부 파일)·PART_NAME·TimeStamp·Cycle_Time이 있다. 설비 코드는 실제 값(S01, S02, S04, S06~S15)을 사용하고 프론트 목업의 사출 1~10호기를 마스터 근거로 사용하지 않는다. 같은 품목이 여러 설비에서 생산되므로 설비와 품목을 고정 1:1로 연결하지 않는다. Cycle_Time은 초 단위 `cycle_time_seconds`로 저장한다. CSV에 없는 라인·설비 상태·목표 생산량·실제 생산 수량은 추론하지 않는다.
 
 검사 데이터에 공정과 연결할 키가 없으면 process_record_id는 비워 두며 시간·설비가 비슷하다는 이유로 억지 연결하지 않는다. verdict는 시연 데이터에 양품/불량을 명시한다. 불량 유형 누락은 표시·집계에서 ‘미분류’로 처리한다. 실제 수집 필드·판정 매핑은 미확정이다.
+
+`inspection_record`와 이력 조회 인덱스는 `20261123_0009`로 구현했다. 목록 조회는 `process_record(occurred_at, id)`, 검사 `(equipment_id, inspected_at, id)`·`(product_id, inspected_at, id)`·`(verdict, inspected_at, id)`·`(inspected_at, id)` 인덱스를 사용한다. 판정 저장 값은 `good`·`defect`이고 불량 유형 누락은 null이며 표시·집계에서 ‘미분류’로 처리한다(DEC-165·DEC-206).
 
 불량률은 불량/(양품+불량)이다. 가동률은 기간별 실제 시간 합계/계획 시간 합계이며 일별 비율의 평균을 사용하지 않는다. 분모 0은 null과 표시용 ‘—’로 구분한다. 가동률 시연의 기본 조회 단위는 설비·날짜이며 품목별 실제 가동률로 확장하지 않는다. 임의 기간의 시연 시간 배분과 화면 필터는 데이터 준비 때 확인한다. CSV 행 수는 생산 기록 건수이며 생산 개수로 바꾸지 않는다.
 

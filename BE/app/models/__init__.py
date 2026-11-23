@@ -1,7 +1,7 @@
 from app.models.account_audit import AccountAuditEvent
 from app.models.auth import AuthSession, RefreshCredential
 from app.models.master import AppUser, Department, Equipment, Product, ProductionLine
-from app.models.process import ProcessRecord, ProcessReplay, SourceImport
+from app.models.process import InspectionRecord, ProcessRecord, ProcessReplay, SourceImport
 
 __all__ = [
     "AccountAuditEvent",
@@ -9,6 +9,7 @@ __all__ = [
     "AuthSession",
     "Department",
     "Equipment",
+    "InspectionRecord",
     "ProcessRecord",
     "ProcessReplay",
     "Product",
