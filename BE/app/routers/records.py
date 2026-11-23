@@ -1,0 +1,110 @@
+from datetime import date
+from math import ceil
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db_session
+from app.dependencies.auth import get_current_user
+from app.models.master import AppUser
+from app.repositories.record_history import ProcessRecordView, RecordHistoryRepository
+from app.schemas.records import (
+    Pagination,
+    ProcessRecordDetail,
+    ProcessRecordItem,
+    ProcessRecordListResponse,
+)
+from app.services.record_history import RecordHistoryService, RecordNotFoundError
+
+router = APIRouter(tags=["records"])
+
+
+def get_record_history_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> RecordHistoryService:
+    return RecordHistoryService(RecordHistoryRepository(session))
+
+
+def validate_period(date_from: date | None, date_to: date | None) -> None:
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": "기간의 시작일은 종료일보다 늦을 수 없습니다.",
+            },
+        )
+
+
+def _process_item(view: ProcessRecordView) -> ProcessRecordItem:
+    record = view.record
+    return ProcessRecordItem(
+        record_id=record.id,
+        equipment_id=view.equipment.id,
+        equipment_code=view.equipment.equipment_code,
+        equipment_name=view.equipment.name,
+        product_id=view.product.id if view.product is not None else None,
+        product_code=view.product.product_code if view.product is not None else None,
+        product_name=view.product.name if view.product is not None else None,
+        occurred_at=record.occurred_at,
+        available_at=record.available_at,
+        cycle_time_seconds=record.cycle_time_seconds,
+        is_demo=record.is_demo,
+        version=record.version,
+    )
+
+
+def _process_detail(view: ProcessRecordView) -> ProcessRecordDetail:
+    item = _process_item(view)
+    return ProcessRecordDetail(
+        **item.model_dump(),
+        source_import_id=view.record.source_import_id,
+        source_row_number=view.record.source_row_number,
+    )
+
+
+@router.get("/process-records", response_model=ProcessRecordListResponse)
+def list_process_records(
+    _: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[RecordHistoryService, Depends(get_record_history_service)],
+    equipment_id: Annotated[int | None, Query(gt=0)] = None,
+    product_id: Annotated[int | None, Query(gt=0)] = None,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> ProcessRecordListResponse:
+    validate_period(date_from, date_to)
+    result = service.list_process_records(
+        equipment_id=equipment_id,
+        product_id=product_id,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
+    return ProcessRecordListResponse(
+        items=[_process_item(view) for view in result.records],
+        pagination=Pagination(
+            page=page,
+            page_size=page_size,
+            total_items=result.total_items,
+            total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
+        ),
+    )
+
+
+@router.get("/process-records/{record_id}", response_model=ProcessRecordDetail)
+def read_process_record(
+    record_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[RecordHistoryService, Depends(get_record_history_service)],
+) -> ProcessRecordDetail:
+    try:
+        return _process_detail(service.get_process_record(record_id))
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
