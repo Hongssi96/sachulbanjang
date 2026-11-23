@@ -1541,3 +1541,200 @@ body:has(.tablet-home) {
 .th-handover .th-note-actions a {
   color: #eee7fa;
 }
+
+/* 현장 홈 인수인계 카드 */
+.tablet-home .th-handover {
+  background: #f0f8f3;
+  color: #29263f;
+  border: 1px solid #d6e9de;
+  border-radius: 24px;
+  box-shadow: 0 8px 24px #365e4710;
+}
+.th-handover .th-section-heading {
+  border-bottom: 0;
+  padding-bottom: 8px;
+}
+.th-handover .th-section-heading p {
+  color: #587564;
+}
+.th-handover .th-section-heading button {
+  background: white;
+  color: #635b85;
+  border-color: #dce5df;
+  border-radius: 999px;
+}
+.th-handover article {
+  padding: 16px;
+  border: 1px solid #e0ebe4;
+  border-radius: 16px;
+  background: #ffffffd9;
+}
+.th-handover .th-note-top {
+  margin-top: 0;
+}
+.th-handover .th-note-top strong {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #e3f3ea;
+  color: #286446;
+}
+.th-handover h3,
+.th-handover article > small {
+  color: #758179;
+}
+.th-handover .th-note-text {
+  color: #29263f;
+}
+.th-handover .th-note-actions {
+  border-top: 1px solid #e6ece8;
+  padding-top: 12px;
+}
+.th-handover .th-note-actions a {
+  color: #635b85;
+}
+.th-handover .th-note-actions button {
+  border-radius: 999px;
+  background: #635b85;
+  color: white;
+  border-color: #635b85;
+}
+
+/* 세 현장 화면의 상태 필터 */
+.tablet-home .tp-tabs {
+  padding: 6px;
+  border: 1px solid #e1dce9;
+  border-radius: 999px;
+}
+.tablet-home .tp-tabs button {
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+.tablet-home .tp-tabs button[aria-pressed='true'] {
+  margin-top: 0;
+  padding-top: 12px;
+  transform: none;
+  border-color: #e1dce9;
+  box-shadow: 0 2px 6px #635b8514;
+}
+
+/* 이상 보고 작성 팝업만 내부 스크롤 없이 표시 */
+.tablet-home .modal:has(.th-report-compose) {
+  width: min(600px, calc(100% - 32px));
+  max-height: none;
+  overflow: visible;
+}
+.tablet-home .modal:has(.th-report-compose) .modal-heading {
+  position: static;
+  border-radius: 16px 16px 0 0;
+}
+.tablet-home .th-report-compose {
+  gap: 16px;
+}
+.tablet-home .th-report-compose textarea {
+  min-height: 96px;
+  height: 96px;
+  resize: none;
+}
+.tablet-home .th-report-compose .tp-choices {
+  margin: 0;
+}
+
+.tablet-home .th-sidebar {
+  border-radius: 24px;
+}
+
+/* 기존 플럼색을 유지하는 인수인계 카드 */
+.tablet-home .th-handover {
+  background: #29263f;
+  color: #fff;
+  border-color: #413b59;
+  box-shadow: 0 8px 24px #29263f18;
+}
+.th-handover .th-section-heading p,
+.th-handover h3,
+.th-handover article > small {
+  color: #c3bbd4;
+}
+.th-handover .th-section-heading button {
+  background: #ffffff12;
+  border-color: #ffffff30;
+  color: #eee8f7;
+}
+.th-handover article {
+  background: #ffffff08;
+  border-color: #ffffff20;
+}
+.th-handover .th-note-top strong {
+  background: #61e2a61a;
+  color: #8eeac0;
+}
+.th-handover .th-note-text {
+  color: #fff;
+}
+.th-handover .th-note-actions {
+  border-color: #ffffff20;
+}
+.th-handover .th-note-actions a {
+  color: #d5c9ed;
+}
+.th-handover .th-note-actions button {
+  background: #61e2a6;
+  border-color: #61e2a6;
+  color: #29263f;
+}
+
+/* 홈 인수인계: 별도 상자 대신 하나의 노트로 정리 */
+.tablet-home .th-handover {
+  border: 1px solid #49425f;
+  border-radius: 20px;
+  box-shadow: 0 6px 20px #29263f14;
+}
+.th-handover .th-section-heading {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ffffff20;
+}
+.th-handover .th-section-heading button {
+  border-radius: 10px;
+  background: transparent;
+}
+.th-handover article {
+  margin-top: 20px;
+  padding: 0 0 0 16px;
+  border: 0;
+  border-left: 3px solid #61e2a6;
+  border-radius: 0;
+  background: transparent;
+}
+.th-handover .th-note-top strong {
+  padding: 0;
+  background: transparent;
+  color: white;
+  font-size: var(--fs-xl);
+}
+.th-handover .th-note-top span {
+  border-radius: 999px;
+}
+.th-handover h3 {
+  margin-top: 20px;
+}
+.th-handover .th-note-text {
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+.th-handover .th-note-actions {
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.th-handover .th-note-actions button {
+  border-radius: 10px;
+}
+
+.tablet-home .th-report-compose textarea:focus {
+  outline: none;
+  border-color: var(--border);
+  box-shadow: none;
+}
+.tablet-home .th-report-compose textarea:focus-visible {
+  outline: 2px solid #d8d2e5;
+  outline-offset: 2px;
+}
