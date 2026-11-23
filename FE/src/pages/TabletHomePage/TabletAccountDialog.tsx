@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { HardHat, LockKeyhole, X } from 'lucide-react';
-import logo from '../../assets/logo.png';
+import { LogIn, LogOut, X } from 'lucide-react';
+import profileAvatar from './profile-avatar.svg';
 import './TabletAccountDialog.css';
 
 type Screen = 'profile' | 'login' | 'password' | 'signup';
@@ -85,17 +85,19 @@ export default function TabletAccountDialog({
       {!page && (
         <div className="th-account-person">
           <span>
-            <HardHat size={28} />
+            <img className="th-profile-photo" src={profileAvatar} alt="기본 프로필 사진" />
           </span>
           <div>
             <strong>박민규</strong>
-            <p>현장관리자 · 주간조</p>
+            <p>현장을 살피는 든든한 반장</p>
           </div>
         </div>
       )}
-      <p className="th-account-demo">
-        시연용 화면입니다. 실제 계정과 연결되지 않으며 새로고침하면 변경 내용이 초기화됩니다.
-      </p>
+      {!page && (
+        <p className="th-account-demo">
+          시연용 화면입니다. 실제 계정과 연결되지 않으며 새로고침하면 변경 내용이 초기화됩니다.
+        </p>
+      )}
       {message && (
         <p className="th-account-success" role="status">
           {message}
@@ -122,12 +124,12 @@ export default function TabletAccountDialog({
               <dd>현장 관리 · 설비 점검</dd>
             </div>
           </dl>
-          <button className="button button-white" onClick={() => go('password')}>
-            <LockKeyhole size={18} />
-            비밀번호 변경
-          </button>
           <button className="button button-primary" onClick={() => go('login')}>
             로그인 화면으로
+          </button>
+          <button className="button button-white" onClick={onLoginOpen}>
+            <LogOut size={18} />
+            로그아웃
           </button>
         </>
       ) : screen === 'signup' ? (
@@ -351,12 +353,11 @@ export default function TabletAccountDialog({
           ? '회원가입'
           : '비밀번호 변경';
   return page ? (
-    <main className="th-login-page">
+    <main className={`th-login-page ${screen === 'login' ? 'th-login-screen' : ''}`}>
       <section className="th-login-card" aria-labelledby="th-login-title">
-        <div className="th-login-brand">
-          <img src={logo} alt="" />
-          <strong>사출반장</strong>
-        </div>
+        <span className="th-login-symbol">
+          <LogIn size={26} />
+        </span>
         <h1 id="th-login-title">{title}</h1>
         <p className="th-login-description">
           {screen === 'signup'
@@ -373,7 +374,11 @@ export default function TabletAccountDialog({
       </section>
     </main>
   ) : (
-    <dialog ref={popup} className="th-profile-popup" aria-labelledby="th-profile-title">
+    <dialog
+      ref={popup}
+      className={`th-profile-popup ${screen === 'profile' ? 'th-profile-scenic' : ''}`}
+      aria-labelledby="th-profile-title"
+    >
       <div className="th-profile-heading">
         <h2 id="th-profile-title">{title}</h2>
         <button className="icon-button" aria-label="프로필 닫기" onClick={onClose}>
