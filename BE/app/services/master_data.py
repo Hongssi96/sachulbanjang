@@ -1,5 +1,14 @@
+from dataclasses import dataclass
+
 from app.models.master import Department, Equipment, Product, ProductionLine
 from app.repositories.master_data import MasterDataRepository
+
+
+@dataclass(frozen=True)
+class UserAssignments:
+    departments: list[Department]
+    production_lines: list[ProductionLine]
+    equipment: list[Equipment]
 
 
 class MasterDataService:
@@ -20,3 +29,10 @@ class MasterDataService:
     def list_products(self, *, query: str | None) -> list[Product]:
         normalized = query.strip() if query is not None else ""
         return self._repository.list_active_products(query=normalized or None)
+
+    def get_assignments(self, user_id: int) -> UserAssignments:
+        return UserAssignments(
+            departments=self._repository.list_assigned_departments(user_id),
+            production_lines=self._repository.list_assigned_production_lines(user_id),
+            equipment=self._repository.list_assigned_equipment(user_id),
+        )

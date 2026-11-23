@@ -8,6 +8,7 @@ from app.dependencies.auth import get_current_user
 from app.models.master import AppUser, Department, Equipment, Product, ProductionLine
 from app.repositories.master_data import MasterDataRepository
 from app.schemas.master_data import (
+    AssignmentResponse,
     DepartmentItem,
     DepartmentListResponse,
     EquipmentItem,
@@ -52,6 +53,19 @@ def _equipment_item(equipment: Equipment) -> EquipmentItem:
 
 def _product_item(product: Product) -> ProductItem:
     return ProductItem(product_id=product.id, product_code=product.product_code, name=product.name)
+
+
+@router.get("/assignments/me", response_model=AssignmentResponse)
+def read_my_assignments(
+    user: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[MasterDataService, Depends(get_master_data_service)],
+) -> AssignmentResponse:
+    assignments = service.get_assignments(user.id)
+    return AssignmentResponse(
+        departments=[_department_item(item) for item in assignments.departments],
+        production_lines=[_production_line_item(item) for item in assignments.production_lines],
+        equipment=[_equipment_item(item) for item in assignments.equipment],
+    )
 
 
 @router.get("/departments", response_model=DepartmentListResponse)

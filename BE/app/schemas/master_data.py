@@ -41,3 +41,9 @@ class EquipmentListResponse(BaseModel):
 
 class ProductListResponse(BaseModel):
     items: list[ProductItem]
+
+
+class AssignmentResponse(BaseModel):
+    departments: list[DepartmentItem]
+    production_lines: list[ProductionLineItem]
+    equipment: list[EquipmentItem]

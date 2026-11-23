@@ -6,7 +6,7 @@ from app.dependencies.auth import get_current_user
 from app.main import create_app
 from app.models.master import AppUser, Department, Equipment, Product, ProductionLine
 from app.routers.master_data import get_master_data_service
-from app.services.master_data import MasterDataService
+from app.services.master_data import MasterDataService, UserAssignments
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -103,6 +103,36 @@ def test_worker_reads_master_lists() -> None:
     service.list_production_lines.assert_called_once_with(department_id=1)
     service.list_equipment.assert_called_once_with(production_line_id=2)
     service.list_products.assert_called_once_with(query=" 시연 ")
+
+
+def test_my_assignments_returns_grouped_targets() -> None:
+    service = MagicMock(spec=MasterDataService)
+    service.get_assignments.return_value = UserAssignments(
+        departments=[Department(id=1, code="D1", name="생산1부")],
+        production_lines=[ProductionLine(id=2, department_id=1, code="L1", name="1라인")],
+        equipment=[Equipment(id=3, equipment_code="S01", name="사출기 1", production_line_id=2)],
+    )
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/assignments/me")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "departments": [{"department_id": 1, "code": "D1", "name": "생산1부"}],
+        "production_lines": [
+            {"production_line_id": 2, "department_id": 1, "code": "L1", "name": "1라인"}
+        ],
+        "equipment": [
+            {
+                "equipment_id": 3,
+                "equipment_code": "S01",
+                "name": "사출기 1",
+                "production_line_id": 2,
+            }
+        ],
+    }
+    service.get_assignments.assert_called_once_with(1)
 
 
 def test_master_lists_reject_invalid_filters() -> None:
