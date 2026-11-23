@@ -11,6 +11,8 @@ from app.dependencies.auth import (
 )
 from app.models.master import AppUser
 from app.schemas.users import (
+    AccountAuditEventItem,
+    AccountAuditEventListResponse,
     AccountStatusChangeRequest,
     Pagination,
     PasswordResetResponse,
@@ -234,12 +236,12 @@ def deactivate_user(
 def reactivate_user(
     user_id: Annotated[int, Path(ge=1)],
     request: AccountStatusChangeRequest,
-    _: Annotated[AppUser, Depends(require_admin)],
+    actor: Annotated[AppUser, Depends(require_admin)],
     service: Annotated[AccountManagementService, Depends(get_account_management_service)],
     response: Response,
 ) -> UserDetail:
     try:
-        user = service.reactivate_user(user_id, request.version)
+        user = service.reactivate_user(actor, user_id, request.version)
     except UserNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -263,6 +265,44 @@ def reactivate_user(
     return _user_detail(user)
 
 
+@router.get("/{user_id}/audit-events", response_model=AccountAuditEventListResponse)
+def list_user_audit_events(
+    user_id: Annotated[int, Path(ge=1)],
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> AccountAuditEventListResponse:
+    try:
+        result = service.list_audit_events(user_id, page=page, page_size=page_size)
+    except UserNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."},
+        ) from None
+
+    return AccountAuditEventListResponse(
+        items=[
+            AccountAuditEventItem(
+                event_id=event.id,
+                action=event.action,
+                actor_id=event.actor_id,
+                actor_display_name=actor_name,
+                target_user_id=event.user_id,
+                detail=event.detail,
+                created_at=event.created_at,
+            )
+            for event, actor_name in result.events
+        ],
+        pagination=Pagination(
+            page=page,
+            page_size=page_size,
+            total_items=result.total_items,
+            total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
+        ),
+    )
+
+
 @router.post(
     "",
     response_model=UserCreateResponse,
@@ -271,19 +311,20 @@ def reactivate_user(
 )
 def create_user(
     request: UserCreateRequest,
-    _: Annotated[AppUser, Depends(require_admin)],
+    actor: Annotated[AppUser, Depends(require_admin)],
     service: Annotated[AccountManagementService, Depends(get_account_management_service)],
     response: Response,
 ) -> UserCreateResponse:
     try:
         result = service.create_user(
+            actor,
             CreateUserCommand(
                 employee_no=request.employee_no,
                 display_name=request.display_name,
                 role=request.role,
                 shift_start_local=request.shift_start_local,
                 shift_end_local=request.shift_end_local,
-            )
+            ),
         )
     except EmployeeNumberAlreadyExistsError:
         raise HTTPException(

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 from app.models.master import AppUser
+from app.repositories.account_audit import AccountAuditRepository
 from app.repositories.auth import AuthRepository
 from app.security.cookies import CSRF_HEADER_NAME
 from app.security.tokens import TokenError, decode_access_token
@@ -55,14 +56,18 @@ def get_password_reset_service(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> PasswordResetService:
-    return PasswordResetService(session, AuthRepository(session), settings)
+    return PasswordResetService(
+        session, AuthRepository(session), settings, AccountAuditRepository(session)
+    )
 
 
 def get_account_management_service(
     session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AccountManagementService:
-    return AccountManagementService(session, AuthRepository(session), settings)
+    return AccountManagementService(
+        session, AuthRepository(session), settings, AccountAuditRepository(session)
+    )
 
 
 def load_authenticated_user(request: Request, session: Session, settings: Settings) -> AppUser:

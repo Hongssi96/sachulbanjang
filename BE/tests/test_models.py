@@ -5,6 +5,7 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 
 def test_core_schema_registers_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
+        "account_audit_event",
         "app_user",
         "auth_session",
         "department",

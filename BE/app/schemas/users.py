@@ -103,6 +103,21 @@ class AccountStatusChangeRequest(BaseModel):
     version: int = Field(ge=1)
 
 
+class AccountAuditEventItem(BaseModel):
+    event_id: int
+    action: str
+    actor_id: int
+    actor_display_name: str
+    target_user_id: int
+    detail: dict[str, object] | None
+    created_at: datetime
+
+
+class AccountAuditEventListResponse(BaseModel):
+    items: list[AccountAuditEventItem]
+    pagination: Pagination
+
+
 class PasswordResetResponse(BaseModel):
     user_id: int
     employee_no: str

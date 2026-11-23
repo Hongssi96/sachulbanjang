@@ -105,7 +105,9 @@ def test_admin_deactivates_and_reactivates_user() -> None:
     assert reactivation.status_code == 200
     assert reactivation.json()["is_active"] is True
     assert reactivation.headers["cache-control"] == "no-store"
-    assert reactivation_service.reactivate_user.call_args.args == (2, 4)
+    reactivate_args = reactivation_service.reactivate_user.call_args.args
+    assert reactivate_args[0].id == 1
+    assert reactivate_args[1:] == (2, 4)
 
 
 def test_deactivation_maps_domain_errors() -> None:

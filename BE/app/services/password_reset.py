@@ -9,7 +9,9 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.models.account_audit import AccountAuditEvent
 from app.models.master import AppUser
+from app.repositories.account_audit import AccountAuditRepository
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password
 from app.services.session_revocation import revoke_sessions_for_user
@@ -67,11 +69,13 @@ class PasswordResetService:
         session: Session,
         repository: AuthRepository,
         settings: Settings,
+        audit_repository: AccountAuditRepository,
         clock: Clock = _utc_now,
     ) -> None:
         self._session = session
         self._repository = repository
         self._settings = settings
+        self._audit_repository = audit_repository
         self._clock = clock
 
     def reset_password(self, actor: AppUser, user_id: int) -> PasswordResetResult:
@@ -94,6 +98,9 @@ class PasswordResetService:
         user.locked_until = None
 
         revoke_sessions_for_user(self._repository, user.id, now)
+        self._audit_repository.add_event(
+            AccountAuditEvent(user_id=user.id, actor_id=actor.id, action="password_reset")
+        )
 
         self._session.commit()
         return PasswordResetResult(user=user, temporary_password=temporary_password)

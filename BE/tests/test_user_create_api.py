@@ -89,7 +89,8 @@ def test_admin_creates_user_and_receives_temporary_password_once() -> None:
         "must_change_password": True,
         "version": 1,
     }
-    command = service.create_user.call_args.args[0]
+    actor, command = service.create_user.call_args.args
+    assert actor.id == 1
     assert command.employee_no == "E200"
     assert command.display_name == "신규 고용자"
 

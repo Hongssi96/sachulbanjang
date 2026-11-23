@@ -6,6 +6,7 @@ import pytest
 from app.core.config import Settings
 from app.models.auth import AuthSession, RefreshCredential
 from app.models.master import AppUser
+from app.repositories.account_audit import AccountAuditRepository
 from app.repositories.auth import AuthRepository
 from app.security.passwords import hash_password, verify_password
 from app.services.password_reset import (
@@ -98,7 +99,13 @@ def build_service(
 ) -> tuple[PasswordResetService, FakePasswordResetRepository, MagicMock]:
     session = MagicMock(spec=Session)
     repository = FakePasswordResetRepository(user)
-    service = PasswordResetService(session, repository, make_settings(), clock=lambda: NOW)
+    service = PasswordResetService(
+        session,
+        repository,
+        make_settings(),
+        MagicMock(spec=AccountAuditRepository),
+        clock=lambda: NOW,
+    )
     return service, repository, session
 
 
@@ -185,6 +192,7 @@ def test_reset_uses_configured_temporary_password_ttl() -> None:
         session,
         repository,
         make_settings(temporary_password_ttl_seconds=3600),
+        MagicMock(spec=AccountAuditRepository),
         clock=lambda: NOW,
     )
 
