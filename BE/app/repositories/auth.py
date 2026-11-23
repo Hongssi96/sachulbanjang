@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,6 +26,14 @@ class AuthRepository:
             select(AppUser).where(AppUser.id == user_id, AppUser.deleted_at.is_(None))
         )
 
+    def find_active_user_for_update(self, user_id: int) -> AppUser | None:
+        """Lock an active account before an administrator changes its password."""
+        return self._session.scalar(
+            select(AppUser)
+            .where(AppUser.id == user_id, AppUser.deleted_at.is_(None))
+            .with_for_update()
+        )
+
     def find_user_by_employee_no(self, employee_no: str) -> AppUser | None:
         """Include soft-deleted accounts because employee_no stays unique with them."""
         return self._session.scalar(select(AppUser).where(AppUser.employee_no == employee_no))
@@ -44,6 +54,13 @@ class AuthRepository:
     def find_session(self, session_id: int) -> AuthSession | None:
         return self._session.get(AuthSession, session_id)
 
+    def find_sessions_for_update(self, user_id: int) -> list[AuthSession]:
+        return list(
+            self._session.scalars(
+                select(AuthSession).where(AuthSession.user_id == user_id).with_for_update()
+            )
+        )
+
     def find_credential_for_update(self, token_digest: str) -> RefreshCredential | None:
         return self._session.scalar(
             select(RefreshCredential)
@@ -56,6 +73,17 @@ class AuthRepository:
             select(RefreshCredential).where(
                 RefreshCredential.session_id == session_id,
                 RefreshCredential.generation == generation,
+            )
+        )
+
+    def find_credentials_for_update(self, session_ids: Sequence[int]) -> list[RefreshCredential]:
+        if not session_ids:
+            return []
+        return list(
+            self._session.scalars(
+                select(RefreshCredential)
+                .where(RefreshCredential.session_id.in_(session_ids))
+                .with_for_update()
             )
         )
 

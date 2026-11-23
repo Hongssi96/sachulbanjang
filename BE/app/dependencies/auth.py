@@ -12,6 +12,7 @@ from app.repositories.auth import AuthRepository
 from app.security.cookies import CSRF_HEADER_NAME
 from app.security.tokens import TokenError, decode_access_token
 from app.services.auth import AuthService
+from app.services.password_reset import PasswordResetService
 
 
 def authentication_required() -> HTTPException:
@@ -49,6 +50,12 @@ def get_auth_service(
     return AuthService(session, AuthRepository(session), settings)
 
 
+def get_password_reset_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> PasswordResetService:
+    return PasswordResetService(session, AuthRepository(session))
+
+
 def get_current_user(
     request: Request,
     session: Annotated[Session, Depends(get_db_session)],
@@ -78,6 +85,20 @@ def get_current_user(
     user = repository.find_active_user_by_id(claims.user_id)
     if user is None:
         raise authentication_required()
+    return user
+
+
+def require_admin(
+    user: Annotated[AppUser, Depends(get_current_user)],
+) -> AppUser:
+    if user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "요청한 작업을 수행할 권한이 없습니다.",
+            },
+        )
     return user
 
 
