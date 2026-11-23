@@ -1874,3 +1874,61 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-quality-summary)만 수정하도록 작성자를 1인으로 지정했다.
 - 기록일: 2026-11-23.
 
+## DEC-212 — 일정 CRUD의 표현·권한·조회 계약 (Q-212)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-035·DEC-036·DEC-037·DEC-039·DEC-040·DEC-168
+- 확인한 문서 상태: DEC-035~037은 CRUD 범위·권한·공개 범위를, DEC-168은 종일/시간 지정 처리와 종료>시작 검증을 확정했다. DEC-039는 반복·복사를 보류했고 DEC-040은 세부 입력값을 구현 기본안으로 정하도록 했다. `schedule` 테이블은 설계만 있고 구현되지 않았다.
+- 질문: 세부 입력값과 조회 계약을 어떻게 정할지?
+- 답변·근거: DEC-040에 따라 세부 항목을 반복 질문하지 않고 기존 결정과 일반 기본값으로 정한다.
+- 확정 결과:
+  1. 유형 `category`는 `inspection`(점검)·`production`(생산)·`meeting`(회의)·`other`(기타) 코드로 저장한다.
+  2. 종일 일정은 `start_date`·`end_date_exclusive`(종료일 제외), 시간 지정 일정은 `starts_at`·`ends_at`(UTC 오프셋 포함)으로 저장하고 두 표현을 섞지 않는다. 종료가 시작보다 뒤여야 하며 위반은 검증 오류다(DEC-168).
+  3. 목록은 `from`·`to`(한국 기준 날짜, 양 끝 포함)로 범위와 겹치는 일정을 시작 순으로 반환하고 페이지네이션을 적용한다. 조회는 양 역할 전체다(DEC-037).
+  4. 생성은 양 역할, 수정·삭제는 관리자 전체·고용자 본인 일정만 허용한다. version으로 동시 수정을 막고 삭제는 soft delete한다(DEC-035·DEC-036).
+  5. 반복 일정과 기존 일정 복사는 이번 범위에서 제외한다(DEC-039).
+- 결정자: 요청자(DEC-040 위임에 따른 구현 기본안)
+- 남은 쟁점: 반복·복사 도입 시 규칙, 일정 유형 추가, 담당 범위 기반 기본 필터, 일정 알림
+
+## TECH-021 — 일정 CRUD 구현
+
+- 최신 `origin/dev`(2968a78)에서 `.worktrees/schedules` 워크트리와 `codex/be-feature-schedule-crud` 브랜치로 DEC-212를 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `schedule` 테이블을 마이그레이션 `20261123_0014`로 추가했다. 종일/시간 지정 표현을 CHECK(`ck_schedule_shape`)로 제한하고 종료>시작(`ck_schedule_range`), 유형, version 제약과 조회용 인덱스를 두었다. 기존 dev head가 `20261123_0013`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `GET /schedules`·`POST /schedules`·`GET /schedules/{id}`·`PATCH /schedules/{id}`·`DELETE /schedules/{id}?expected_version=`를 추가했다. 조회는 양 역할 전체이고 수정·삭제는 관리자 전체·고용자 본인 일정만 가능하다(타인은 `403 FORBIDDEN`).
+- 목록은 `from`·`to`(한국 기준)와 겹치는 일정을 시작 순으로 반환하고 DEC-122 페이지네이션을 적용한다. 범위 변환은 기존 `period_bounds`를 재사용한다.
+- PATCH는 생략 필드 유지이며 날짜·시각 표현을 한 요청에 섞지 못한다. `all_day` 전환 시 새 표현 필드를 요구하고 version을 올린다. 삭제는 soft delete로 처리한다.
+- 검증: Ruff check, mypy, 전체 pytest 272건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0014)를 적용해 종일/시간 지정 등록·범위 겹침 필터·정렬·권한(타인 403)·version 충돌·표현 전환·soft delete 제외·DB CHECK 제약·인덱스를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-schedule-crud)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
+## DEC-213 — 재고 조정 입력·사후 확인·초기 재고 방식 (Q-213)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-041·DEC-059·DEC-060·DEC-085~089·DEC-131·DEC-139·DEC-148
+- 확인한 문서 상태: 요구사항은 완제품 재고의 입고·출고·조정·정정, 즉시 반영·사후 확인, 원장 보존, 음수 차단, 최소 재고 표시를 확정했다. `stock_balance`·`stock_movement`는 설계만 있고 구현되지 않았다.
+- 질문 1: 조정(adjustment) 입력은?
+- 답변 1(2026-11-23): 목표 수량으로 한다.
+- 확정 결과 1: 조정은 조정 후 목표 수량(0 이상)을 받고 서버가 증감을 계산한다. 목표가 현재고와 같으면 변경으로 보지 않는다(DEC-087).
+- 질문 2: 관리자 등록 거래의 사후 확인은?
+- 답변 2(2026-11-23): 관리자 등록은 자동 확인으로 한다.
+- 확정 결과 2: 관리자가 등록한 거래는 생성 시 확인 완료(`checked_by_id`·`checked_at`)로 기록하고, 고용자가 등록한 거래만 관리자가 `POST /stock-movements/{id}/confirmation`으로 확인한다(DEC-059·DEC-060).
+- 질문 3: 시연용 초기 재고 준비 방식은?
+- 답변 3(2026-11-23): 관리자 `initial` API를 허용한다.
+- 확정 결과 3: 관리자가 `initial` 유형으로 초기 재고를 등록하며 제품당 한 번만 허용한다. 초기 재고도 원장에 남기고 잔고를 같은 트랜잭션에서 만든다(DEC-139).
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 생산 기반 자동 입고 연동(DEC-201), 실제 재고 시연 데이터, 확인·정정 감사 이력 조회 화면, 최소 재고 기준 데이터
+
+## TECH-022 — 재고 잔고·원장·입출고/조정/정정/확인 구현
+
+- 최신 `origin/dev`(507fd6b)에서 `.worktrees/inventory` 워크트리와 `codex/be-feature-inventory` 브랜치로 DEC-213을 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `stock_balance`(제품당 1행, `quantity >= 0` CHECK)와 `stock_movement`(유형·증감 `delta`≠0·원거래 연결·확인자·확인 시각)를 마이그레이션 `20261123_0015`로 추가했다. 기존 dev head가 `20261123_0014`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `GET /stocks`·`GET /stock-movements`·`POST /stock-movements`·`POST /stock-movements/{id}/corrections`·`POST /stock-movements/{id}/confirmation`·`PATCH /products/{id}/minimum-stock`를 추가했다.
+- 동시성·음수 차단: `InventoryService`가 제품 행을 `SELECT ... FOR UPDATE`로 잠근 뒤 잔고를 읽어 음수면 `409 INSUFFICIENT_STOCK`을 반환하고, 잔고·원장을 하나의 트랜잭션에서 갱신한다.
+- 권한·규칙: 초기 재고는 관리자만, 관리자 등록 거래는 자동 확인, 고용자 등록 거래는 관리자 확인, 정정은 관리자 또는 확인 전 원작성자만 가능하다. 조정은 목표 수량으로 처리한다.
+- 검증: Ruff check, mypy, 전체 pytest 291건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0015)를 적용해 입고·출고·조정·정정·확인·음수 차단·최소 재고 부족 표시·원장 필터·CHECK 제약·인덱스를 확인하고 DB를 삭제했다. 다중 worker 동시 출고 부하 테스트는 수행하지 않았다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-inventory)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+

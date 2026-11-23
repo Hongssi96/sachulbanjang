@@ -68,8 +68,8 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회, 생성 작업 접수·조회·취소·재시도와 PostgreSQL 작업 큐(claim/lease/heartbeat·중단 정리) 구현. version 충돌·작성자/관리자 권한 적용. 실제 AI 실행·PDF·중복 안내는 미착수. pytest 250건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
 | 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정·변경 이력, 품질 통계(양품·불량·미분류·불량률·생산 기록 건수) 구현. 가동률·삭제 미착수. pytest 257건 및 PostgreSQL 18 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
-| 일정 | 미착수 | - | 2026-11-20 |
-| 재고 | 미착수 | - | 2026-11-20 |
+| 일정 | 구현 완료 | 달력 범위·목록 페이지 조회, 종일/시간 지정 등록·수정·soft delete, 관리자 전체·고용자 본인 권한, version 충돌 처리 구현. 반복·복사 제외. pytest 272건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
+| 재고 | 구현 완료 | 현재 잔고·거래 원장 조회, 입고·출고·조정·정정·확인, 음수 차단과 제품 행 잠금, 관리자 사후 확인, 최소 재고 설정과 부족 표시 구현. pytest 291건 및 PostgreSQL 18 통합 검증. 생산 자동 입고는 제외 | 2026-11-23 |
 | 인수인계 | 미착수 | - | 2026-11-20 |
 
 상태 정의:
@@ -148,16 +148,20 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가 |
 | POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state |
 | POST /conversations/{id}/turns/{turn_id}/refresh | 새 요청 키·기존 조건 기반 최신 재조회 | 새 질문·답변 추가. 실패 재시도와 구분 |
-| GET /schedules, POST /schedules | 달력 범위/페이지 조회·종일/시간 지정 등록 | 양 역할 |
-| GET /schedules/{id}, PATCH /schedules/{id}, DELETE /schedules/{id} | 버전 포함 수정·삭제 | 조회 전체, 수정·삭제 관리자 또는 작성자 |
+| GET /schedules | from·to(한국 기준, 양 끝 포함), page, page_size | 양 역할. 범위와 겹치는 일정을 시작 순 반환 |
+| POST /schedules | title, category, description?, all_day, 종일 또는 시간 지정 필드 | 양 역할, CSRF |
+| GET /schedules/{id} | 없음 | 양 역할 전체 조회 |
+| PATCH /schedules/{id} | version + 변경 필드(날짜·시각 혼용 금지) | 관리자 전체·고용자 본인, CSRF. version 충돌 409 |
+| DELETE /schedules/{id}?expected_version= | expected_version | 관리자 전체·고용자 본인, CSRF. soft delete |
 | GET /handover-notes, POST /handover-notes | 본인 담당 기본 필터·전체 조회·등록 | 양 역할 |
 | GET /handover-notes/{id} | 본문·대상·수정 시각·확인 정보 | 양 역할 전체 조회 |
 | PATCH /handover-notes/{id}, DELETE /handover-notes/{id} | 본인 수정, 삭제 관리자 전체·고용자 본인 | 관리자 타인 본문 수정 불가 |
 | PUT /handover-notes/{id}/confirmation | 본인 확인 기록 | 반복 요청으로 확인자 중복 생성하지 않음 |
-| GET /stocks, GET /stock-movements | 수량·원장·확인 여부 | 양 역할 전체 조회 |
-| POST /stock-movements | product_id, kind, quantity 또는 signed delta, reason | 양 역할, 음수 차단·즉시 반영. 필드별 종류 계약 구체화 |
-| POST /stock-movements/{id}/corrections | delta, reason | 관리자 또는 확인 전 원작성자, 별도 원장 |
-| POST /stock-movements/{id}/confirmation | 관리자 사후 확인 | 관리자만 |
+| GET /stocks | q, low_stock, page, page_size | 양 역할 전체. 수량·최소 재고·부족 여부 |
+| GET /stock-movements | product_id, kind, from, to, page, page_size | 양 역할 전체. 원장·확인 여부 |
+| POST /stock-movements | product_id, kind(initial/receipt/issue/adjustment), quantity, reason? | 양 역할, initial은 관리자. 음수 차단·즉시 반영 |
+| POST /stock-movements/{id}/corrections | delta(≠0), reason | 관리자 또는 확인 전 원작성자, 별도 원장 |
+| POST /stock-movements/{id}/confirmation | 없음 | 관리자만. 전후 상태 확인 기록 |
 | PATCH /products/{id}/minimum-stock | minimum_stock nullable | 관리자만 |
 
 마스터 편집·검사 수동 등록·재고 원장 삭제·예약 보고·복구 API는 추가하지 않는다. 사용자 목록·수정·비활성화는 후속 계정 관리 범위다. 실제 검사 수집 API는 원천·인증 규격 확보 후 별도 설계한다.
@@ -427,6 +431,55 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
 - 검증: pytest 257건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 기간 경계·설비/품목 필터·
   soft delete 제외·불량률 반올림·분모 0 null·유형 분포 정렬·생산 기록 건수·시연 표시를 확인했다
 - 가동률(`GET /quality/operation`)은 `operation_day` 작업에서 별도 구현한다
+
+### 일정 현재 구현 범위 (2026-11-23)
+
+관리자·고용자 모두 조회하고 생성할 수 있다. 수정·삭제는 관리자 전체·고용자 본인 일정만 가능하다
+(DEC-035·DEC-036·DEC-037). 반복·복사는 이번 범위에서 제외한다(DEC-039).
+
+- `GET /schedules`: 선택 query `from`·`to`(한국 기준 날짜, 양 끝 포함), `page`, `page_size`(기본 10·최대 100).
+  `from`/`to`가 주어지면 해당 범위와 겹치는 일정만 반환한다. 종일 일정은 `start_date`·`end_date_exclusive`,
+  시간 지정 일정은 시각 경계로 겹침을 판정한다. 시작 시각 오름차순·`id` 오름차순으로 정렬한다
+- `POST /schedules`: `title`, `category`, 선택 `description`, `all_day`와 표현 필드를 받는다. `category`는
+  `inspection`·`production`·`meeting`·`other`다
+- 종일 일정: `all_day=true`에 `start_date`·`end_date_exclusive`(종료일 제외)를 받고 시각 필드는 비운다.
+  시간 지정 일정: `all_day=false`에 `starts_at`·`ends_at`(오프셋 포함 UTC)을 받고 날짜 필드는 비운다.
+  한 표현만 허용하며 종료가 시작보다 뒤여야 하고, 위반은 `422 VALIDATION_ERROR`다(DEC-168). DB CHECK로도 보장한다
+- `GET /schedules/{id}`: 상세. 삭제된 일정은 `404 SCHEDULE_NOT_FOUND`
+- `PATCH /schedules/{id}`: `version`과 변경 필드를 받는다. 생략한 필드는 유지하며 날짜·시각 필드를 한 요청에
+  섞으면 `422`다. `all_day`를 바꾸려면 새 표현 필드를 함께 보내야 한다. version이 다르면 `409 VERSION_CONFLICT`,
+  고용자가 타인 일정을 수정하면 `403 FORBIDDEN`, 실제 변경이 없거나 형식이 맞지 않으면 `422 VALIDATION_ERROR`다.
+  성공 시 version을 올린다
+- `DELETE /schedules/{id}?expected_version=`: soft delete. 권한은 수정과 같고 version이 다르면 `409`다
+- 검증: pytest 272건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 종일/시간 지정 등록·범위 겹침 필터·
+  권한(타인 403)·version 충돌·표현 전환·soft delete 제외·DB CHECK 제약·인덱스를 확인했다
+
+### 재고 관리 현재 구현 범위 (2026-11-23)
+
+관리자·고용자 모두 조회·등록하고, 초기 재고 등록·확인·최소 재고 설정은 관리자만 한다
+(DEC-041·DEC-059·DEC-060·DEC-085~089·DEC-131·DEC-213).
+
+- `GET /stocks`: 제품별 현재 수량과 최소 재고·부족 여부를 페이지로 반환한다. `q`(이름·코드 부분),
+  `low_stock`(부족만), `page`/`page_size`. `is_low_stock`은 최소 재고가 있고 현재고가 그보다 적을 때 true다
+- `GET /stock-movements`: 거래 원장을 페이지로 반환한다. `product_id`, `kind`, `from`·`to`(한국 기준,
+  양 끝 포함) 필터와 최신순 정렬. 각 항목은 제품·유형·증감(`delta`)·사유·등록자·확인자·확인 시각을 포함한다
+- `POST /stock-movements`: `product_id`, `kind`(`initial`·`receipt`·`issue`·`adjustment`), `quantity`,
+  선택 `reason`을 받는다. 입고·출고·초기 재고는 수량이 1 이상, 조정은 목표 수량(0 이상)이며 사유가 필수다.
+  초기 재고는 관리자만, 제품당 한 번만 허용한다. 응답은 거래 ID·유형·증감·`quantity_after`·확인 시각이다
+- 음수 방지: 출고·조정·정정으로 현재고가 0 미만이 되면 `409 INSUFFICIENT_STOCK`이다. 조정은 목표 수량과
+  현재고가 같으면 `422 VALIDATION_ERROR`다
+- 동시성: 거래 등록·정정 시 제품 행을 `SELECT ... FOR UPDATE`로 잠가 같은 제품의 동시 변경을 직렬화하고,
+  잔고는 원장과 같은 트랜잭션에서 갱신한다(DEC-139)
+- 사후 확인: 관리자 등록 거래는 생성 시 확인 완료로 기록하고, 고용자 등록 거래만
+  `POST /stock-movements/{id}/confirmation`으로 관리자가 확인한다. 이미 확인된 거래는 `409 STOCK_ALREADY_CHECKED`다
+- `POST /stock-movements/{id}/corrections`: `delta`(≠0)와 사유로 원거래를 보존한 별도 정정 원장을 만든다.
+  관리자는 모든 거래, 고용자는 본인 거래이며 확인 전일 때만 정정할 수 있다(위반 `403 FORBIDDEN`).
+  정정도 즉시 반영하고 음수를 차단한다(DEC-085·DEC-086·DEC-088)
+- `PATCH /products/{id}/minimum-stock`: 관리자만 최소 재고를 설정·해제한다. 미설정 제품은 부족 경고를
+  표시하지 않는다(DEC-089·DEC-131)
+- 검증: pytest 291건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 입고·출고·조정·정정·확인·
+  음수 차단·제품 행 잠금·최소 재고 부족 표시·원장 필터·CHECK 제약·인덱스를 확인했다
+- 생산·검사 기록만으로 완제품 재고를 자동 증가시키지 않는다(DEC-201). 실제 AI·자동 입고 연동은 후속이다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 

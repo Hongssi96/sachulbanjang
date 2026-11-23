@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0013` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0015` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -208,6 +208,40 @@ erDiagram
         timestamptz created_at
     }
 
+    STOCK_BALANCE {
+        bigint id PK
+        bigint product_id FK,UK
+        bigint quantity
+    }
+
+    STOCK_MOVEMENT {
+        bigint id PK
+        bigint product_id FK
+        bigint actor_id FK
+        varchar kind
+        bigint delta
+        varchar reason "nullable"
+        bigint original_movement_id FK "nullable"
+        bigint checked_by_id FK "nullable"
+        timestamptz checked_at "nullable"
+        timestamptz created_at
+    }
+
+    SCHEDULE {
+        bigint id PK
+        bigint author_id FK
+        varchar title
+        varchar category
+        text description "nullable"
+        boolean all_day
+        date start_date "nullable"
+        date end_date_exclusive "nullable"
+        timestamptz starts_at "nullable"
+        timestamptz ends_at "nullable"
+        integer version
+        timestamptz deleted_at "nullable"
+    }
+
     PROCESS_REPLAY {
         bigint id PK
         bigint source_import_id FK,UK
@@ -249,6 +283,12 @@ erDiagram
     APP_USER ||--o{ GENERATION_JOB : requests
     GENERATION_JOB o|--o{ GENERATION_JOB : retries
     REPORT o|--|| GENERATION_JOB : generated_by
+    APP_USER ||--o{ SCHEDULE : authors
+    PRODUCT ||--|| STOCK_BALANCE : balances
+    PRODUCT ||--o{ STOCK_MOVEMENT : moves
+    APP_USER ||--o{ STOCK_MOVEMENT : performs
+    APP_USER o|--o{ STOCK_MOVEMENT : checks
+    STOCK_MOVEMENT o|--o{ STOCK_MOVEMENT : corrects
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -298,14 +338,23 @@ erDiagram
   키의 다른 내용 충돌을 판정한다. `state`·`lease_expires_at`·`claimed_at`·`heartbeat_at`으로 PostgreSQL
   큐의 claim/lease를 관리하며, 임차가 만료된 작업은 `interrupted`로 정리한다. `retry_of_id`는 재시도
   계보를 잇는다(DEC-094·DEC-210).
+- `schedule`은 종일(`start_date`·`end_date_exclusive`, 종료일 제외)과 시간 지정(`starts_at`·`ends_at`) 중
+  하나의 표현만 갖는다(CHECK). 종료가 시작보다 뒤여야 하고 유형은 `inspection`·`production`·`meeting`·
+  `other`다. version으로 동시 수정을 막고 soft delete한다(DEC-168·DEC-212).
+- `stock_balance`는 제품당 1행의 현재고이며 `quantity >= 0`을 CHECK로 보장한다. 거래 등록·정정은
+  제품 행을 잠근 뒤 원장(`stock_movement`)과 잔고를 같은 트랜잭션에서 갱신한다. 원장은 유형
+  (`initial`·`receipt`·`issue`·`adjustment`·`correction`)·증감·사유·등록자·확인자·원거래 연결을 남기며
+  삭제하지 않는다(DEC-085·DEC-086·DEC-139·DEC-213).
 
 ## 구현 위치
 
 - ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`,
-  `BE/app/models/account_audit.py`, `BE/app/models/report.py`, `BE/app/models/report_job.py`
+  `BE/app/models/account_audit.py`, `BE/app/models/report.py`, `BE/app/models/report_job.py`,
+  `BE/app/models/schedule.py`, `BE/app/models/stock.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
   `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`,
-  `20261123_0011_record_change.py`, `20261123_0012_report.py`, `20261123_0013_generation_job.py`
+  `20261123_0011_record_change.py`, `20261123_0012_report.py`, `20261123_0013_generation_job.py`,
+  `20261123_0014_schedule.py`, `20261123_0015_inventory.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)
