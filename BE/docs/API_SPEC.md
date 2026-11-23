@@ -66,7 +66,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 전체 pytest 및 PostgreSQL 18 replay·이력·정정 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
 | 마스터·담당 | 구현 완료 | 부서·라인·설비·제품 활성 목록 조회와 본인 담당 조회, 사용자 담당 테이블·조직/담당 초기 데이터 적재 명령 구현. pytest 192건 및 PostgreSQL 18 통합 검증. 담당 배정·변경 관리 화면은 추후 | 2026-11-23 |
 | 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회, 생성 작업 접수·조회·취소·재시도와 PostgreSQL 작업 큐(claim/lease/heartbeat·중단 정리) 구현. version 충돌·작성자/관리자 권한 적용. 실제 AI 실행·PDF·중복 안내는 미착수. pytest 250건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
-| 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 품질 리포트·가동률·삭제 미착수. PostgreSQL 18 이력·정정 검증 | 2026-11-23 |
+| 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정·변경 이력, 품질 통계(양품·불량·미분류·불량률·생산 기록 건수) 구현. 가동률·삭제 미착수. pytest 257건 및 PostgreSQL 18 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 미착수 | - | 2026-11-20 |
 | 재고 | 미착수 | - | 2026-11-20 |
@@ -126,7 +126,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | PATCH /inspection-records/{id} | version, change_reason, inspected_at?, product_id?, process_record_id?, verdict?, defect_type?, reason? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
 | DELETE /process-records/{id}, /inspection-records/{id} | expected_version·사유를 query/header 계약으로 확정 | 관리자 soft delete·감사 이력. 미구현 |
 | GET /process-records/{id}/changes, /inspection-records/{id}/changes | 없음 | 관리자만. 전후 값·사유·작업자·시각 |
-| GET /quality/summary | 기간·설비·품목 필터 | 판정 건수·불량률·유형. 가동률은 설비·날짜 범위 별도 명시 |
+| GET /quality/summary | from·to·equipment_id·product_id | 관리자·고용자. 검사·양품·불량 건수, 불량률(null 허용), 유형 분포, 생산 기록 건수 |
 | GET /quality/operation | 한국 기준 날짜·설비 | 계획/실제 시간·가동률·is_demo |
 | POST /report-duplicate-checks | report_kind, period, targets | 조회 가능한 동일 조건 보고서만 안내 |
 | POST /report-jobs | client_request_key, report_kind, category, period, targets | 202: job_id, state, accepted_at, data_cutoff_at. 같은 키·같은 내용은 기존 작업 반환, 다른 내용은 409 |
@@ -406,6 +406,27 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
   키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인했다
 - 실제 AI 실행(`querying`·`writing` 단계와 `succeeded` 시 보고서 등록), 같은 조건 중복 안내
   (`POST /report-duplicate-checks`)는 후속 작업이다
+
+### 품질 통계 현재 구현 범위 (2026-11-23)
+
+관리자·고용자 모두 조회한다(DEC-058). 필터 범위 전체를 집계하고 상세 검사 목록은 기존
+`GET /inspection-records`(페이지네이션)를 재사용한다(DEC-210 후속, DEC-211).
+
+- `GET /quality/summary`: 선택 query `from`·`to`(한국 기준 검사 기간, `from` 포함·`to` 제외),
+  `equipment_id`(1 이상), `product_id`(1 이상)
+- 응답 필드: `inspected_count`, `good_count`, `defect_count`, `defect_rate`, `defect_types`,
+  `production_record_count`, `includes_demo`
+- `defect_rate`는 `불량 ÷ (양품 + 불량) × 100`을 소수 둘째 자리로 반올림한 값이다. 판정 기록이 없어
+  분모가 0이면 `null`이며 화면에서 ‘—’로 표시한다(DEC-029)
+- `defect_types`는 불량 유형별 `{"type": <문자열 또는 null>, "count": n}` 목록이다. `type`이 null이면
+  유형 없는 불량(‘미분류’)이며, 건수 내림차순·유형 오름차순(null 마지막)으로 정렬한다(DEC-165)
+- `production_record_count`는 같은 기간·필터의 공정 기록 건수다. 실제 생산량이 아니며 화면에서도
+  ‘생산 기록 건수’로 표시한다(DEC-190)
+- soft delete된 검사·공정 기록은 제외한다. `includes_demo`는 집계 대상에 시연 기록이 포함됐는지
+  나타낸다
+- 검증: pytest 257건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 기간 경계·설비/품목 필터·
+  soft delete 제외·불량률 반올림·분모 0 null·유형 분포 정렬·생산 기록 건수·시연 표시를 확인했다
+- 가동률(`GET /quality/operation`)은 `operation_day` 작업에서 별도 구현한다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 
