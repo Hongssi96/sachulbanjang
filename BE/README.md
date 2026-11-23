@@ -93,6 +93,14 @@ uvicorn app.main:app --reload
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
+- 인수인계 목록: `GET http://localhost:8000/api/v1/handover-notes`
+  (`q`, `department_id`/`production_line_id`/`equipment_id`, `include_all`, `page`, `page_size`.
+  고용자 기본은 본인 담당 필터)
+- 인수인계 상세·작성: `GET .../handover-notes/{id}`, `POST .../handover-notes`
+  (`body`, `targets`? — 생략 시 작성자 담당, `X-CSRF-Token` 헤더)
+- 인수인계 수정·삭제: `PATCH .../handover-notes/{id}` (`version`, `body`?/`targets`? — 작성자 본인만),
+  `DELETE .../handover-notes/{id}?expected_version=` (관리자 전체·고용자 본인, soft delete)
+- 인수인계 확인: `PUT .../handover-notes/{id}/confirmation` (본인 확인, 반복 시 기존 기록 반환)
 - 재고 잔고: `GET http://localhost:8000/api/v1/stocks` (`q`, `low_stock`, `page`, `page_size`)
 - 재고 원장: `GET http://localhost:8000/api/v1/stock-movements`
   (`product_id`, `kind`, `from`, `to`, `page`, `page_size`)

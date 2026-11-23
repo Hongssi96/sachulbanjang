@@ -1,5 +1,6 @@
 from app.models.account_audit import AccountAuditEvent
 from app.models.auth import AuthSession, RefreshCredential
+from app.models.handover import HandoverNote, HandoverRead, HandoverTarget
 from app.models.master import (
     AppUser,
     Department,
@@ -27,6 +28,9 @@ __all__ = [
     "Department",
     "Equipment",
     "GenerationJob",
+    "HandoverNote",
+    "HandoverRead",
+    "HandoverTarget",
     "InspectionRecord",
     "ProcessRecord",
     "ProcessReplay",

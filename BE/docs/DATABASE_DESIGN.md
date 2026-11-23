@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블, 생성 작업 큐, 일정, 재고 테이블은 Alembic `20261123_0015`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당, 기록 변경 이력, 보고서 기본 테이블, 생성 작업 큐, 일정, 재고, 인수인계 테이블은 Alembic `20261123_0016`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -31,6 +31,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 계정별 기본 근무시간과 로그인 세션의 실제 종료 시각을 구분한다. 자동 연장은 현재 종료 시각의 10분 전 구간에서 실제 입력·클릭 신호를 받은 경우만 처리한다. 클라이언트 활동 신호는 업무 편의를 위한 신호이며 서버에서 구간·세션·중복을 검사한다. 연장해도 JWT 만료나 최초 로그인 기준 상한은 변경하지 않는다.
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
+
+`handover_note`·`handover_target`·`handover_read`는 20261123_0016으로 구현했다. 노트는 soft delete하고, 대상은 부서·라인·설비 중 정확히 하나(CHECK), 확인은 `(note_id, user_id)` UNIQUE로 사용자별 1건만 기록한다.
 
 `stock_balance`·`stock_movement`는 20261123_0015로 구현했다. 잔고는 제품당 1행이며 `quantity >= 0` CHECK, 원장은 유형·증감 CHECK를 갖는다. 거래 등록·정정은 제품 행을 잠그고 잔고와 원장을 같은 트랜잭션에서 갱신하며, `(product_id, created_at, id)` 인덱스로 원장을 조회한다.
 
@@ -93,9 +95,9 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 | chat_turn | conversation_id FK, question, answer?, active_job_id? FK, answered_at?, query_scope?, data_cutoff_at?, is_demo?. 실패 재시도는 동일 질문에 새 작업 연결 |
 | answer_evidence | chat_turn_id FK, report_id?·process_record_id?·inspection_record_id?·product_id? FK, source_version?, source_time. 최소 하나의 근거, 종류 확장 시 명시적 FK 추가 |
 | schedule | author_id FK, title, category(inspection/production/meeting/other), description?, all_day, start_date?, end_date_exclusive?, starts_at?, ends_at?, version, deleted_at. 종일/시간 지정 중 하나만(CHECK). 20261123_0014로 구현 |
-| handover_note | author_id FK, body, version, deleted_at. 대상은 별도 handover_target에서 관리 |
-| handover_target | handover_note_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나 |
-| handover_read | handover_note_id FK, user_id FK, confirmed_at. (handover_note_id, user_id) UNIQUE |
+| handover_note | author_id FK, body, version, deleted_at. 대상은 별도 handover_target에서 관리. 20261123_0016으로 구현 |
+| handover_target | handover_note_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나(CHECK). 20261123_0016으로 구현 |
+| handover_read | handover_note_id FK, user_id FK, confirmed_at. (handover_note_id, user_id) UNIQUE. 20261123_0016으로 구현 |
 
 답변 전체의 근거를 식별해 현재 권한을 검사하며 검증할 수 없는 근거를 가진 과거 답변을 그대로 외부 AI에 전달하지 않는다. 집계 답변도 조회 범위·소스 종류·작성 당시 권한 범위를 별도로 보존한다. 삭제된 근거와 권한 상실은 구분한다. 근거가 없는 일반 설명에는 업무 자료 근거를 조작해 넣지 않는다.
 
