@@ -1,6 +1,7 @@
-from typing import Annotated
+from math import ceil
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from app.dependencies.auth import (
     get_account_management_service,
@@ -9,7 +10,14 @@ from app.dependencies.auth import (
     require_csrf_token,
 )
 from app.models.master import AppUser
-from app.schemas.users import PasswordResetResponse, UserCreateRequest, UserCreateResponse
+from app.schemas.users import (
+    Pagination,
+    PasswordResetResponse,
+    UserCreateRequest,
+    UserCreateResponse,
+    UserListItem,
+    UserListResponse,
+)
 from app.services.account_management import (
     AccountManagementService,
     CreateUserCommand,
@@ -22,6 +30,47 @@ from app.services.password_reset import (
 )
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _user_list_item(user: AppUser) -> UserListItem:
+    return UserListItem(
+        user_id=user.id,
+        employee_no=user.employee_no,
+        display_name=user.display_name,
+        role=user.role,
+        is_active=user.deleted_at is None,
+        shift_start_local=user.shift_start_local,
+        shift_end_local=user.shift_end_local,
+        version=user.version,
+    )
+
+
+@router.get("", response_model=UserListResponse)
+def list_users(
+    _: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[AccountManagementService, Depends(get_account_management_service)],
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    role: Annotated[Literal["admin", "worker"] | None, Query()] = None,
+    include_inactive: bool = False,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> UserListResponse:
+    result = service.list_users(
+        query=q,
+        role=role,
+        include_inactive=include_inactive,
+        page=page,
+        page_size=page_size,
+    )
+    return UserListResponse(
+        items=[_user_list_item(user) for user in result.users],
+        pagination=Pagination(
+            page=page,
+            page_size=page_size,
+            total_items=result.total_items,
+            total_pages=ceil(result.total_items / page_size) if result.total_items else 0,
+        ),
+    )
 
 
 @router.post(

@@ -32,6 +32,29 @@ class UserCreateResponse(BaseModel):
     version: int
 
 
+class Pagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+
+
+class UserListItem(BaseModel):
+    user_id: int
+    employee_no: str
+    display_name: str
+    role: Literal["admin", "worker"]
+    is_active: bool
+    shift_start_local: time
+    shift_end_local: time
+    version: int
+
+
+class UserListResponse(BaseModel):
+    items: list[UserListItem]
+    pagination: Pagination
+
+
 class PasswordResetResponse(BaseModel):
     user_id: int
     employee_no: str

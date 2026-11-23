@@ -51,6 +51,51 @@ def test_create_user_reserves_soft_deleted_employee_number() -> None:
     session.commit.assert_not_called()
 
 
+def test_list_users_trims_query_and_paginates() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.count_users.return_value = 12
+    repository.find_users.return_value = [AppUser()]
+
+    result = AccountManagementService(session, repository).list_users(
+        query="  홍길동  ",
+        role="worker",
+        include_inactive=False,
+        page=2,
+        page_size=10,
+    )
+
+    repository.count_users.assert_called_once_with(
+        query="홍길동", role="worker", include_inactive=False
+    )
+    repository.find_users.assert_called_once_with(
+        query="홍길동",
+        role="worker",
+        include_inactive=False,
+        offset=10,
+        limit=10,
+    )
+    assert result.total_items == 12
+    assert len(result.users) == 1
+
+
+def test_list_users_treats_blank_query_as_no_filter() -> None:
+    session = MagicMock()
+    repository = MagicMock(spec=AuthRepository)
+    repository.count_users.return_value = 0
+    repository.find_users.return_value = []
+
+    AccountManagementService(session, repository).list_users(
+        query="   ",
+        role=None,
+        include_inactive=True,
+        page=1,
+        page_size=10,
+    )
+
+    repository.count_users.assert_called_once_with(query=None, role=None, include_inactive=True)
+
+
 def test_create_user_translates_unique_constraint_race_and_rolls_back() -> None:
     session = MagicMock()
     repository = MagicMock(spec=AuthRepository)

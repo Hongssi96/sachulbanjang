@@ -31,12 +31,42 @@ class CreateUserResult:
     temporary_password: str
 
 
+@dataclass(frozen=True)
+class UserListResult:
+    users: list[AppUser]
+    total_items: int
+
+
 class AccountManagementService:
     """Create administrator-managed accounts with one-time temporary credentials."""
 
     def __init__(self, session: Session, repository: AuthRepository) -> None:
         self._session = session
         self._repository = repository
+
+    def list_users(
+        self,
+        *,
+        query: str | None,
+        role: str | None,
+        include_inactive: bool,
+        page: int,
+        page_size: int,
+    ) -> UserListResult:
+        normalized_query = query.strip() if query is not None else ""
+        total_items = self._repository.count_users(
+            query=normalized_query or None,
+            role=role,
+            include_inactive=include_inactive,
+        )
+        users = self._repository.find_users(
+            query=normalized_query or None,
+            role=role,
+            include_inactive=include_inactive,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+        return UserListResult(users=users, total_items=total_items)
 
     def create_user(self, command: CreateUserCommand) -> CreateUserResult:
         if self._repository.find_user_by_employee_no(command.employee_no) is not None:
