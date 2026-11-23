@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.models.master import AppUser, Equipment, Product
-from app.models.process import ProcessRecord, RecordChange
+from app.models.process import InspectionRecord, ProcessRecord, RecordChange
 from app.repositories.record_correction import RecordChangeView, RecordCorrectionRepository
-from app.repositories.record_history import ProcessRecordView
+from app.repositories.record_history import InspectionRecordView, ProcessRecordView
 from app.services.record_correction import (
     NoRecordChangeError,
     RecordCorrectionService,
@@ -69,8 +69,56 @@ def build_service(
     return service, repository, session
 
 
+def make_inspection_view(record_id: int = 1, version: int = 1) -> InspectionRecordView:
+    equipment = Equipment(id=20, equipment_code="S01", name="사출기 1")
+    product = Product(id=30, product_code="P-1", name="시연 제품")
+    record = InspectionRecord(
+        id=record_id,
+        equipment_id=20,
+        product_id=30,
+        process_record_id=5,
+        inspected_at=OCCURRED,
+        available_at=OCCURRED,
+        verdict="defect",
+        defect_type="scratch",
+        reason="표면 긁힘",
+        is_demo=True,
+        version=version,
+    )
+    return InspectionRecordView(record=record, equipment=equipment, product=product)
+
+
+class FakeInspectionCorrectionRepository(RecordCorrectionRepository):
+    def __init__(self, view: InspectionRecordView | None) -> None:
+        self.view = view
+        self.changes: list[RecordChange] = []
+
+    def find_inspection_record_for_update(self, record_id: int) -> InspectionRecordView | None:
+        if self.view is not None and self.view.record.id == record_id:
+            return self.view
+        return None
+
+    def find_inspection_record(self, record_id: int) -> InspectionRecordView | None:
+        return self.find_inspection_record_for_update(record_id)
+
+    def add_change(self, change: RecordChange) -> None:
+        self.changes.append(change)
+
+    def list_inspection_changes(self, record_id: int) -> list[RecordChangeView]:
+        return []
+
+
 def actor() -> AppUser:
     return AppUser(id=9, employee_no="A9001", role="admin", display_name="관리자")
+
+
+def build_inspection_service(
+    view: InspectionRecordView | None = None,
+) -> tuple[RecordCorrectionService, FakeInspectionCorrectionRepository, MagicMock]:
+    session = MagicMock(spec=Session)
+    repository = FakeInspectionCorrectionRepository(view)
+    service = RecordCorrectionService(session, repository, clock=lambda: NOW)
+    return service, repository, session
 
 
 def test_update_process_record_applies_changes_and_records_history() -> None:
@@ -168,6 +216,67 @@ def test_update_process_record_rejects_no_effective_change() -> None:
         )
 
     session.commit.assert_not_called()
+
+
+def test_update_inspection_record_applies_verdict_and_records_history() -> None:
+    view = make_inspection_view()
+    service, repository, session = build_inspection_service(view)
+
+    updated = service.update_inspection_record(
+        actor(),
+        1,
+        version=1,
+        change_reason="판정 정정",
+        changes={"verdict": "good", "defect_type": None},
+    )
+
+    assert updated.record.verdict == "good"
+    assert updated.record.defect_type is None
+    assert updated.record.version == 2
+    session.commit.assert_called_once_with()
+    change = repository.changes[0]
+    assert change.inspection_record_id == 1
+    assert change.before_value == {"defect_type": "scratch", "verdict": "defect"}
+    assert change.after_value == {"defect_type": None, "verdict": "good"}
+
+
+def test_update_inspection_record_rejects_stale_version_and_missing_record() -> None:
+    service, _, session = build_inspection_service(make_inspection_view(version=4))
+    with pytest.raises(RecordVersionConflictError):
+        service.update_inspection_record(
+            actor(), 1, version=1, change_reason="정정", changes={"verdict": "good"}
+        )
+
+    service, _, _ = build_inspection_service(None)
+    with pytest.raises(RecordNotFoundError):
+        service.update_inspection_record(
+            actor(), 1, version=1, change_reason="정정", changes={"verdict": "good"}
+        )
+
+    session.commit.assert_not_called()
+
+
+def test_update_inspection_record_rejects_no_effective_change() -> None:
+    service, _, _ = build_inspection_service(make_inspection_view())
+
+    with pytest.raises(NoRecordChangeError):
+        service.update_inspection_record(
+            actor(), 1, version=1, change_reason="정정", changes={"verdict": "defect"}
+        )
+
+    with pytest.raises(NoRecordChangeError):
+        service.update_inspection_record(
+            actor(), 1, version=1, change_reason="정정", changes={"source_record_key": "x"}
+        )
+
+
+def test_list_inspection_changes_requires_existing_record() -> None:
+    service, _, _ = build_inspection_service(None)
+    with pytest.raises(RecordNotFoundError):
+        service.list_inspection_changes(1)
+
+    service, _, _ = build_inspection_service(make_inspection_view())
+    assert service.list_inspection_changes(1) == []
 
 
 def test_list_process_changes_requires_existing_record() -> None:

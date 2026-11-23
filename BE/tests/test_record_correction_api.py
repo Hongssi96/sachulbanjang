@@ -6,9 +6,9 @@ from app.core.config import Settings
 from app.dependencies.auth import get_current_user
 from app.main import create_app
 from app.models.master import AppUser, Equipment, Product
-from app.models.process import ProcessRecord, RecordChange
+from app.models.process import InspectionRecord, ProcessRecord, RecordChange
 from app.repositories.record_correction import RecordChangeView
-from app.repositories.record_history import ProcessRecordView
+from app.repositories.record_history import InspectionRecordView, ProcessRecordView
 from app.routers.records import get_record_correction_service
 from app.services.record_correction import (
     NoRecordChangeError,
@@ -232,6 +232,100 @@ def test_admin_reads_record_changes() -> None:
         ]
     }
     service.list_process_changes.assert_called_once_with(1)
+
+
+def make_inspection_view(*, version: int = 2) -> InspectionRecordView:
+    equipment = Equipment(id=20, equipment_code="S01", name="사출기 1")
+    product = Product(id=30, product_code="P-1", name="시연 제품")
+    record = InspectionRecord(
+        id=1,
+        equipment_id=20,
+        product_id=30,
+        process_record_id=5,
+        inspected_at=OCCURRED,
+        available_at=OCCURRED,
+        verdict="good",
+        defect_type=None,
+        reason=None,
+        is_demo=True,
+        version=version,
+    )
+    return InspectionRecordView(record=record, equipment=equipment, product=product)
+
+
+def test_admin_corrects_inspection_record() -> None:
+    service = MagicMock(spec=RecordCorrectionService)
+    service.update_inspection_record.return_value = make_inspection_view()
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        headers = with_csrf(client)
+        response = client.patch(
+            "/api/v1/inspection-records/1",
+            json={"version": 1, "change_reason": "판정 정정", "verdict": "good"},
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["verdict"] == "good"
+    assert response.json()["version"] == 2
+    assert response.headers["cache-control"] == "no-store"
+    kwargs = service.update_inspection_record.call_args.kwargs
+    assert kwargs["version"] == 1
+    assert kwargs["change_reason"] == "판정 정정"
+    assert kwargs["changes"] == {"verdict": "good"}
+
+
+def test_inspection_correction_validates_payload() -> None:
+    service = MagicMock(spec=RecordCorrectionService)
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        headers = with_csrf(client)
+        missing_reason = client.patch(
+            "/api/v1/inspection-records/1", json={"version": 1, "verdict": "good"}, headers=headers
+        )
+        no_field = client.patch(
+            "/api/v1/inspection-records/1",
+            json={"version": 1, "change_reason": "정정"},
+            headers=headers,
+        )
+        null_verdict = client.patch(
+            "/api/v1/inspection-records/1",
+            json={"version": 1, "change_reason": "정정", "verdict": None},
+            headers=headers,
+        )
+
+    for response in (missing_reason, no_field, null_verdict):
+        assert response.status_code == 422
+        assert response.json()["code"] == "VALIDATION_ERROR"
+    service.update_inspection_record.assert_not_called()
+
+
+def test_admin_reads_inspection_record_changes() -> None:
+    change = RecordChange(
+        id=6,
+        inspection_record_id=1,
+        actor_id=9,
+        operation="update",
+        before_value={"verdict": "defect"},
+        after_value={"verdict": "good"},
+        reason="판정 정정",
+        version=2,
+        occurred_at=NOW,
+    )
+    service = MagicMock(spec=RecordCorrectionService)
+    service.list_inspection_changes.return_value = [
+        RecordChangeView(change=change, actor_display_name="관리자")
+    ]
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/inspection-records/1/changes")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["change_id"] == 6
+    service.list_inspection_changes.assert_called_once_with(1)
 
 
 def test_record_changes_require_admin_and_existing_record() -> None:
