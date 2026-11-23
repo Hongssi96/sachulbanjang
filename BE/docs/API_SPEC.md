@@ -70,7 +70,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 구현 완료 | 달력 범위·목록 페이지 조회, 종일/시간 지정 등록·수정·soft delete, 관리자 전체·고용자 본인 권한, version 충돌 처리 구현. 반복·복사 제외. pytest 272건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
 | 재고 | 구현 완료 | 현재 잔고·거래 원장 조회, 입고·출고·조정·정정·확인, 음수 차단과 제품 행 잠금, 관리자 사후 확인, 최소 재고 설정과 부족 표시 구현. pytest 291건 및 PostgreSQL 18 통합 검증. 생산 자동 입고는 제외 | 2026-11-23 |
-| 인수인계 | 미착수 | - | 2026-11-20 |
+| 인수인계 | 구현 완료 | 노트 작성·목록·상세, 담당 대상 연결과 본인 담당 기본 필터, 작성자 본인 수정·관리자/본인 soft delete, 사용자별 멱등 확인 처리 구현. pytest 312건 및 PostgreSQL 18 통합 검증. 알림·복구는 추후 | 2026-11-23 |
 
 상태 정의:
 
@@ -153,10 +153,12 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /schedules/{id} | 없음 | 양 역할 전체 조회 |
 | PATCH /schedules/{id} | version + 변경 필드(날짜·시각 혼용 금지) | 관리자 전체·고용자 본인, CSRF. version 충돌 409 |
 | DELETE /schedules/{id}?expected_version= | expected_version | 관리자 전체·고용자 본인, CSRF. soft delete |
-| GET /handover-notes, POST /handover-notes | 본인 담당 기본 필터·전체 조회·등록 | 양 역할 |
-| GET /handover-notes/{id} | 본문·대상·수정 시각·확인 정보 | 양 역할 전체 조회 |
-| PATCH /handover-notes/{id}, DELETE /handover-notes/{id} | 본인 수정, 삭제 관리자 전체·고용자 본인 | 관리자 타인 본문 수정 불가 |
-| PUT /handover-notes/{id}/confirmation | 본인 확인 기록 | 반복 요청으로 확인자 중복 생성하지 않음 |
+| GET /handover-notes | q, department_id/production_line_id/equipment_id, include_all, page, page_size | 양 역할. 고용자 기본 본인 담당 필터 |
+| POST /handover-notes | body, targets?(생략 시 작성자 담당) | 양 역할, CSRF |
+| GET /handover-notes/{id} | 없음 | 양 역할 전체 조회. 대상·확인 정보 포함 |
+| PATCH /handover-notes/{id} | version, body?, targets? | 작성자 본인만(관리자도 타인 불가), CSRF |
+| DELETE /handover-notes/{id}?expected_version= | expected_version | 관리자 전체·고용자 본인, CSRF. soft delete |
+| PUT /handover-notes/{id}/confirmation | 없음 | 본인 확인 기록. 반복 요청은 기존 기록 반환(중복 생성 없음) |
 | GET /stocks | q, low_stock, page, page_size | 양 역할 전체. 수량·최소 재고·부족 여부 |
 | GET /stock-movements | product_id, kind, from, to, page, page_size | 양 역할 전체. 원장·확인 여부 |
 | POST /stock-movements | product_id, kind(initial/receipt/issue/adjustment), quantity, reason? | 양 역할, initial은 관리자. 음수 차단·즉시 반영 |
@@ -480,6 +482,19 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
 - 검증: pytest 291건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 입고·출고·조정·정정·확인·
   음수 차단·제품 행 잠금·최소 재고 부족 표시·원장 필터·CHECK 제약·인덱스를 확인했다
 - 생산·검사 기록만으로 완제품 재고를 자동 증가시키지 않는다(DEC-201). 실제 AI·자동 입고 연동은 후속이다
+
+### 인수인계 현재 구현 범위 (2026-11-23)
+
+관리자·고용자 모두 작성·조회하며 본문 수정은 작성자 본인만 가능하다(DEC-090·DEC-091·DEC-092·DEC-108·DEC-109·DEC-183·DEC-214).
+
+- `GET /handover-notes`: `q`(본문 부분 일치), 담당 대상 필터 `department_id`·`production_line_id`·`equipment_id`(하나만), `include_all`, `page`/`page_size`(기본 10·최대 100). 관리자는 기본 전체, 고용자는 기본 본인 담당(`user_assignment`)과 연결된 노트만 조회하고 `include_all=true` 또는 대상 필터로 전체·다른 담당을 조회한다. 최신순 정렬이며 각 항목에 대상 목록, 확인자 수, 내 확인 시각을 포함한다
+- `POST /handover-notes`: `body`와 선택 `targets`(부서·라인·설비 중 하나, 복수). `targets`를 생략하면 작성자 담당 범위를 기본 대상으로 사용한다. 존재하지 않거나 삭제된 대상, 중복 대상은 `422 VALIDATION_ERROR`다
+- `GET /handover-notes/{id}`: 본문·담당 대상·수정 시각과 사용자별 확인자·확인 시각을 포함한다. 삭제된 노트는 `404 HANDOVER_NOT_FOUND`다
+- `PATCH /handover-notes/{id}`: `version`과 `body`·`targets` 중 하나 이상. 작성자 본인만 가능하며 관리자도 타인 본문은 수정할 수 없다(`403 FORBIDDEN`). version이 다르면 `409 VERSION_CONFLICT`다. 수정해도 기존 확인 기록은 유지하고 재확인을 강제하지 않는다
+- `DELETE /handover-notes/{id}?expected_version=`: soft delete. 관리자는 전체, 고용자는 본인 노트만 삭제한다(`403 FORBIDDEN`)
+- `PUT /handover-notes/{id}/confirmation`: 로그인 사용자 본인의 확인자·확인 시각을 기록한다. 이미 확인한 경우 기존 기록을 그대로 반환해 중복 생성하지 않는다
+- 검증: pytest 312건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 담당 기본 필터·대상 필터·검색·작성자 권한·version 충돌·soft delete 제외·멱등 확인·CHECK/UNIQUE 제약·인덱스를 확인했다
+- 확인 알림, 복구, 노트 첨부는 추후 범위다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 

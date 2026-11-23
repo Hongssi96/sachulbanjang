@@ -1932,3 +1932,32 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-inventory)만 수정하도록 작성자를 1인으로 지정했다.
 - 기록일: 2026-11-23.
 
+## DEC-214 — 인수인계 담당 범위·확인·삭제 처리 (Q-214)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-090·DEC-091·DEC-092·DEC-108·DEC-109·DEC-183
+- 확인한 문서 상태: 요구사항은 작성자 본인 수정(관리자도 타인 본문 불가), 관리자 전체·고용자 본인 삭제, 사용자별 확인 기록, 담당 범위 기본 대상·필터를 확정했다. `handover_note`·`handover_target`·`handover_read`는 설계만 있고 구현되지 않았다.
+- 질문 1: 담당 대상 연결과 기본 필터를 이번 범위에 포함할지?
+- 답변 1(2026-11-23): 포함한다.
+- 확정 결과 1: 노트에 부서·라인·설비 대상(복수)을 연결한다. `targets`를 생략하면 작성자 담당(`user_assignment`)을 기본 대상으로 사용하고, 고용자 기본 목록은 본인 담당과 연결된 노트만 조회한다. `include_all`이나 대상 필터로 전체·다른 담당을 조회한다(DEC-092·DEC-109).
+- 질문 2: 확인 처리를 어떻게 할지?
+- 답변 2(2026-11-23): 멱등 확인 기록으로 한다.
+- 확정 결과 2: `PUT /handover-notes/{id}/confirmation`으로 로그인 사용자 본인의 확인자·확인 시각을 기록하고, 이미 확인했으면 기존 기록을 반환해 중복 생성하지 않는다. 확인 취소는 두지 않는다(DEC-090·DEC-091).
+- 질문 3: 목록 검색을 포함할지?
+- 답변 3(2026-11-23): 포함한다.
+- 확정 결과 3: `q`로 본문 부분 일치 검색(공백만이면 전체)을 제공한다(DEC-189).
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 확인 알림, 삭제 노트 복구, 첨부·서식, 담당 필터 기본값 세부
+
+## TECH-023 — 인수인계 노트·담당 대상·확인 구현
+
+- 최신 `origin/dev`(1bb0b71)에서 `.worktrees/handover` 워크트리와 `codex/be-feature-handover` 브랜치로 DEC-214를 구현했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `handover_note`·`handover_target`(대상 정확히 하나 CHECK)·`handover_read`(`(note_id, user_id)` UNIQUE)를 마이그레이션 `20261123_0016`으로 추가했다. 기존 dev head가 `20261123_0015`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `GET /handover-notes`·`POST /handover-notes`·`GET /handover-notes/{id}`·`PATCH /handover-notes/{id}`·`DELETE /handover-notes/{id}?expected_version=`·`PUT /handover-notes/{id}/confirmation`을 추가했다.
+- 권한·규칙: 조회는 양 역할 전체이고, 본문·대상 수정은 작성자 본인만(관리자도 타인 불가), 삭제는 관리자 전체·고용자 본인, 확인은 로그인 사용자 본인 멱등 처리다. `targets` 생략 시 작성자 담당을 기본 대상으로 사용하고 고용자 기본 목록은 본인 담당으로 필터링한다.
+- 검증: Ruff check, mypy, 전체 pytest 312건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0016)를 적용해 담당 기본 필터·대상 필터·검색·작성자 권한(타인 403)·version 충돌·soft delete 제외·멱등 확인·CHECK/UNIQUE 제약·인덱스를 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-handover)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+
