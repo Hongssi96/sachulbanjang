@@ -72,6 +72,11 @@ uvicorn app.main:app --reload
 - 검사 이력: `GET http://localhost:8000/api/v1/inspection-records`,
   `GET .../inspection-records/{id}` (위 필터 + `verdict=good|defect`)
 - 이력 조회는 관리자·고용자 모두 가능하며, `from`은 포함·`to`는 제외하는 한국 기준 날짜다
+- 마스터 목록: `GET http://localhost:8000/api/v1/departments`, `GET .../production-lines`
+  (`department_id`), `GET .../equipment` (`production_line_id`), `GET .../products` (`q`).
+  활성 데이터 전체를 반환한다
+- 본인 담당: `GET http://localhost:8000/api/v1/assignments/me`
+  (`departments`·`production_lines`·`equipment`로 묶어 id·코드·이름 반환)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비
@@ -87,6 +92,34 @@ python -m app.commands.seed_accounts `
 
 기본값은 근무 시작 `09:00`, 종료 `18:00`이고 최초 로그인 시 비밀번호 변경이 필요하다
 (`--no-must-change-password`로 해제).
+
+### 조직·담당 초기 데이터 적재
+
+부서·라인·설비 연결과 사용자 담당을 JSON 파일로 적재한다. 설비는 CSV 적재 등으로 이미 존재해야 한다.
+
+```json
+{
+  "departments": [{"code": "D1", "name": "생산1부"}],
+  "production_lines": [
+    {"department_code": "D1", "code": "L1", "name": "1라인", "equipment_codes": ["S01", "S02"]}
+  ],
+  "assignments": [
+    {
+      "employee_no": "W9001",
+      "department_codes": ["D1"],
+      "production_lines": [{"department_code": "D1", "code": "L1"}],
+      "equipment_codes": ["S01"]
+    }
+  ]
+}
+```
+
+```powershell
+python -m app.commands.seed_master_data --file master.json
+```
+
+재실행해도 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않는다. 없는 사용자·설비나 다른 라인에 이미
+속한 설비가 있으면 전체를 롤백하고 실패한다.
 
 ### 공정 CSV 적재
 

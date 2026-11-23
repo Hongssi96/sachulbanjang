@@ -17,6 +17,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "production_line",
         "refresh_credential",
         "source_import",
+        "user_assignment",
         "work_extension",
     }
 

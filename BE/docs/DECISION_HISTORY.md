@@ -1721,3 +1721,35 @@
 - 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-record-history)만 수정하도록 작성자를 1인으로 지정했다. 다른 작업이 두 문서를 동시에 수정하지 않도록 한다.
 - 기록일: 2026-11-23.
 
+## DEC-207 — 마스터 데이터 조회 범위와 담당 초기 데이터 방식 (Q-207)
+
+- 질문일: 2026-11-23
+- 상태: 확정
+- 관련 요구사항: DEC-067·DEC-068·DEC-075·DEC-130의 담당 범위와 시연 조직 데이터
+- 확인한 문서 상태: API_SPEC은 활성 부서·라인·설비·제품과 본인 담당 조회를 후보로 두고 있다. `user_assignment`는 DATABASE_DESIGN에 설계되어 있으나 테이블·초기 데이터가 없다. DEC-130은 사용자별 복수 담당을 DB 초기 데이터로 준비하고 배정·변경 화면은 추후로 두기로 했다. 실제 부서·라인 매핑 데이터는 아직 없다.
+- 질문 1: `GET /assignments/me`에 필요한 `user_assignment`와 초기 담당 데이터 준비 범위를 어떻게 할지?
+- 답변 1(2026-11-23): 테이블·API와 함께 초기 데이터 적재 명령을 구현한다.
+- 확정 결과 1: `user_assignment` 테이블과 담당 조회 API를 구현하고, 조직·담당 초기 데이터를 적재하는 명령을 제공한다.
+- 질문 2: 부서·라인·설비·제품 목록의 응답 방식은?
+- 답변 2(2026-11-23): 전체 활성 목록으로 반환한다.
+- 확정 결과 2: 네 목록은 페이지네이션 없이 활성 데이터 전체를 반환한다. 설비는 `production_line_id`, 라인은 `department_id`, 제품은 `q`(이름·코드 부분 일치) 필터를 제공한다. 선택 목록 용도이므로 DEC-122 페이지네이션을 적용하지 않는다.
+- 질문 3: `GET /assignments/me` 응답 형식은?
+- 답변 3(2026-11-23): 대상 정보를 포함한다.
+- 확정 결과 3: `departments`·`production_lines`·`equipment` 세 배열에 id·코드·이름을 포함해 FE가 그대로 선택 목록과 기본값으로 사용한다. 담당 대상이 soft delete되면 그 항목은 제외하고 담당 배정은 보존한다.
+- 질문 4: 초기 조직·담당 데이터를 어떻게 적재할지?
+- 답변 4(2026-11-23): JSON 입력 파일을 사용한다.
+- 확정 결과 4: `python -m app.commands.seed_master_data --file <JSON>`로 부서·라인·설비 연결·사용자 담당을 적재한다. 실제 매핑 데이터가 생기면 파일만 교체한다. 재실행 시 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않으며, 존재하지 않는 사용자·설비나 다른 라인에 이미 속한 설비는 오류로 전체를 롤백한다(DEC-195·DEC-196).
+- 결정자: 요청자
+- 근거: 2026-11-23 대화 답변.
+- 남은 쟁점: 실제 부서·라인·설비 매핑 데이터, 담당 배정·변경 관리 화면과 API, 부서·라인 코드 명명 규칙
+
+## TECH-016 — 마스터 데이터·담당 조회 API와 담당 초기 데이터 적재 명령 구현
+
+- 최신 `origin/dev`(ae5e6d5)에서 `.worktrees/master-data` 워크트리와 `codex/be-feature-master-data` 브랜치로 작업했다. FE와 루트 공통 파일은 수정하지 않았다.
+- `GET /departments`·`GET /production-lines`·`GET /equipment`·`GET /products`·`GET /assignments/me`를 추가했다. 관리자·고용자 모두 사용 가능하고 활성 데이터만 반환한다(DEC-058·DEC-207).
+- `user_assignment` 테이블을 마이그레이션 `20261123_0010`로 추가했다. 부서·라인·설비 중 정확히 하나만 대상으로 갖는 CHECK 제약과, 활성 담당 중복을 막는 부분 UNIQUE 인덱스 세 개를 만들었다. 기존 dev head가 `20261123_0009`이고 진행 중 MR이 없어 revision 번호 충돌이 없음을 확인했다.
+- `MasterDataService`가 활성 목록·본인 담당을 조회하고, `MasterDataRepository`가 조회·적재 데이터 접근을 담당한다. `MasterDataSeedService`와 JSON 스키마 기반 `seed_master_data` 명령이 부서·라인·설비 연결·담당을 한 트랜잭션으로 적재한다.
+- 검증: Ruff check, mypy, 전체 pytest 192건 통과. 일회용 PostgreSQL 18 DB에 Alembic head(0010)를 적용해 활성 필터·부모/검색 필터·정렬·담당 그룹화·soft delete 대상 제외·적재 명령 중복 방지·존재하지 않는 설비 오류 롤백을 확인하고 DB를 삭제했다.
+- 문서: 이번 주기에서 `API_SPEC.md`와 `DECISION_HISTORY.md`는 이 작업(feature-master-data)만 수정하도록 작성자를 1인으로 지정했다.
+- 기록일: 2026-11-23.
+

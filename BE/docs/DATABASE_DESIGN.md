@@ -1,7 +1,7 @@
 # DB 설계 초안
 
 기준일: 2026-11-23. [요구사항](REQUIREMENTS.md)의 사용자 결정을 반영한 설계다. 계정·조직·설비·품목,
-CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록 테이블은 Alembic `20261123_0009`까지 구현했으며 [ERD](ERD.md)에
+CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당 테이블은 Alembic `20261123_0010`까지 구현했으며 [ERD](ERD.md)에
 실제 구조를 표시한다. 그 밖의 아래 테이블·필드·인덱스는 기술 기본안이며 마이그레이션 적용 완료를 의미하지 않는다.
 
 ## 공통 규칙
@@ -23,7 +23,7 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록 테이블은 Alem
 | production_line | department_id FK, code, name, deleted_at. 부서 내 코드 UNIQUE는 데이터 확인 후 결정 |
 | equipment | production_line_id? FK, equipment_code UNIQUE, name, deleted_at. CSV에 라인 값이 없어 현재 소속은 비울 수 있음 |
 | product | product_code? UNIQUE, name, minimum_stock? >= 0, deleted_at. PART_NO가 없는 CSV 품목도 허용 |
-| user_assignment | user_id FK, department_id?·production_line_id?·equipment_id? FK. 세 대상 중 정확히 하나만 NOT NULL. 대상별 활성 배정 중복 방지 |
+| user_assignment | user_id FK, department_id?·production_line_id?·equipment_id? FK. 세 대상 중 정확히 하나만 NOT NULL. 대상별 활성 배정 중복 방지(부분 UNIQUE). 20261123_0010으로 구현 |
 | auth_session | user_id FK, absolute_expires_at, work_ends_at, work_session_version, auto_extended_for?, revoked_at?, current_refresh_generation. 로그인별 현재 종료 시각과 최초 로그인 기준 7일 상한 |
 | refresh_credential | session_id FK, token_digest UNIQUE, generation, expires_at, consumed_at?, revoked_at?. 재사용 감지를 위해 사용된 토큰의 식별 정보를 보존하고 토큰 원문은 저장하지 않음 |
 | work_extension | session_id FK, previous_ends_at, new_ends_at, kind(manual/automatic), actor_id FK. 자동 연장은 (session_id, previous_ends_at)에 부분 UNIQUE |
@@ -31,6 +31,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록 테이블은 Alem
 계정별 기본 근무시간과 로그인 세션의 실제 종료 시각을 구분한다. 자동 연장은 현재 종료 시각의 10분 전 구간에서 실제 입력·클릭 신호를 받은 경우만 처리한다. 클라이언트 활동 신호는 업무 편의를 위한 신호이며 서버에서 구간·세션·중복을 검사한다. 연장해도 JWT 만료나 최초 로그인 기준 상한은 변경하지 않는다.
 
 `auth_session`·`refresh_credential`은 20261120_0005로 구현했다. 20261123_0006은 별도 1:1 상태 테이블 대신 로그인 세션 자체에 현재 근무 종료 시각과 버전을 함께 두어 항상 같은 행 잠금으로 갱신하고, 연장 감사 이력은 `work_extension`에 분리한다.
+
+`user_assignment`는 20261123_0010으로 구현했다. 담당 대상 하나만 갖도록 CHECK로 제한하고, 대상별 활성 배정 중복은 `(user_id, department_id)`·`(user_id, production_line_id)`·`(user_id, equipment_id)` 부분 UNIQUE 인덱스로 막는다. 조직·담당 초기 데이터는 `python -m app.commands.seed_master_data --file <JSON>`로 적재한다.
 
 `account_audit_event`와 `app_user.temporary_password_expires_at`은 20261123_0007·0008로 구현했다. 계정 비활성화는 `app_user.deleted_at`을 재사용하고 목록은 기본 비활성 계정을 제외한다. 감사 이벤트는 계정 조치와 같은 트랜잭션에서 기록하며 FK는 RESTRICT다.
 

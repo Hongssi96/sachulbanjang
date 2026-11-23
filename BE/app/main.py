@@ -20,6 +20,7 @@ from app.errors import (
 from app.middleware import RequestContextMiddleware
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
+from app.routers.master_data import router as master_data_router
 from app.routers.process import router as process_router
 from app.routers.records import router as records_router
 from app.routers.users import router as users_router
@@ -59,6 +60,7 @@ def create_app(
     application.add_middleware(RequestContextMiddleware)
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")
+    application.include_router(master_data_router, prefix="/api/v1")
     application.include_router(process_router, prefix="/api/v1")
     application.include_router(records_router, prefix="/api/v1")
     application.include_router(users_router, prefix="/api/v1")

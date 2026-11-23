@@ -1,6 +1,6 @@
 # Backend ERD
 
-기준일: 2026-11-23. 이 문서는 Alembic `20261123_0009` 기준으로 실제 구현된 테이블만 표시한다.
+기준일: 2026-11-23. 이 문서는 Alembic `20261123_0010` 기준으로 실제 구현된 테이블만 표시한다.
 향후 테이블은 마이그레이션이 추가될 때 함께 갱신한다.
 
 ```mermaid
@@ -91,6 +91,15 @@ erDiagram
         timestamptz deleted_at "nullable"
     }
 
+    USER_ASSIGNMENT {
+        bigint id PK
+        bigint user_id FK
+        bigint department_id FK "nullable"
+        bigint production_line_id FK "nullable"
+        bigint equipment_id FK "nullable"
+        timestamptz deleted_at "nullable"
+    }
+
     SOURCE_IMPORT {
         bigint id PK
         varchar source_name
@@ -158,6 +167,10 @@ erDiagram
     APP_USER ||--o{ WORK_EXTENSION : performs
     APP_USER ||--o{ ACCOUNT_AUDIT_EVENT : targets
     APP_USER ||--o{ ACCOUNT_AUDIT_EVENT : performs
+    APP_USER ||--o{ USER_ASSIGNMENT : assigned
+    DEPARTMENT o|--o{ USER_ASSIGNMENT : covers
+    PRODUCTION_LINE o|--o{ USER_ASSIGNMENT : covers
+    EQUIPMENT o|--o{ USER_ASSIGNMENT : covers
 ```
 
 모든 테이블에는 `created_at`, `updated_at`이 있으며 도식에서는 반복을 줄이기 위해 생략했다.
@@ -192,6 +205,9 @@ erDiagram
   화면·집계에서 ‘미분류’로 본다. 공정 기록과 연결할 키가 없으면 `process_record_id`는 null이다.
 - 이력 조회는 `process_record`·`inspection_record`를 `occurred_at`·`inspected_at` 기준으로 조회하며,
   `available_at` 조건 없이 저장된 기록을 조회한다. `available_at`은 미공개 행을 구분하는 값으로 표시한다.
+- `user_assignment`는 부서·라인·설비 중 정확히 하나를 대상으로 갖는다(CHECK). 활성 담당은 대상별 부분
+  UNIQUE 인덱스로 중복을 막고, 삭제는 soft delete로 처리한다. 담당 대상이 soft delete되면 담당 조회에서
+  제외하되 배정은 보존한다(DEC-130·DEC-207).
 
 ## 구현 위치
 
@@ -200,5 +216,5 @@ erDiagram
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
-  `20261123_0009_inspection_record.py`
+  `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

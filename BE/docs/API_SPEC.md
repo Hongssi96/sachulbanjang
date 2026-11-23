@@ -64,6 +64,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 인증·계정 관리 | 검증 완료 | 로그인·갱신·로그아웃·현재 사용자 조회·본인 비밀번호 변경·관리자 계정 생성·비밀번호 초기화, 관리자 사용자 목록·상세·수정·비활성화·재활성화·감사 이력 조회, Argon2id 검증, 5회 실패 잠금, 임시 비밀번호 24시간(설정값) 만료와 최초 변경 강제, HttpOnly 쿠키, 액세스 15분/리프레시 7일, 리프레시 회전·재사용 감지·동시 갱신 유예, CSRF 더블 서브밋, 최초 관리자 시드 CLI, FE 출처 CORS 구현. Ruff·mypy·pytest 160건 및 PostgreSQL 18 계정 생성·초기화·비활성화 통합 검증 | 2026-11-23 |
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션) 구현. 전체 pytest 및 PostgreSQL 18 replay·이력 조회 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
+| 마스터·담당 | 구현 완료 | 부서·라인·설비·제품 활성 목록 조회와 본인 담당 조회, 사용자 담당 테이블·조직/담당 초기 데이터 적재 명령 구현. pytest 192건 및 PostgreSQL 18 통합 검증. 담당 배정·변경 관리 화면은 추후 | 2026-11-23 |
 | 보고서·이력 | 미착수 | - | 2026-11-20 |
 | 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션) 구현. 품질 리포트·가동률 미착수. PostgreSQL 18 이력 조회 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
@@ -113,8 +114,11 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /users/{id}/audit-events | page, page_size | 관리자. 계정 조치 감사 이력 |
 | GET /work-session | 현재 종료 시각·서버 시각·세션 버전 | 현재 세션 |
 | POST /work-session/extensions | kind, expected_ends_at, ends_at? | 자동: 구간·중복 검사. 수동: 1시간 또는 지정 시각. 새 종료 시각 |
-| GET /assignments/me | 본인 기본 대상 | 부서·라인·설비 복수 배정 |
-| GET /departments, /production-lines, /equipment, /products | 등록 가능한 활성 대상 | 기존 조회 범위. 마스터 관리 CRUD는 추후 |
+| GET /assignments/me | 없음 | 본인. 부서·라인·설비 복수 배정을 id·코드·이름으로 반환 |
+| GET /departments | 없음 | 관리자·고용자. 활성 부서 전체 |
+| GET /production-lines | department_id? | 관리자·고용자. 활성 라인(부서 필터) |
+| GET /equipment | production_line_id? | 관리자·고용자. 활성 설비(라인 필터). 품목 선택 목록은 /products |
+| GET /products | q? | 관리자·고용자. 활성 제품(이름·코드 부분 검색) |
 | GET /process/current | 설비·품목과 최근 수치·시연·재생 상태 | 관리자·고용자 전체 |
 | GET /process-records, /inspection-records | 기간·설비·품목·판정 조건 | 페이지 목록 |
 | GET /process-records/{id}, /inspection-records/{id} | 개별 기록 | 일반 조회 권한 |
@@ -297,6 +301,24 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 검증: pytest 176건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 필터·페이지네이션·기간 경계
   (한국 시간→UTC 변환)·정렬·soft delete 제외·판정 필터·삭제 설비 이력 보존·미공개 행 포함·인덱스
   생성을 확인했다
+
+### 마스터·담당 현재 구현 범위 (2026-11-23)
+
+관리자와 고용자 모두 사용할 수 있는 선택 목록 API다. 활성 데이터(`deleted_at IS NULL`)만
+반환하며 페이지네이션 없이 전체 목록을 준다(DEC-207).
+
+- `GET /departments`: 활성 부서를 `code` 오름차순으로 반환한다. 각 항목은 `department_id`, `code`, `name`
+- `GET /production-lines`: 선택 `department_id`(1 이상)로 필터한다. `production_line_id`, `department_id`,
+  `code`, `name`을 반환하고 부서·코드 순으로 정렬한다
+- `GET /equipment`: 선택 `production_line_id`(1 이상)로 필터한다. `equipment_id`, `equipment_code`,
+  `name`, `production_line_id`(nullable)을 반환하고 설비 코드 순으로 정렬한다
+- `GET /products`: 선택 `q`로 이름·제품 코드를 부분 일치 검색한다(공백만이면 전체). `product_id`,
+  `product_code`(nullable), `name`을 반환하고 이름 순으로 정렬한다
+- `GET /assignments/me`: 로그인 사용자의 활성 담당을 `departments`, `production_lines`, `equipment`
+  세 배열로 반환한다. 담당 대상이 soft delete되면 그 항목은 제외하고 담당 배정은 삭제하지 않는다
+- 담당 배정·변경 관리 화면과 API는 추후 범위다(DEC-130). 초기 조직·담당 데이터는 `python -m app.commands.seed_master_data --file <JSON>`로 준비한다(README 참고)
+- 검증: pytest 192건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 활성 필터·필터·정렬·담당 그룹화·
+  soft delete 대상 제외·적재 명령 중복 방지·실패 롤백을 확인했다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
 
