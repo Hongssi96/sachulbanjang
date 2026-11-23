@@ -51,7 +51,6 @@ export default function TabletTasksPage() {
     <div className="tp-page">
       <div className="tp-title">
         <div>
-          <span>FIELD WORK</span>
           <h1 className="sr-only">작업 지시</h1>
         </div>
         <span className="tp-date">2026.11.17 · 주간조</span>
