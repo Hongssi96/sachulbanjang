@@ -91,4 +91,4 @@ def test_extension_requires_csrf_and_maps_concurrent_change() -> None:
 
     assert rejected.status_code == 403
     assert conflict.status_code == 409
-    assert conflict.json()["detail"]["code"] == "WORK_SESSION_CONFLICT"
+    assert conflict.json()["code"] == "WORK_SESSION_CONFLICT"

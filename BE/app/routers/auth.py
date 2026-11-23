@@ -12,6 +12,7 @@ from app.dependencies.auth import (
     get_current_user,
     require_csrf_token,
 )
+from app.errors import error_response
 from app.models.master import AppUser
 from app.schemas.auth import AuthenticatedUser, LoginRequest, PasswordChangeRequest
 from app.security.cookies import (
@@ -35,6 +36,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _refresh_error_response(
+    request: Request,
     settings: Settings,
     *,
     status_code: int,
@@ -43,16 +45,18 @@ def _refresh_error_response(
     clear_cookies: bool = True,
     retry_after: str | None = None,
 ) -> JSONResponse:
-    error_response = JSONResponse(
+    response = error_response(
+        request,
         status_code=status_code,
-        content={"detail": {"code": code, "message": message}},
+        code=code,
+        message=message,
     )
     if clear_cookies:
-        clear_auth_cookies(error_response, settings)
+        clear_auth_cookies(response, settings)
     if retry_after is not None:
-        error_response.headers["Retry-After"] = retry_after
-    error_response.headers["Cache-Control"] = "no-store"
-    return error_response
+        response.headers["Retry-After"] = retry_after
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.post("/login", response_model=AuthenticatedUser)
@@ -113,6 +117,7 @@ def refresh_tokens(
         result = service.refresh(refresh_token)
     except InvalidRefreshTokenError:
         return _refresh_error_response(
+            request,
             settings,
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="INVALID_REFRESH_TOKEN",
@@ -120,6 +125,7 @@ def refresh_tokens(
         )
     except SessionRevokedError:
         return _refresh_error_response(
+            request,
             settings,
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="SESSION_REVOKED",
@@ -127,6 +133,7 @@ def refresh_tokens(
         )
     except RefreshInProgressError:
         return _refresh_error_response(
+            request,
             settings,
             status_code=status.HTTP_409_CONFLICT,
             code="REFRESH_IN_PROGRESS",
