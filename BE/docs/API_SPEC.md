@@ -195,8 +195,8 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - 로그아웃: 해당 세션의 리프레시를 폐기하고 쿠키를 지운다. 이미 발급된 액세스 토큰은 남은 만료(최대 15분)까지 유효하다(DEC-054)
 - CSRF: 로그인 시 더블 서브밋 쿠키를 발급하고, `POST /auth/refresh`·`POST /auth/logout`·`PATCH /auth/password`는 `X-CSRF-Token` 헤더가 쿠키와 일치해야 한다. 불일치는 `CSRF_VALIDATION_FAILED`(403)
 - 비밀번호 변경: 현재 비밀번호를 다시 검증하고 새 Argon2id 해시로 교체한다. 임시 비밀번호 변경 필요 상태를 해제하고 사용자 version을 증가시킨다. 현재 비밀번호 불일치는 `CURRENT_PASSWORD_MISMATCH`, 같은 비밀번호 재사용은 `PASSWORD_UNCHANGED`(각 400)로 반환한다
-- 미구현: 관리자 비밀번호 초기화, 근무 종료 시각 응답, 공통 오류 응답 핸들러
-- 오류: 공통 오류 응답(`{code,message,request_id}`) 핸들러가 아직 없어 FastAPI 기본 `detail` 래퍼로 반환한다. `detail.code`는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_REVOKED`, `REFRESH_IN_PROGRESS`, `CSRF_VALIDATION_FAILED`, `CURRENT_PASSWORD_MISMATCH`, `PASSWORD_UNCHANGED`를 사용한다
+- 미구현: 관리자 비밀번호 초기화
+- 오류: 모든 HTTP·입력 검증·서버 오류는 최상위 `{code,message,request_id}` 형식으로 반환한다. 입력 오류만 안전한 필드별 `details`를 추가하며 예상하지 못한 서버 오류의 내부 정보는 노출하지 않는다. 주요 code는 `INVALID_CREDENTIALS`, `ACCOUNT_LOCKED`, `AUTHENTICATION_REQUIRED`, `INVALID_REFRESH_TOKEN`, `SESSION_REVOKED`, `REFRESH_IN_PROGRESS`, `CSRF_VALIDATION_FAILED`, `CURRENT_PASSWORD_MISMATCH`, `PASSWORD_UNCHANGED`다
 - 초기 계정: `python -m app.commands.seed_accounts --employee-no ... --display-name ... --role admin|worker`로 준비한다. 같은 사번이 있으면 덮어쓰지 않고 종료 코드 1로 알린다
 
 ### 근무 세션 현재 구현 범위 (2026-11-23)
@@ -213,7 +213,7 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - CORS: `APP_CORS_ORIGINS`에 나열한 출처만 허용하고 자격 증명을 허용한다. 개발 기본값은 `http://localhost:5173`, `http://localhost:5174`
 - 쿠키: `imleader_access_token`(Path `/`, 액세스 JWT), `imleader_refresh_token`(Path `/api/v1/auth`), `imleader_csrf_token`(Path `/`, JS가 읽는 CSRF 토큰)
 - 로그인·갱신 응답은 사용자 객체만 반환하고 토큰 원문을 JSON에 넣지 않는다. `Cache-Control: no-store`가 붙는다
-- 인증 실패는 `401` + `detail.code`: 잘못된 자격 증명 `INVALID_CREDENTIALS`, 잠금 `ACCOUNT_LOCKED`(`Retry-After`), 쿠키 없음·만료 `AUTHENTICATION_REQUIRED`
+- 인증 실패는 `401` + 최상위 `code`: 잘못된 자격 증명 `INVALID_CREDENTIALS`, 잠금 `ACCOUNT_LOCKED`(`Retry-After`), 쿠키 없음·만료 `AUTHENTICATION_REQUIRED`
 - 상태 변경 요청(`POST /auth/refresh`, `POST /auth/logout`)은 쿠키의 `imleader_csrf_token` 값을 `X-CSRF-Token` 헤더로 함께 보낸다. 헤더가 없거나 다르면 `CSRF_VALIDATION_FAILED`(403)
 - 액세스 만료 대응: 업무 API에서 `401 AUTHENTICATION_REQUIRED`를 받으면 `POST /auth/refresh`를 한 번 호출하고, 성공하면 원래 요청을 재시도한다. `INVALID_REFRESH_TOKEN`·`SESSION_REVOKED`면 로그인 화면으로 보낸다
 - 동시 갱신 처리: `409 REFRESH_IN_PROGRESS`는 로그아웃이 아니라 재시도 신호다. FE는 갱신 요청을 한 번에 하나만 보내고, 409를 받으면 `Retry-After`(1초) 후 현재 리프레시 쿠키로 다시 시도한다

@@ -95,7 +95,7 @@ def test_current_process_requires_authentication() -> None:
         response = client.get("/api/v1/process/current")
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_current_process_returns_contract_fields() -> None:

@@ -112,7 +112,7 @@ def test_login_failure_returns_contract_error_code() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["code"] == "INVALID_CREDENTIALS"
 
 
 def test_locked_login_returns_retry_after_header() -> None:
@@ -128,7 +128,7 @@ def test_locked_login_returns_retry_after_header() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "ACCOUNT_LOCKED"
+    assert response.json()["code"] == "ACCOUNT_LOCKED"
     assert int(response.headers["retry-after"]) >= 1
 
 
@@ -137,7 +137,7 @@ def test_me_requires_access_cookie() -> None:
         response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_me_rejects_invalid_access_cookie() -> None:
@@ -150,7 +150,7 @@ def test_me_rejects_invalid_access_cookie() -> None:
         response = client.get("/api/v1/auth/me")
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_me_returns_authenticated_user() -> None:
@@ -203,7 +203,7 @@ def test_refresh_requires_matching_csrf_header() -> None:
         rejected = client.post("/api/v1/auth/refresh")
 
         assert rejected.status_code == 403
-        assert rejected.json()["detail"]["code"] == "CSRF_VALIDATION_FAILED"
+        assert rejected.json()["code"] == "CSRF_VALIDATION_FAILED"
 
         accepted = client.post(
             "/api/v1/auth/refresh",
@@ -235,7 +235,7 @@ def test_refresh_without_refresh_cookie_requests_login() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_refresh_rejection_clears_auth_cookies() -> None:
@@ -253,7 +253,7 @@ def test_refresh_rejection_clears_auth_cookies() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == "SESSION_REVOKED"
+    assert response.json()["code"] == "SESSION_REVOKED"
     assert settings.refresh_cookie_name in response.headers["set-cookie"]
 
 
@@ -301,9 +301,9 @@ def test_change_password_requires_authentication_and_csrf() -> None:
         )
 
     assert unauthenticated.status_code == 403
-    assert unauthenticated.json()["detail"]["code"] == "CSRF_VALIDATION_FAILED"
+    assert unauthenticated.json()["code"] == "CSRF_VALIDATION_FAILED"
     assert missing_auth.status_code == 401
-    assert missing_auth.json()["detail"]["code"] == "AUTHENTICATION_REQUIRED"
+    assert missing_auth.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
 def test_change_password_returns_updated_user() -> None:
@@ -365,6 +365,6 @@ def test_change_password_maps_domain_errors() -> None:
         )
 
     assert mismatch.status_code == 400
-    assert mismatch.json()["detail"]["code"] == "CURRENT_PASSWORD_MISMATCH"
+    assert mismatch.json()["code"] == "CURRENT_PASSWORD_MISMATCH"
     assert unchanged.status_code == 400
-    assert unchanged.json()["detail"]["code"] == "PASSWORD_UNCHANGED"
+    assert unchanged.json()["code"] == "PASSWORD_UNCHANGED"

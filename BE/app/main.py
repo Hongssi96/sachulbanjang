@@ -3,13 +3,20 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import Engine
+from starlette.exceptions import HTTPException
 
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.migrations import assert_database_at_head
 from app.db.session import create_database_engine, create_session_factory
+from app.errors import (
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 from app.middleware import RequestContextMiddleware
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
@@ -35,6 +42,9 @@ def create_app(
         engine.dispose()
 
     application = FastAPI(title="imleader API", version="0.1.0", lifespan=lifespan)
+    application.add_exception_handler(HTTPException, http_exception_handler)
+    application.add_exception_handler(RequestValidationError, validation_exception_handler)
+    application.add_exception_handler(Exception, unhandled_exception_handler)
     application.state.session_factory = create_session_factory(engine)
     if app_settings.cors_origins:
         application.add_middleware(
