@@ -468,10 +468,13 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - 계획: AI는 JSON 하나(`{"tool": ..., "arguments": {...}}`)만 출력한다. 서버는 도구 이름·인자
   스키마·범위(기간 1~90일, 목록 1~20건)를 검증하고, 규칙에 맞지 않으면 1회 다시 요청한다.
   두 번째도 실패하면 `CHAT_PLAN_FAILED`다
-- 도구 7종: `quality_summary`(검사·양품·불량·불량률·불량 유형·생산 기록 건수),
+- 도구 8종: `quality_summary`(검사·양품·불량·불량률·불량 유형·생산 기록 건수),
   `inspection_records`(검사 목록), `process_records`(생산 목록), `report_search`(보고서 검색),
   `stock_status`(제품별 현재 재고·최소 재고·부족 여부), `stock_movements`(입출고·조정 이력),
-  `schedule_list`(기간과 겹치는 일정). 그 밖의 도구·SQL·임의 컬럼은 실행하지 않는다(DEC-220)
+  `schedule_list`(일정 목록), `operation_summary`(설비 가동 시간·가동률). 그 밖의 도구·SQL·임의
+  컬럼은 실행하지 않는다(DEC-220·DEC-223)
+- 일정 도구는 `window`로 조회 범위를 정한다: `upcoming`(오늘부터 앞으로, 기본), `recent`(오늘까지
+  과거), `around`(오늘 전후). `days`(1~90)는 한 방향 길이다(DEC-224)
 - 권한: 공정·검사·품질·재고·일정은 양 역할 전체, 보고서는 관리자 전체·고용자 본인으로 기존 조회
   권한을 그대로 적용한다(DEC-037·DEC-058). 대화는 본인만 조회한다(DEC-032)
 - 제품·설비 이름은 서버가 활성 마스터와 대조해 ID로 바꾼다. 찾지 못하거나 후보가 여러 개면
@@ -500,7 +503,7 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - 취소: 작업이 `writing` 전에 `cancelled`가 되면 늦게 도착한 답변·근거를 저장하지 않는다(DEC-125)
 - 작업 큐: 보고서 worker는 `kind=report`, 채팅 worker는 `kind=chat`만 선점한다. 임차 만료 정리는
   `python -m app.commands.reap_report_jobs`·`reap_chat_jobs`가 각각 담당한다
-- 검증: pytest 386건(Ruff·mypy 포함)으로 계획 검증·1회 재시도·도구 인자 범위·이름 해석 실패·
+- 검증: pytest 407건(Ruff·mypy 포함)으로 계획 검증·1회 재시도·도구 인자 범위·이름 해석 실패·
   보고서 권한 전달·답변/근거 저장·취소 시 폐기·재시도 허용/거부·kind별 선점·권한 상실 가림·
   삭제 근거 표시·가려진 답변 검색 제외·권한 있는 과거 답변만 맥락 전달·재고/입출고/일정 도구 결과를
   확인했다. 일회용 PostgreSQL 18 DB에서 로컬 `.env`의 OpenAI 호환 제공자(`gpt-6.2-sol`)로 계획·답변을
@@ -544,7 +547,7 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
   `operation_rate`(실제 ÷ 계획 × 100, 계획 합계 0이면 `null`), `includes_demo`다. 양 역할 모두 조회한다
 - AI 도구 `operation_summary`: 기간 1~90일과 선택 설비로 같은 집계를 답한다. 근거 행은 만들지 않고
   `query_scope`에 기간·대상을 보존하며 시연 여부를 전달한다
-- 검증: pytest 405건(Ruff·mypy 포함), 일회용 PostgreSQL 18 DB에서 `20261124_0020` 적용, 시연 적재
+- 검증: pytest 407건(Ruff·mypy 포함), 일회용 PostgreSQL 18 DB에서 `20261124_0020` 적용, 시연 적재
   (설비·14일), 설비/기간 필터 합산, 계획 0 null, 시연 표시를 확인했다
 - 실제 가동률 데이터 연동은 범위에서 제외한다(DEC-163)
 

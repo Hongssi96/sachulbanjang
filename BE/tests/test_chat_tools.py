@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import cast
 from unittest.mock import MagicMock
@@ -423,12 +423,44 @@ def test_schedule_list_returns_schedules() -> None:
     assert schedule_items[0]["title"] == "설비 점검"
     assert schedule_items[0]["start_date"] == "2026-11-24"
     assert result.evidence == []
+    assert result.scope["window"] == "upcoming"
     mocks["schedules"].list_schedules.assert_called_once_with(
-        date_from=FROM,
-        date_to=TODAY,
+        date_from=TODAY,
+        date_to=TODAY + timedelta(days=6),
         page=1,
         page_size=5,
     )
+
+
+def test_schedule_list_recent_and_around_windows() -> None:
+    executor, mocks = build_executor()
+    page = MagicMock()
+    page.schedules = []
+    page.total_items = 0
+    mocks["schedules"].list_schedules.return_value = page
+
+    executor.execute(
+        ChatQueryPlan(tool="schedule_list", arguments={"days": 3, "window": "recent"}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+    recent_kwargs = mocks["schedules"].list_schedules.call_args.kwargs
+    assert recent_kwargs["date_from"] == TODAY - timedelta(days=2)
+    assert recent_kwargs["date_to"] == TODAY
+
+    executor.execute(
+        ChatQueryPlan(tool="schedule_list", arguments={"days": 3, "window": "around"}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+    around_kwargs = mocks["schedules"].list_schedules.call_args.kwargs
+    assert around_kwargs["date_from"] == TODAY - timedelta(days=2)
+    assert around_kwargs["date_to"] == TODAY + timedelta(days=2)
+
+
+def test_parse_query_plan_rejects_unknown_schedule_window() -> None:
+    with pytest.raises(ChatPlanError):
+        parse_query_plan('{"tool": "schedule_list", "arguments": {"window": "next"}}')
 
 
 def test_operation_summary_returns_hours_and_rate() -> None:
