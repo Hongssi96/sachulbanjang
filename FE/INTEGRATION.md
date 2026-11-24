@@ -40,7 +40,7 @@ pnpm dev:tablet
 | 로그인·프로필         | `/auth/login`, `/auth/me`, `/auth/refresh`, `/auth/logout`, `/auth/password`                        |
 | 근무 시간             | `/work-session`, `/work-session/extensions`; 서버 시간 기준 남은 시간과 연장                        |
 | 홈                    | 품질 요약·설비 수·최근 보고·인수인계 조회                                                           |
-| 인수인계              | `/handover-notes`; 목록·상세·작성·본인 수정·확인·권한에 따른 삭제                                   |
+| 인수인계              | `/handover-notes`; 태블릿 전용 화면에서 목록·상세·작성·본인 수정·확인·권한에 따른 삭제              |
 | 실시간 공정·설비      | `/equipment`, `/process/current`; 30초 갱신                                                         |
 | 생산·검사 이력        | `/process-records`, `/inspection-records`; 필터·페이지·상세·관리자 정정                             |
 | 재고                  | `/stocks`, `/stock-movements`, `/products/{id}/minimum-stock`; 목록·원장·입출고·조정·안전 재고 변경 |
@@ -48,13 +48,16 @@ pnpm dev:tablet
 | 올라온 보고·이상 보고 | `/reports`; 수동 작성·목록·상세·수정·삭제·관리자 처리 상태 변경                                     |
 | 일정·태블릿 작업 지시 | `/schedules`; 일정 목록·상세·등록·수정·삭제                                                         |
 | 계정 발급             | `/users`; 관리자 목록·사번 계정 생성                                                                |
+| 현장 파트너 대화      | `/conversations`; 계정별 대화 목록·검색·상세·삭제, 질문 접수·상태 확인·실패 재시도·최신 자료 갱신, 답변 근거 표시 |
 
 기존 예시 화면 파일은 참고용으로 남겨두었으며 실행 경로는 `src/pages/Connected/LiveRoutes.tsx`입니다.
 데스크톱은 기존 사이드바, 태블릿은 별도 메뉴를 사용합니다. 업무 본문은 API가 제공하는 항목을 기준으로 재구성했습니다.
 
 ## 제공되지 않는 기능
 
-- 채팅과 자동 보고서 생성은 요청에 따라 호출하지 않습니다.
+- 현장 파트너 채팅은 데스크톱·태블릿에서 최신 BE 대화 API를 사용합니다.
+- 실제 AI 답변에는 대화 API가 포함된 최신 BE 코드, DB 마이그레이션, 별도 `python -m app.commands.run_chat_worker` 실행이 필요합니다. 서버 환경에 `APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`이 설정되어야 합니다. Worker가 실행되지 않으면 질문은 접수되지만 계속 대기 상태로 표시됩니다.
+- 자동 보고서 생성은 연결하지 않았습니다.
 - 작업 지시의 시작·완료 저장 API는 없어 **일정**으로 연결했습니다. 작업 완료를 저장한 것처럼 표시하지 않습니다.
 - 실시간 온도·압력·가동 상태·목표 생산량 API가 없으므로 임의 수치를 표시하지 않습니다.
 - 정밀 검사는 저장된 검사 기록 확인으로 연결되며 사진 분석이나 새 측정값 생성은 하지 않습니다.

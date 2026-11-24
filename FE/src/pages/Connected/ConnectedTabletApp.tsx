@@ -1,5 +1,5 @@
 import { Navigate, NavLink, useLocation } from 'react-router';
-import { ClipboardList, Factory, House, TriangleAlert } from 'lucide-react';
+import { ClipboardList, Factory, House, NotebookPen, Sparkles, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingState from '../../components/LoadingState';
 import TabletAccountDialog from '../TabletHomePage/TabletAccountDialog';
@@ -41,6 +41,7 @@ export default function ConnectedTabletApp() {
     '/quality-reports': '품질 리포트',
     '/records': '생산·검사 이력',
     '/handover': '인수인계',
+    '/chat': '든든한 현장 파트너',
   };
   return (
     <div className="tablet-home">
@@ -66,11 +67,22 @@ export default function ConnectedTabletApp() {
             <TriangleAlert size={19} />
             이상 보고
           </NavLink>
+          <NavLink to="/handover">
+            <NotebookPen size={19} />
+            인수인계
+          </NavLink>
         </nav>
-        <div className="th-side-help">
-          <strong>든든한 현장 파트너</strong>
-          <p>서버에 저장된 현장 정보를 확인하세요.</p>
-        </div>
+        <NavLink className="th-side-help th-side-help-button" to="/chat">
+          <Sparkles size={18} />
+          <span>
+            <strong>
+              든든한 현장
+              <br />
+              파트너
+            </strong>
+            <small>현장 도움 바로가기</small>
+          </span>
+        </NavLink>
       </aside>
       <div className="th-workspace">
         <LiveHeader title={names[location.pathname] ?? '현장 정보'} tablet />

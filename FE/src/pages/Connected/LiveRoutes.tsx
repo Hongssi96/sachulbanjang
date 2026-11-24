@@ -6,11 +6,13 @@ import LiveCollection from './LiveCollection';
 import LiveRecords from './LiveRecords';
 import LiveInventory from './LiveInventory';
 import LiveUsers from './LiveUsers';
+import LiveChat from './LiveChat';
+import LiveHandover from './LiveHandover';
 
 export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
   return (
     <Routes>
-      <Route path="/" element={<LiveDashboard />} />
+      <Route path="/" element={<LiveDashboard tablet={tablet} />} />
       <Route path="/realtime" element={<LiveEquipment />} />
       <Route path="/equipment" element={<LiveEquipment />} />
       <Route path="/schedule" element={<LiveCollection kind="schedules" />} />
@@ -29,16 +31,11 @@ export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
         path="/reports/:reportId"
         element={<LiveCollection kind="reports" tablet={tablet} />}
       />
-      <Route path="/handover" element={<LiveCollection kind="handover-notes" />} />
       <Route
-        path="/chat"
-        element={
-          <div className="live-page">
-            <h1>대화·검색</h1>
-            <p>채팅 기능은 이번 백엔드 연결 범위에서 제외되었습니다.</p>
-          </div>
-        }
+        path="/handover"
+        element={tablet ? <LiveHandover /> : <LiveCollection kind="handover-notes" />}
       />
+      <Route path="/chat" element={<LiveChat />} />
       <Route
         path="*"
         element={
