@@ -1,276 +1,89 @@
+import { fetchStocks } from '../../api/inventory';
+import type { MovementKind, StockItem } from '../../api/inventory';
 import { formatDateTime } from '../../utils/dateFormat';
-export type ProductGroup = 'CN7' | 'RG3' | 'JX1' | 'SP2';
-export type StockStatus = '정상' | '부족' | '품절';
-export interface StockItem {
-  id: string;
-  name: string;
-  product: ProductGroup;
+
+export type { MovementItem, MovementKind, StockItem } from '../../api/inventory';
+
+/** API가 값을 제공하지 않는 항목의 표시값. */
+export const NOT_AVAILABLE = '—';
+
+export type StockStatus = '정상' | '부족';
+export type MovementFilter = 'all' | 'in' | 'out';
+
+/** 서버의 is_low_stock은 안전재고 미달 여부만 알려준다(품절 구분 없음). */
+export function stockStatus(isLowStock: boolean): StockStatus {
+  return isLowStock ? '부족' : '정상';
+}
+
+export interface InventorySummary {
   stock: number;
-  reserved: number;
-  safety: number;
-  warehouse: string;
-  bin: string;
+  low: number;
+  count: number;
 }
-export interface StockMovement {
-  id: string;
-  itemId: string;
-  kind: 'in' | 'out';
-  quantity: number;
-  date: string;
-  note: string;
-  author: string;
-}
-export interface InventoryState {
-  items: StockItem[];
-  movements: StockMovement[];
-  updatedAt: string;
-}
-export const initialItems: StockItem[] = [
-  {
-    id: 'FG-CN7-LH',
-    name: 'CN7 LH',
-    product: 'CN7',
-    stock: 2480,
-    reserved: 600,
-    safety: 1200,
-    warehouse: 'A창고',
-    bin: 'A-01',
-  },
-  {
-    id: 'FG-CN7-RH',
-    name: 'CN7 RH',
-    product: 'CN7',
-    stock: 2320,
-    reserved: 500,
-    safety: 1200,
-    warehouse: 'A창고',
-    bin: 'A-02',
-  },
-  {
-    id: 'FG-RG3-LH',
-    name: 'RG3 LH',
-    product: 'RG3',
-    stock: 420,
-    reserved: 180,
-    safety: 600,
-    warehouse: 'B창고',
-    bin: 'B-01',
-  },
-  {
-    id: 'FG-RG3-RH',
-    name: 'RG3 RH',
-    product: 'RG3',
-    stock: 180,
-    reserved: 120,
-    safety: 500,
-    warehouse: 'B창고',
-    bin: 'B-02',
-  },
-  {
-    id: 'FG-JX1-LH',
-    name: 'JX1 LH',
-    product: 'JX1',
-    stock: 1860,
-    reserved: 400,
-    safety: 900,
-    warehouse: 'A창고',
-    bin: 'A-03',
-  },
-  {
-    id: 'FG-JX1-RH',
-    name: 'JX1 RH',
-    product: 'JX1',
-    stock: 1580,
-    reserved: 350,
-    safety: 900,
-    warehouse: 'A창고',
-    bin: 'A-04',
-  },
-  {
-    id: 'FG-SP2-LH',
-    name: 'SP2 LH',
-    product: 'SP2',
-    stock: 2280,
-    reserved: 800,
-    safety: 1000,
-    warehouse: 'C창고',
-    bin: 'C-01',
-  },
-  {
-    id: 'FG-SP2-RH',
-    name: 'SP2 RH',
-    product: 'SP2',
-    stock: 1360,
-    reserved: 500,
-    safety: 800,
-    warehouse: 'C창고',
-    bin: 'C-02',
-  },
-];
-export const initialInventory: InventoryState = {
-  items: initialItems,
-  updatedAt: '2026-11-17T16:42:00+09:00',
-  movements: [
-    {
-      id: 'M-005',
-      itemId: 'FG-CN7-LH',
-      kind: 'in',
-      quantity: 480,
-      date: '2026-11-17T16:35:00+09:00',
-      note: '오후 생산분 검사 완료',
-      author: '홍태휘',
-    },
-    {
-      id: 'M-004',
-      itemId: 'FG-CN7-RH',
-      kind: 'out',
-      quantity: 240,
-      date: '2026-11-17T15:20:00+09:00',
-      note: '납품 출고',
-      author: '김가을',
-    },
-    {
-      id: 'M-003',
-      itemId: 'FG-RG3-RH',
-      kind: 'out',
-      quantity: 120,
-      date: '2026-11-17T14:10:00+09:00',
-      note: '긴급 출고',
-      author: '황지혜',
-    },
-    {
-      id: 'M-002',
-      itemId: 'FG-JX1-LH',
-      kind: 'in',
-      quantity: 360,
-      date: '2026-11-17T11:40:00+09:00',
-      note: '오전 생산분 검사 완료',
-      author: '홍태휘',
-    },
-    {
-      id: 'M-001',
-      itemId: 'FG-SP2-RH',
-      kind: 'out',
-      quantity: 200,
-      date: '2026-11-17T09:30:00+09:00',
-      note: '정기 납품 출고',
-      author: '김가을',
-    },
-  ],
-};
-export const productGroups: ProductGroup[] = ['CN7', 'RG3', 'JX1', 'SP2'];
-export const availableStock = (item: StockItem) => item.stock - item.reserved;
-export function stockStatus(item: StockItem): StockStatus {
-  const available = availableStock(item);
-  return available === 0 ? '품절' : available < item.safety ? '부족' : '정상';
-}
-export function inventorySummary(items: StockItem[]) {
+
+export function inventorySummary(items: StockItem[]): InventorySummary {
   return items.reduce(
     (total, item) => ({
-      stock: total.stock + item.stock,
-      reserved: total.reserved + item.reserved,
-      available: total.available + availableStock(item),
-      low: total.low + Number(stockStatus(item) !== '정상'),
+      stock: total.stock + item.quantity,
+      low: total.low + Number(item.is_low_stock),
+      count: total.count + 1,
     }),
-    { stock: 0, reserved: 0, available: 0, low: 0 },
+    { stock: 0, low: 0, count: 0 },
   );
 }
-export function movementError(
-  item: StockItem | undefined,
-  kind: 'in' | 'out',
-  quantity: number,
-): string {
-  if (!item) return '품목을 선택해 주세요.';
-  if (!Number.isSafeInteger(quantity) || quantity <= 0 || quantity > 999999)
-    return '수량은 1~999,999 사이의 정수로 입력해 주세요.';
-  if (kind === 'out' && quantity > availableStock(item))
-    return `출고 가능한 수량은 ${availableStock(item).toLocaleString()}개입니다. 출고 예약 수량은 제외됩니다.`;
-  if (kind === 'in' && item.stock + quantity > 9999999)
-    return '현재고는 최대 9,999,999개까지 등록할 수 있습니다.';
-  return '';
+
+export function formatStockNumber(value: number | null | undefined): string {
+  return value === null || value === undefined ? NOT_AVAILABLE : value.toLocaleString();
 }
-export function applyMovement(state: InventoryState, movement: StockMovement): InventoryState {
-  const item = state.items.find((value) => value.id === movement.itemId);
-  const error = movementError(item, movement.kind, movement.quantity);
-  if (error) throw new Error(error);
-  return {
-    items: state.items.map((value) =>
-      value.id === movement.itemId
-        ? {
-            ...value,
-            stock: value.stock + (movement.kind === 'in' ? movement.quantity : -movement.quantity),
-          }
-        : value,
-    ),
-    movements: [movement, ...state.movements].slice(0, 50),
-    updatedAt: movement.date,
-  };
+
+export function formatMinimumStock(value: number | null): string {
+  return value === null ? '미설정' : value.toLocaleString();
 }
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+
+export const MOVEMENT_KIND_LABELS: Record<MovementKind, string> = {
+  initial: '초기',
+  receipt: '입고',
+  issue: '출고',
+  adjustment: '조정',
+  correction: '정정',
+};
+
+export function movementKindLabel(kind: MovementKind): string {
+  return MOVEMENT_KIND_LABELS[kind];
 }
-function quantity(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 9999999;
+
+/** 화면의 전체·입고·출고 탭을 서버 유형 필터로 옮긴다. */
+export function movementFilterKind(filter: MovementFilter): MovementKind | undefined {
+  if (filter === 'in') return 'receipt';
+  if (filter === 'out') return 'issue';
+  return undefined;
 }
-function validItem(value: unknown): value is StockItem {
-  if (!record(value)) return false;
-  const base = initialItems.find((item) => item.id === value.id);
-  return (
-    !!base &&
-    value.name === base.name &&
-    value.product === base.product &&
-    value.warehouse === base.warehouse &&
-    value.bin === base.bin &&
-    quantity(value.stock) &&
-    quantity(value.reserved) &&
-    value.reserved <= value.stock &&
-    quantity(value.safety)
-  );
+
+export function movementTone(delta: number): 'in' | 'out' {
+  return delta >= 0 ? 'in' : 'out';
 }
-function validMovement(value: unknown): value is StockMovement {
-  return (
-    record(value) &&
-    typeof value.id === 'string' &&
-    initialItems.some((item) => item.id === value.itemId) &&
-    (value.kind === 'in' || value.kind === 'out') &&
-    quantity(value.quantity) &&
-    value.quantity > 0 &&
-    typeof value.date === 'string' &&
-    Number.isFinite(Date.parse(value.date)) &&
-    typeof value.note === 'string' &&
-    typeof value.author === 'string'
-  );
+
+export function movementSymbol(delta: number): '+' | '−' {
+  return delta >= 0 ? '+' : '−';
 }
-export function isInventoryState(value: unknown): value is InventoryState {
-  return (
-    record(value) &&
-    Array.isArray(value.items) &&
-    value.items.length === initialItems.length &&
-    value.items.every(validItem) &&
-    new Set(value.items.map((item: StockItem) => item.id)).size === initialItems.length &&
-    Array.isArray(value.movements) &&
-    value.movements.length <= 50 &&
-    value.movements.every(validMovement) &&
-    typeof value.updatedAt === 'string' &&
-    Number.isFinite(Date.parse(value.updatedAt))
-  );
+
+export function movementAmount(delta: number): string {
+  return Math.abs(delta).toLocaleString();
 }
-const STORAGE_KEY = 'sachul-inventory-v1';
-export function loadInventory(): InventoryState {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-    if (isInventoryState(value)) return value;
-  } catch {
-    /* 저장소를 사용할 수 없으면 시연용 초기값으로 시작한다. */
+
+/**
+ * KPI 합계는 페이지와 무관하게 전체 품목이 필요하므로,
+ * 서버 페이지네이션을 끝까지 읽어 목록을 만든다.
+ */
+export async function fetchAllStocks(): Promise<StockItem[]> {
+  const pageSize = 100;
+  const first = await fetchStocks({ page: 1, pageSize });
+  const items = [...first.items];
+  for (let page = 2; page <= first.pagination.total_pages; page += 1) {
+    const next = await fetchStocks({ page, pageSize });
+    items.push(...next.items);
   }
-  return initialInventory;
+  return items;
 }
-export function persistInventory(state: InventoryState): boolean {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    return true;
-  } catch {
-    return false;
-  }
-}
+
 export const formatStockDate = formatDateTime;

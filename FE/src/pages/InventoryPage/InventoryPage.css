@@ -1437,3 +1437,60 @@
 .inventory-page .inv-stock-alert {
   margin-bottom: 16px;
 }
+
+/* API 연동 후 추가: 값이 없는 필터·정렬 안내, 서버 페이지 이동, 원장 확인·정정 버튼 */
+.inv-api-note {
+  margin: 0 24px 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--soft);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 20px;
+}
+.inv-pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.inv-pager button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+.inv-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.inv-movement-row > .inv-movement-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.inv-movement-actions .text-link {
+  font-size: var(--fs-xs);
+}
+.inv-movement-actions .text-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.inv-movement-row small,
+.inv-detail-history small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inv-detail-history > div > span:nth-child(2) {
+  min-width: 0;
+}

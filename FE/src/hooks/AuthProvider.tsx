@@ -63,6 +63,16 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    // 공통 API 계층이 세션 갱신에 실패하면 로그인 화면으로 돌린다.
+    const handleExpired = () => {
+      setUser(null);
+      setStatus('unauthenticated');
+    };
+    window.addEventListener('imleader:session-expired', handleExpired);
+    return () => window.removeEventListener('imleader:session-expired', handleExpired);
+  }, []);
+
   const login = useCallback(async (employeeNo: string, password: string) => {
     const authenticatedUser = await loginRequest(employeeNo, password);
     setUser(authenticatedUser);

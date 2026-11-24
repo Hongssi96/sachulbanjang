@@ -1,9 +1,38 @@
-import { ApiError, apiRequest } from './client';
+import { apiRequest } from './client';
+import {
+  asArray,
+  asBoolean,
+  asEnum,
+  asNullableNumber,
+  asNullableString,
+  asNumber,
+  asRecord,
+  asString,
+  parsePagination,
+  toQuery,
+} from './json';
+import type { ListResponse } from './types';
+import type { JobState } from './reportJobs';
 
-export type ChatJobState =
-  'accepted' | 'querying' | 'writing' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled';
+export type AnswerStatus = 'available' | 'hidden_permission' | 'available_with_deleted_evidence';
 
-export interface ChatEvidence {
+export const ANSWER_STATUSES: readonly AnswerStatus[] = [
+  'available',
+  'hidden_permission',
+  'available_with_deleted_evidence',
+];
+
+export interface ChatTurnJob {
+  job_id: number;
+  state: JobState;
+  accepted_at: string;
+  data_cutoff_at: string | null;
+  finished_at: string | null;
+  error_code: string | null;
+  safe_error_message: string | null;
+}
+
+export interface AnswerEvidence {
   report_id: number | null;
   process_record_id: number | null;
   inspection_record_id: number | null;
@@ -12,29 +41,20 @@ export interface ChatEvidence {
   source_time: string | null;
 }
 
-export interface ChatTurnJob {
-  job_id: number;
-  state: ChatJobState;
-  accepted_at: string;
-  data_cutoff_at: string | null;
-  finished_at: string | null;
-  error_code: string | null;
-  safe_error_message: string | null;
-}
-
 export interface ChatTurn {
   turn_id: number;
   question: string;
   answer: string | null;
+  answer_status: AnswerStatus;
   answered_at: string | null;
   created_at: string;
   data_cutoff_at: string | null;
   is_demo: boolean | null;
   job: ChatTurnJob | null;
-  evidence: ChatEvidence[];
+  evidence: AnswerEvidence[];
 }
 
-export interface ConversationSummary {
+export interface ConversationListItem {
   conversation_id: number;
   title: string;
   turn_count: number;
@@ -42,217 +62,207 @@ export interface ConversationSummary {
   updated_at: string;
 }
 
-export interface ConversationDetail extends ConversationSummary {
+export interface ConversationDetail extends ConversationListItem {
   turns: ChatTurn[];
 }
 
-export interface ConversationList {
-  items: ConversationSummary[];
-  pagination: { page: number; page_size: number; total_items: number; total_pages: number };
+export interface ConversationListParams {
+  q?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export interface AcceptedChatTurn {
+export interface ChatTurnAccepted {
   conversation_id: number;
   turn_id: number;
   job_id: number;
-  state: ChatJobState;
+  state: JobState;
   accepted_at: string;
   data_cutoff_at: string | null;
 }
 
-const jobStates: ChatJobState[] = [
-  'accepted',
-  'querying',
-  'writing',
-  'succeeded',
-  'failed',
-  'interrupted',
-  'cancelled',
-];
-
-function invalid(): never {
-  throw new ApiError('대화 서버 응답 형식이 올바르지 않습니다.', {
-    status: 500,
-    code: 'INVALID_RESPONSE',
-  });
-}
-
-function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) invalid();
-  return value as Record<string, unknown>;
-}
-
-function string(value: unknown): string {
-  if (typeof value !== 'string') invalid();
-  return value;
-}
-
-function integer(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value)) invalid();
-  return value;
-}
-
-function nullableString(value: unknown): string | null {
-  return value === null || value === undefined ? null : string(value);
-}
-
-function nullableInteger(value: unknown): number | null {
-  return value === null || value === undefined ? null : integer(value);
-}
-
-function nullableBoolean(value: unknown): boolean | null {
+function parseJob(value: unknown, field: string): ChatTurnJob | null {
   if (value === null || value === undefined) return null;
-  if (typeof value !== 'boolean') invalid();
-  return value;
-}
-
-function state(value: unknown): ChatJobState {
-  const result = string(value);
-  if (!jobStates.includes(result as ChatJobState)) invalid();
-  return result as ChatJobState;
-}
-
-function array<T>(value: unknown, parse: (item: unknown) => T): T[] {
-  if (!Array.isArray(value)) invalid();
-  return value.map(parse);
-}
-
-function parseEvidence(value: unknown): ChatEvidence {
-  const data = record(value);
+  const item = asRecord(value, field);
   return {
-    report_id: nullableInteger(data.report_id),
-    process_record_id: nullableInteger(data.process_record_id),
-    inspection_record_id: nullableInteger(data.inspection_record_id),
-    product_id: nullableInteger(data.product_id),
-    source_version: nullableInteger(data.source_version),
-    source_time: nullableString(data.source_time),
+    job_id: asNumber(item.job_id, `${field}.job_id`),
+    state: asEnum(item.state, `${field}.state`, [
+      'accepted',
+      'querying',
+      'writing',
+      'succeeded',
+      'failed',
+      'interrupted',
+      'cancelled',
+    ] as const),
+    accepted_at: asString(item.accepted_at, `${field}.accepted_at`),
+    data_cutoff_at: asNullableString(item.data_cutoff_at, `${field}.data_cutoff_at`),
+    finished_at: asNullableString(item.finished_at, `${field}.finished_at`),
+    error_code: asNullableString(item.error_code, `${field}.error_code`),
+    safe_error_message: asNullableString(item.safe_error_message, `${field}.safe_error_message`),
   };
 }
 
-function parseJob(value: unknown): ChatTurnJob | null {
-  if (value === null || value === undefined) return null;
-  const data = record(value);
+function parseEvidence(value: unknown, field: string): AnswerEvidence {
+  const item = asRecord(value, field);
   return {
-    job_id: integer(data.job_id),
-    state: state(data.state),
-    accepted_at: string(data.accepted_at),
-    data_cutoff_at: nullableString(data.data_cutoff_at),
-    finished_at: nullableString(data.finished_at),
-    error_code: nullableString(data.error_code),
-    safe_error_message: nullableString(data.safe_error_message),
+    report_id: asNullableNumber(item.report_id, `${field}.report_id`),
+    process_record_id: asNullableNumber(item.process_record_id, `${field}.process_record_id`),
+    inspection_record_id: asNullableNumber(
+      item.inspection_record_id,
+      `${field}.inspection_record_id`,
+    ),
+    product_id: asNullableNumber(item.product_id, `${field}.product_id`),
+    source_version: asNullableNumber(item.source_version, `${field}.source_version`),
+    source_time: asNullableString(item.source_time, `${field}.source_time`),
   };
 }
 
-function parseTurn(value: unknown): ChatTurn {
-  const data = record(value);
+function parseTurn(value: unknown, field: string): ChatTurn {
+  const item = asRecord(value, field);
   return {
-    turn_id: integer(data.turn_id),
-    question: string(data.question),
-    answer: nullableString(data.answer),
-    answered_at: nullableString(data.answered_at),
-    created_at: string(data.created_at),
-    data_cutoff_at: nullableString(data.data_cutoff_at),
-    is_demo: nullableBoolean(data.is_demo),
-    job: parseJob(data.job),
-    evidence: array(data.evidence, parseEvidence),
+    turn_id: asNumber(item.turn_id, `${field}.turn_id`),
+    question: asString(item.question, `${field}.question`),
+    answer: asNullableString(item.answer, `${field}.answer`),
+    answer_status: asEnum(item.answer_status, `${field}.answer_status`, ANSWER_STATUSES),
+    answered_at: asNullableString(item.answered_at, `${field}.answered_at`),
+    created_at: asString(item.created_at, `${field}.created_at`),
+    data_cutoff_at: asNullableString(item.data_cutoff_at, `${field}.data_cutoff_at`),
+    is_demo:
+      item.is_demo === null || item.is_demo === undefined
+        ? null
+        : asBoolean(item.is_demo, `${field}.is_demo`),
+    job: parseJob(item.job, `${field}.job`),
+    evidence: asArray(item.evidence, `${field}.evidence`).map((entry, index) =>
+      parseEvidence(entry, `${field}.evidence[${index}]`),
+    ),
   };
 }
 
-function parseSummary(value: unknown): ConversationSummary {
-  const data = record(value);
+function parseListItem(value: unknown, field: string): ConversationListItem {
+  const item = asRecord(value, field);
   return {
-    conversation_id: integer(data.conversation_id),
-    title: string(data.title),
-    turn_count: integer(data.turn_count),
-    created_at: string(data.created_at),
-    updated_at: string(data.updated_at),
+    conversation_id: asNumber(item.conversation_id, `${field}.conversation_id`),
+    title: asString(item.title, `${field}.title`),
+    turn_count: asNumber(item.turn_count, `${field}.turn_count`),
+    created_at: asString(item.created_at, `${field}.created_at`),
+    updated_at: asString(item.updated_at, `${field}.updated_at`),
   };
 }
 
-function parseDetail(value: unknown): ConversationDetail {
-  const data = record(value);
-  return { ...parseSummary(data), turns: array(data.turns, parseTurn) };
-}
-
-function parseList(value: unknown): ConversationList {
-  const data = record(value);
-  const pagination = record(data.pagination);
-  return {
-    items: array(data.items, parseSummary),
-    pagination: {
-      page: integer(pagination.page),
-      page_size: integer(pagination.page_size),
-      total_items: integer(pagination.total_items),
-      total_pages: integer(pagination.total_pages),
-    },
-  };
-}
-
-function parseAccepted(value: unknown): AcceptedChatTurn {
-  const data = record(value);
-  return {
-    conversation_id: integer(data.conversation_id),
-    turn_id: integer(data.turn_id),
-    job_id: integer(data.job_id),
-    state: state(data.state),
-    accepted_at: string(data.accepted_at),
-    data_cutoff_at: nullableString(data.data_cutoff_at),
-  };
-}
-
-function requestKey() {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-export async function listConversations(search: string) {
-  const params = new URLSearchParams({ page: '1', page_size: '100' });
-  const query = search.trim().slice(0, 100);
-  if (query) params.set('q', query);
-  const payload = await apiRequest<unknown>(`/conversations?${params.toString()}`);
-  return parseList(payload);
-}
-
-export async function getConversation(id: number) {
-  const payload = await apiRequest<unknown>(`/conversations/${id}`);
-  return parseDetail(payload);
-}
-
-export async function createConversation(title: string) {
-  const payload = await apiRequest<unknown>('/conversations', {
-    method: 'POST',
-    body: { title: title.trim().slice(0, 200) || '새 대화' },
-    csrf: true,
-  });
-  return parseDetail(payload);
-}
-
-export async function submitChatTurn(conversationId: number, question: string) {
-  const payload = await apiRequest<unknown>(`/conversations/${conversationId}/turns`, {
-    method: 'POST',
-    body: { question, client_request_key: requestKey() },
-    csrf: true,
-  });
-  return parseAccepted(payload);
-}
-
-export async function retryChatTurn(conversationId: number, turnId: number) {
+export async function fetchConversations(
+  params: ConversationListParams = {},
+): Promise<ListResponse<ConversationListItem>> {
   const payload = await apiRequest<unknown>(
-    `/conversations/${conversationId}/turns/${turnId}/retry`,
-    { method: 'POST', body: { client_request_key: requestKey() }, csrf: true },
+    `/conversations${toQuery({
+      q: params.q,
+      from: params.from,
+      to: params.to,
+      page: params.page,
+      page_size: params.pageSize,
+    })}`,
   );
-  return parseAccepted(payload);
+  return {
+    items: asArray(asRecord(payload, 'response').items, 'items').map((item, index) =>
+      parseListItem(item, `items[${index}]`),
+    ),
+    pagination: parsePagination(payload, 'response'),
+  };
 }
 
-export async function refreshChatTurn(conversationId: number, turnId: number) {
-  const payload = await apiRequest<unknown>(
-    `/conversations/${conversationId}/turns/${turnId}/refresh`,
-    { method: 'POST', body: { client_request_key: requestKey() }, csrf: true },
+export async function fetchConversation(conversationId: number): Promise<ConversationDetail> {
+  const item = asRecord(
+    await apiRequest<unknown>(`/conversations/${conversationId}`),
+    'conversation',
   );
-  return parseAccepted(payload);
+  return {
+    ...parseListItem(item, 'conversation'),
+    turns: asArray(item.turns, 'conversation.turns').map((turn, index) =>
+      parseTurn(turn, `conversation.turns[${index}]`),
+    ),
+  };
 }
 
-export async function deleteConversation(id: number) {
-  await apiRequest<void>(`/conversations/${id}`, { method: 'DELETE', csrf: true });
+export async function createConversation(title: string): Promise<ConversationDetail> {
+  const item = asRecord(
+    await apiRequest<unknown>('/conversations', {
+      method: 'POST',
+      csrf: true,
+      body: { title },
+    }),
+    'conversation',
+  );
+  return {
+    ...parseListItem(item, 'conversation'),
+    turns: asArray(item.turns, 'conversation.turns').map((turn, index) =>
+      parseTurn(turn, `conversation.turns[${index}]`),
+    ),
+  };
+}
+
+export async function deleteConversation(conversationId: number): Promise<void> {
+  await apiRequest<void>(`/conversations/${conversationId}`, { method: 'DELETE', csrf: true });
+}
+
+function parseAccepted(payload: unknown): ChatTurnAccepted {
+  const item = asRecord(payload, 'turn');
+  return {
+    conversation_id: asNumber(item.conversation_id, 'turn.conversation_id'),
+    turn_id: asNumber(item.turn_id, 'turn.turn_id'),
+    job_id: asNumber(item.job_id, 'turn.job_id'),
+    state: asEnum(item.state, 'turn.state', [
+      'accepted',
+      'querying',
+      'writing',
+      'succeeded',
+      'failed',
+      'interrupted',
+      'cancelled',
+    ] as const),
+    accepted_at: asString(item.accepted_at, 'turn.accepted_at'),
+    data_cutoff_at: asNullableString(item.data_cutoff_at, 'turn.data_cutoff_at'),
+  };
+}
+
+export async function submitTurn(
+  conversationId: number,
+  input: { question: string; clientRequestKey: string },
+): Promise<ChatTurnAccepted> {
+  return parseAccepted(
+    await apiRequest<unknown>(`/conversations/${conversationId}/turns`, {
+      method: 'POST',
+      csrf: true,
+      body: { question: input.question, client_request_key: input.clientRequestKey },
+    }),
+  );
+}
+
+export async function refreshTurn(
+  conversationId: number,
+  turnId: number,
+  clientRequestKey: string,
+): Promise<ChatTurnAccepted> {
+  return parseAccepted(
+    await apiRequest<unknown>(`/conversations/${conversationId}/turns/${turnId}/refresh`, {
+      method: 'POST',
+      csrf: true,
+      body: { client_request_key: clientRequestKey },
+    }),
+  );
+}
+
+export async function retryTurn(
+  conversationId: number,
+  turnId: number,
+  clientRequestKey: string,
+): Promise<ChatTurnAccepted> {
+  return parseAccepted(
+    await apiRequest<unknown>(`/conversations/${conversationId}/turns/${turnId}/retry`, {
+      method: 'POST',
+      csrf: true,
+      body: { client_request_key: clientRequestKey },
+    }),
+  );
 }

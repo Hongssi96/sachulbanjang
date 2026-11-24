@@ -1,10 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Moon, Sun } from 'lucide-react';
 import type { AuthenticatedUser } from '../api/auth';
-import { useWorkTime, workEndMinutes } from '../services/workTimeStore';
+import { useWorkSession } from '../hooks/useWorkSession';
+
+/** 브라우저 시간대와 무관하게 근무 시각은 한국(Asia/Seoul) 기준으로 계산한다. */
+function seoulClock(date: Date): { minutes: number; dateKey: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '0';
+  return {
+    minutes: Number(part('hour')) * 60 + Number(part('minute')),
+    dateKey: `${part('year')}-${part('month')}-${part('day')}`,
+  };
+}
+
+function seoulEndMinutes(value: string | undefined): number | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return seoulClock(date).minutes;
+}
 
 function offWorkCountdown(now: Date, endMinutes: number) {
-  const remaining = endMinutes - (now.getHours() * 60 + now.getMinutes());
+  const remaining = endMinutes - seoulClock(now).minutes;
   if (remaining >= 60) return '퇴근까지 60분!';
   if (remaining > 0) return `퇴근까지 ${remaining}분!`;
   return '퇴근 시간이에요!';
@@ -44,8 +69,8 @@ export default function Topbar({
   loggingOut,
 }: TopbarProps) {
   const [now, setNow] = useState(() => new Date());
-  const workTime = useWorkTime();
-  const endMinutes = workEndMinutes(workTime);
+  const { session } = useWorkSession();
+  const endMinutes = seoulEndMinutes(session?.ends_at) ?? 17 * 60;
   // 근무 종료 시각을 넘어가는 순간에만 퇴근 알림을 띄운다.
   // (이미 지난 시각으로 설정하거나, 앱을 늦게 열어도 알림이 곧바로 뜨지 않게 한다.)
   const crossing = useRef<{ key: string; remaining: number } | null>(null);
@@ -54,8 +79,9 @@ export default function Topbar({
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    const remaining = endMinutes - (now.getHours() * 60 + now.getMinutes());
-    const key = `${now.toDateString()}-${endMinutes}`;
+    const clock = seoulClock(now);
+    const remaining = endMinutes - clock.minutes;
+    const key = `${clock.dateKey}-${endMinutes}`;
     const previous = crossing.current;
     if (
       previous &&

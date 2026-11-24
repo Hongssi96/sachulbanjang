@@ -1,30 +1,54 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ClipboardList, Search, X } from 'lucide-react';
-import { sortedReportPosts } from '../../constants/demoData';
+import {
+  fetchReports,
+  type ReportCategory,
+  type ReportListItem,
+  type ReportStatus,
+} from '../../api/reports';
+import ApiErrorState from '../../components/ApiErrorState';
 import FilterSelect from '../../components/FilterSelect';
+import LoadingState from '../../components/LoadingState';
 import SegmentedControl from '../../components/SegmentedControl';
+import { useApiQuery } from '../../hooks/useApiQuery';
 import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
-import { getReportStatus, useReportStatusVersion } from '../../services/reportStatus';
-import type { ReportPost } from '../../types';
+import { formatDateTime } from '../../utils/dateFormat';
 import './ReportsPage.css';
 
 const statusFilters = ['전체', '대기', '진행 중', '완료'] as const;
-const PAGE_SIZE = 10; // 한 페이지 최대 개수(좁은 화면은 항상 10개)
-const ROW_HEIGHT = 49; // 행 48px + 구분선 1px
-const MIN_ROWS = 5;
-const statusPill: Record<ReportPost['status'], string> = {
+type StatusLabel = (typeof statusFilters)[number];
+
+const statusToLabel: Record<ReportStatus, Exclude<StatusLabel, '전체'>> = {
+  pending: '대기',
+  in_progress: '진행 중',
+  completed: '완료',
+};
+const statusPill: Record<Exclude<StatusLabel, '전체'>, string> = {
   대기: 'pill-amber',
   '진행 중': 'pill-violet',
   완료: 'pill-green',
 };
-const authorOptions = [...new Set(sortedReportPosts.map((post) => post.author))].sort();
-const equipmentOptions = [...new Set(sortedReportPosts.map((post) => post.equipment))].sort(
-  (a, b) => a.localeCompare(b, 'ko', { numeric: true }),
-);
-// 최신 글 3건에만 N 표식을 붙인다. 사이드바 배지 수와 맞춘다.
-const newPostIds = new Set(sortedReportPosts.slice(0, 3).map((post) => post.id));
+const categoryLabels: Record<ReportCategory, string> = {
+  equipment_issue: '설비 이상',
+  quality_report: '품질 보고',
+  inspection_done: '점검 완료',
+  periodic_weekly: '주간 보고',
+  periodic_monthly: '월간 보고',
+  other: '기타',
+};
+const PAGE_SIZE = 10; // 한 페이지 최대 개수(좁은 화면은 항상 10개)
+const ROW_HEIGHT = 49; // 행 48px + 구분선 1px
+const MIN_ROWS = 5;
+
+function statusOf(value: string): ReportStatus | undefined {
+  if (value === '대기') return 'pending';
+  if (value === '진행 중') return 'in_progress';
+  if (value === '완료') return 'completed';
+  return undefined;
+}
+
 // 페이지 번호를 앞뒤 1개씩만 두고 나머지는 말줄임으로 줄인다.
 function pageWindow(current: number, total: number): (number | '…')[] {
   if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
@@ -38,8 +62,8 @@ function pageWindow(current: number, total: number): (number | '…')[] {
     total,
   ];
 }
+
 export default function ReportsPage() {
-  useReportStatusVersion();
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const status = params.get('status') ?? '전체';
@@ -71,26 +95,53 @@ export default function ReportsPage() {
     value: query,
     onSearch: (value) => update('q', value),
   });
-  // 여러 단어를 띄어 써도 모든 단어가 포함된 보고를 찾도록 단어별로 비교한다.
-  const keywords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  // 작성자·설비로 모은 범위. 상태 탭 개수도 이 범위 기준으로 센다.
-  const scoped = sortedReportPosts.filter(
-    (post) => (!author || post.author === author) && (!equipment || post.equipment === equipment),
+
+  const requested = Number(params.get('page'));
+  const requestedPage = Number.isInteger(requested) && requested >= 1 ? requested : 1;
+  const listQuery = useApiQuery(`reports:${query}:${status}:${requestedPage}:${pageSize}`, () =>
+    fetchReports({
+      q: query || undefined,
+      businessStatus: statusOf(status),
+      page: requestedPage,
+      pageSize,
+    }),
   );
-  const posts = scoped.filter((post) => {
-    if (status !== '전체' && getReportStatus(post) !== status) return false;
-    if (!keywords.length) return true;
-    const haystack =
-      `${post.title} ${post.description} ${post.body} ${post.author} ${post.equipment} ${post.category} ${post.checklist.join(' ')}`.toLowerCase();
-    return keywords.every((token) => haystack.includes(token));
-  });
-  const counts = statusFilters.map((label) => ({
-    label,
-    count:
-      label === '전체'
-        ? scoped.length
-        : scoped.filter((post) => getReportStatus(post) === label).length,
-  }));
+  // 상태 탭 건수는 같은 검색 조건에서 상태별 한 건씩 조회해 total_items만 쓴다.
+  const countsQuery = useApiQuery<Record<StatusLabel, number>>(
+    `report-counts:${query}`,
+    async () => {
+      const count = (businessStatus?: ReportStatus) =>
+        fetchReports({ q: query || undefined, businessStatus, page: 1, pageSize: 1 });
+      const [all, pending, inProgress, completed] = await Promise.all([
+        count(),
+        count('pending'),
+        count('in_progress'),
+        count('completed'),
+      ]);
+      return {
+        전체: all.pagination.total_items,
+        대기: pending.pagination.total_items,
+        '진행 중': inProgress.pagination.total_items,
+        완료: completed.pagination.total_items,
+      };
+    },
+  );
+  // 작성자 선택지는 서버에서 받은 최근 100건에서 만든다. (작성자 필터 API는 없음)
+  const authorSourceQuery = useApiQuery('report-authors', () => fetchReports({ pageSize: 100 }));
+  // 최신 3건에만 N 표식을 붙인다.
+  const latestQuery = useApiQuery('report-latest', () => fetchReports({ pageSize: 3 }));
+  const newPostIds = useMemo(
+    () => new Set((latestQuery.data?.items ?? []).map((post) => post.report_id)),
+    [latestQuery.data],
+  );
+  const authorOptions = useMemo(
+    () =>
+      [
+        ...new Set((authorSourceQuery.data?.items ?? []).map((post) => post.author_display_name)),
+      ].sort(),
+    [authorSourceQuery.data],
+  );
+
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!board) return;
@@ -113,10 +164,20 @@ export default function ReportsPage() {
       wide.removeEventListener('change', measure);
     };
   }, []);
-  const pageCount = Math.max(1, Math.ceil(posts.length / pageSize));
-  const requested = Number(params.get('page'));
-  const page = Number.isInteger(requested) ? Math.min(Math.max(1, requested), pageCount) : 1;
-  const visiblePosts = posts.slice((page - 1) * pageSize, page * pageSize);
+
+  const allPosts = listQuery.data?.items ?? [];
+  // 작성자 필터는 현재 페이지에 적용한다(서버 필터 미지원).
+  const visiblePosts = author
+    ? allPosts.filter((post) => post.author_display_name === author)
+    : allPosts;
+  const pageCount = Math.max(1, listQuery.data?.pagination.total_pages ?? 0);
+  const page = Math.min(requestedPage, pageCount);
+  const counts = statusFilters.map((label) => ({
+    label,
+    count: countsQuery.data?.[label] ?? 0,
+  }));
+  const hasPosts = visiblePosts.length > 0;
+
   return (
     <section className="reports-page">
       <section className="rp-toolbar" aria-label="보고 조회 조건">
@@ -141,16 +202,13 @@ export default function ReportsPage() {
             label="설비별 보기"
             value={equipment}
             onChange={(value) => update('equipment', value)}
-            options={[
-              { value: '', label: '전체 설비' },
-              ...equipmentOptions.map((value) => ({ value, label: value })),
-            ]}
+            options={[{ value: '', label: '전체 설비' }]}
           />
           <div className="rp-search" role="search">
             <Search size={16} />
             <input
               aria-label="보고 검색"
-              placeholder="제목·내용·설비·작성자 검색"
+              placeholder="제목·내용·작성자 검색"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               {...compositionHandlers}
@@ -172,35 +230,40 @@ export default function ReportsPage() {
           <span>등록 일시</span>
           <span>상태</span>
         </div>
-        {posts.length ? (
+        {listQuery.loading && !listQuery.data ? (
+          <LoadingState compact label="보고를 불러오는 중이에요" />
+        ) : listQuery.error ? (
+          <ApiErrorState compact error={listQuery.error} onRetry={listQuery.reload} />
+        ) : hasPosts ? (
           <ul className="rp-list" style={{ '--rp-rows': pageSize } as CSSProperties}>
-            {visiblePosts.map((post) => {
-              const currentStatus = getReportStatus(post);
+            {visiblePosts.map((post: ReportListItem) => {
+              const label = statusToLabel[post.business_status];
+              const createdAt = formatDateTime(post.created_at);
               return (
-                <li key={post.id}>
+                <li key={post.report_id}>
                   <Link
                     className="rp-row"
-                    to={`/reports/${post.id}`}
+                    to={`/reports/${post.report_id}`}
                     aria-label={`${post.title} 상세 보기`}
                   >
                     <span>
-                      <span className="rp-category">{post.category}</span>
+                      <span className="rp-category">{categoryLabels[post.category]}</span>
                     </span>
                     <span className="rp-title">
                       <strong title={post.title}>{post.title}</strong>
-                      {newPostIds.has(post.id) && (
+                      {newPostIds.has(post.report_id) && (
                         <span className="rp-new">
                           N<span className="sr-only"> 새 보고</span>
                         </span>
                       )}
                     </span>
-                    <span className="rp-cell">{post.author}</span>
-                    <span className="rp-cell">{post.equipment}</span>
-                    <span className="rp-cell rp-date" title={`${post.date} ${post.time}`}>
-                      {post.date.slice(5)} {post.time}
+                    <span className="rp-cell">{post.author_display_name}</span>
+                    <span className="rp-cell">—</span>
+                    <span className="rp-cell rp-date" title={createdAt}>
+                      {createdAt.slice(5)}
                     </span>
                     <span>
-                      <span className={`pill ${statusPill[currentStatus]}`}>{currentStatus}</span>
+                      <span className={`pill ${statusPill[label]}`}>{label}</span>
                     </span>
                   </Link>
                 </li>

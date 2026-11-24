@@ -1,10 +1,5 @@
-import { inspectionThreshold } from '../../services/inspectionData';
-interface TrendPoint {
-  date: string;
-  rate: number | null;
-  inspected: number;
-  defective: number;
-}
+import { inspectionThreshold } from './qualityReportModel';
+import type { TrendPoint } from './qualityReportModel';
 export default function QualityTrendChart({ points }: { points: TrendPoint[] }) {
   const step = Math.max(
     1,
@@ -66,7 +61,7 @@ export default function QualityTrendChart({ points }: { points: TrendPoint[] }) 
             fill={(point.rate ?? 0) > inspectionThreshold ? '#F2BB69' : '#635B85'}
           >
             <title>
-              {point.date} · 검사 {point.inspected}개 · 불량 {point.defective}개 ·{' '}
+              {point.date} · 검사 {point.inspected}건 · 불량 {point.defective}건 ·{' '}
               {point.rate?.toFixed(2)}%
             </title>
           </circle>

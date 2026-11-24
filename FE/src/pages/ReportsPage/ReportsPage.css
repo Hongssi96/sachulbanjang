@@ -573,3 +573,10 @@
     min-height: 54px;
   }
 }
+
+/* 보고 상세: PDF 다운로드 버튼 */
+.rpd-pdf {
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+}
