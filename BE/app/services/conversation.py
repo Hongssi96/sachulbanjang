@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from app.models.conversation import AnswerEvidence, ChatTurn, Conversation
 from app.models.master import AppUser
 from app.models.report_job import GenerationJob
-from app.repositories.conversation import ConversationRepository, ConversationSummary
+from app.repositories.conversation import (
+    ConversationRepository,
+    ConversationSummary,
+    ReportAccess,
+)
 from app.services.record_history import period_bounds
 from app.services.report_job import (
     JobNotCancellableError,
@@ -56,6 +60,13 @@ class TurnView:
     turn: ChatTurn
     job: GenerationJob | None
     evidence: list[AnswerEvidence]
+    answer_status: str = "available"
+
+    @property
+    def answer(self) -> str | None:
+        if self.answer_status == "hidden_permission":
+            return None
+        return self.turn.answer
 
 
 @dataclass(frozen=True)
@@ -122,12 +133,14 @@ class ConversationService:
         period_from, period_to = period_bounds(date_from, date_to)
         total_items = self._repository.count_conversations(
             owner_id=owner.id,
+            is_admin=owner.role == "admin",
             query=normalized or None,
             period_from=period_from,
             period_to=period_to,
         )
         conversations = self._repository.find_conversations(
             owner_id=owner.id,
+            is_admin=owner.role == "admin",
             query=normalized or None,
             period_from=period_from,
             period_to=period_to,
@@ -141,20 +154,71 @@ class ConversationService:
         if conversation is None or conversation.owner_id != owner.id:
             raise ConversationNotFoundError
         rows = self._repository.find_turns_with_jobs(conversation_id)
+        evidence = self._repository.list_evidence([row.turn.id for row in rows])
         grouped: dict[int, list[AnswerEvidence]] = {}
-        for evidence in self._repository.list_evidence([row.turn.id for row in rows]):
-            grouped.setdefault(evidence.chat_turn_id, []).append(evidence)
-        return ConversationView(
-            conversation=conversation,
-            turns=[
+        for item in evidence:
+            grouped.setdefault(item.chat_turn_id, []).append(item)
+        report_access = self._repository.find_report_access(
+            [item.report_id for item in evidence if item.report_id is not None]
+        )
+        deleted_sources = self._repository.find_deleted_source_ids(
+            process_record_ids=[
+                item.process_record_id for item in evidence if item.process_record_id is not None
+            ],
+            inspection_record_ids=[
+                item.inspection_record_id
+                for item in evidence
+                if item.inspection_record_id is not None
+            ],
+            product_ids=[item.product_id for item in evidence if item.product_id is not None],
+        )
+        turns: list[TurnView] = []
+        for row in rows:
+            turn_evidence = grouped.get(row.turn.id, [])
+            status, visible_evidence = self._answer_visibility(
+                owner, turn_evidence, report_access, deleted_sources
+            )
+            turns.append(
                 TurnView(
                     turn=row.turn,
                     job=row.job,
-                    evidence=grouped.get(row.turn.id, []),
+                    evidence=visible_evidence,
+                    answer_status=status,
                 )
-                for row in rows
-            ],
-        )
+            )
+        return ConversationView(conversation=conversation, turns=turns)
+
+    def _answer_visibility(
+        self,
+        owner: AppUser,
+        evidence: list[AnswerEvidence],
+        report_access: dict[int, ReportAccess],
+        deleted_sources: tuple[set[int], set[int], set[int]],
+    ) -> tuple[str, list[AnswerEvidence]]:
+        deleted_process, deleted_inspection, deleted_product = deleted_sources
+        hidden = False
+        deleted = False
+        for item in evidence:
+            if item.report_id is not None:
+                access = report_access.get(item.report_id)
+                if access is None:
+                    deleted = True
+                else:
+                    if owner.role != "admin" and access.author_id != owner.id:
+                        hidden = True
+                    if access.deleted:
+                        deleted = True
+            if item.process_record_id in deleted_process:
+                deleted = True
+            if item.inspection_record_id in deleted_inspection:
+                deleted = True
+            if item.product_id in deleted_product:
+                deleted = True
+        if hidden:
+            return "hidden_permission", []
+        if deleted:
+            return "available_with_deleted_evidence", evidence
+        return "available", evidence
 
     def delete_conversation(self, owner: AppUser, conversation_id: int) -> None:
         conversation = self._repository.lock_owned_conversation(conversation_id, owner.id)

@@ -1,10 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.conversation import AnswerEvidence, ChatTurn, Conversation
+from app.models.master import Product
+from app.models.process import InspectionRecord, ProcessRecord
+from app.models.report import Report
 from app.models.report_job import GenerationJob
 
 ACTIVE_JOB_STATES = ("accepted", "querying", "writing")
@@ -20,6 +23,12 @@ class ConversationSummary:
 class TurnJobRow:
     turn: ChatTurn
     job: GenerationJob | None
+
+
+@dataclass(frozen=True)
+class ReportAccess:
+    author_id: int
+    deleted: bool
 
 
 class ConversationRepository:
@@ -62,6 +71,7 @@ class ConversationRepository:
         self,
         *,
         owner_id: int,
+        is_admin: bool,
         query: str | None,
         period_from: datetime | None,
         period_to: datetime | None,
@@ -77,13 +87,25 @@ class ConversationRepository:
         if query:
             escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             pattern = f"%{escaped}%"
+            answer_match: ColumnElement[bool] = ChatTurn.answer.ilike(pattern, escape="\\")
+            if not is_admin:
+                hidden_answer = (
+                    select(AnswerEvidence.id)
+                    .join(Report, Report.id == AnswerEvidence.report_id)
+                    .where(
+                        AnswerEvidence.chat_turn_id == ChatTurn.id,
+                        Report.author_id != owner_id,
+                    )
+                    .exists()
+                )
+                answer_match = and_(answer_match, ~hidden_answer)
             matching_turn = (
                 select(ChatTurn.id)
                 .where(
                     ChatTurn.conversation_id == Conversation.id,
                     or_(
                         ChatTurn.question.ilike(pattern, escape="\\"),
-                        ChatTurn.answer.ilike(pattern, escape="\\"),
+                        answer_match,
                     ),
                 )
                 .exists()
@@ -100,12 +122,14 @@ class ConversationRepository:
         self,
         *,
         owner_id: int,
+        is_admin: bool,
         query: str | None,
         period_from: datetime | None,
         period_to: datetime | None,
     ) -> int:
         conditions = self._conditions(
             owner_id=owner_id,
+            is_admin=is_admin,
             query=query,
             period_from=period_from,
             period_to=period_to,
@@ -119,6 +143,7 @@ class ConversationRepository:
         self,
         *,
         owner_id: int,
+        is_admin: bool,
         query: str | None,
         period_from: datetime | None,
         period_to: datetime | None,
@@ -127,6 +152,7 @@ class ConversationRepository:
     ) -> list[ConversationSummary]:
         conditions = self._conditions(
             owner_id=owner_id,
+            is_admin=is_admin,
             query=query,
             period_from=period_from,
             period_to=period_to,
@@ -196,3 +222,53 @@ class ConversationRepository:
                 .order_by(AnswerEvidence.id.asc())
             )
         )
+
+    def find_report_access(self, report_ids: list[int]) -> dict[int, ReportAccess]:
+        if not report_ids:
+            return {}
+        rows = self._session.execute(
+            select(Report.id, Report.author_id, Report.deleted_at).where(Report.id.in_(report_ids))
+        )
+        return {
+            report_id: ReportAccess(author_id=author_id, deleted=deleted_at is not None)
+            for report_id, author_id, deleted_at in rows
+        }
+
+    def find_deleted_source_ids(
+        self,
+        *,
+        process_record_ids: list[int],
+        inspection_record_ids: list[int],
+        product_ids: list[int],
+    ) -> tuple[set[int], set[int], set[int]]:
+        process_deleted: set[int] = set()
+        if process_record_ids:
+            process_deleted = set(
+                self._session.scalars(
+                    select(ProcessRecord.id).where(
+                        ProcessRecord.id.in_(process_record_ids),
+                        ProcessRecord.deleted_at.is_not(None),
+                    )
+                )
+            )
+        inspection_deleted: set[int] = set()
+        if inspection_record_ids:
+            inspection_deleted = set(
+                self._session.scalars(
+                    select(InspectionRecord.id).where(
+                        InspectionRecord.id.in_(inspection_record_ids),
+                        InspectionRecord.deleted_at.is_not(None),
+                    )
+                )
+            )
+        product_deleted: set[int] = set()
+        if product_ids:
+            product_deleted = set(
+                self._session.scalars(
+                    select(Product.id).where(
+                        Product.id.in_(product_ids),
+                        Product.deleted_at.is_not(None),
+                    )
+                )
+            )
+        return process_deleted, inspection_deleted, product_deleted

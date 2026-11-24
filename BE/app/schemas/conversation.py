@@ -1,8 +1,11 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.report_job import JobState, Pagination
+
+AnswerStatus = Literal["available", "hidden_permission", "available_with_deleted_evidence"]
 
 
 class ConversationCreateRequest(BaseModel):
@@ -53,6 +56,7 @@ class ChatTurnItem(BaseModel):
     turn_id: int
     question: str
     answer: str | None
+    answer_status: AnswerStatus
     answered_at: datetime | None
     created_at: datetime
     data_cutoff_at: datetime | None

@@ -425,9 +425,9 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - `GET /conversations`: `q`(제목·질문·답변 부분 검색, 최대 100자), `from`·`to`(한국 기준 최근 활동
   기간, `from` 포함·`to` 제외), `page`/`page_size`(기본 10·최대 100). `updated_at` 내림차순·
   `id` 내림차순으로 `turn_count`와 함께 반환한다. 관리자도 본인 대화만 조회한다(DEC-032)
-- `GET /conversations/{id}`: 질문·답변·작성 시각·데이터 기준 시각·시연 여부, 연결된 `job` 상태
-  (`state`·`error_code`·`safe_error_message`), 근거 목록을 `turns`로 반환한다. 타인 대화·삭제
-  대화는 `404 CONVERSATION_NOT_FOUND`이며 응답에 `Cache-Control: no-store`가 붙는다
+- `GET /conversations/{id}`: 질문·답변·`answer_status`·작성 시각·데이터 기준 시각·시연 여부,
+  연결된 `job` 상태(`state`·`error_code`·`safe_error_message`), 근거 목록을 `turns`로 반환한다.
+  타인 대화·삭제 대화는 `404 CONVERSATION_NOT_FOUND`이며 응답에 `Cache-Control: no-store`가 붙는다
 - `DELETE /conversations/{id}`: CSRF가 필요하다. soft delete하고 진행 중인 채팅 작업을 취소하며
   `204`를 반환한다(DEC-034·DEC-062)
 - `POST /conversations/{id}/turns`: `question`(1~1,000자), `client_request_key`(1~100자)를 받고
@@ -444,8 +444,8 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
   진행 중 질문 차단·요청 키 멱등/충돌·refresh 질문/조건 복사·채팅 작업 접수·API 오류 매핑을 확인했다.
   일회용 PostgreSQL 18 DB에서 Alembic head 적용, `ck_answer_evidence_source` 위반 거부, 인덱스 생성,
   `20261123_0018`↔`20261124_0019` downgrade/upgrade를 확인하고 DB를 삭제했다
-- 미완료: 근거 권한 상실·삭제 시 과거 답변 가림(DEC-099·DEC-100). 답변 생성과 실패 재시도는
-  다음 절에서 구현한다. 현재 `answer`·`evidence`는 worker가 채우기 전까지 비어 있다
+- 미완료: FE `/chat` 연동. 답변 생성·재시도·과거 답변 가림은 다음 절에서 구현했다. `answer`·`evidence`는
+  worker가 채우기 전까지 비어 있다
 
 ### AI 대화 답변 생성과 실패 재시도 현재 구현 범위 (2026-11-24)
 
@@ -467,6 +467,14 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - 답변에는 조회 기간·대상·데이터 기준 시각과 시연 여부를 포함하고, 근거가 되는 보고서·생산·검사
   기록을 `answer_evidence`에 저장한다. 집계 답변처럼 특정 기록 근거가 없으면 근거 행을 만들지
   않고 `query_scope`에 조회 조건을 보존한다
+- 답변 조회 시 근거의 현재 권한을 다시 검증한다. 권한이 없으면 `answer`를 `null`로 가리고
+  `answer_status="hidden_permission"`으로 표시하며 근거 목록도 숨긴다. 근거가 soft delete된 답변은
+  내용을 유지하고 `answer_status="available_with_deleted_evidence"`로 알린다. 가려진 답변 본문은
+  대화 키워드 검색에서도 제외한다(DEC-099·DEC-100)
+- 도구 조회는 `data_cutoff_at` 이전에 발생한 검사·생산 기록만 집계·목록에 포함한다. 보고서 검색은
+  저장된 보고서를 대상으로 기존 조회 권한을 적용한다
+- AI 호출 전 `querying`·`writing` 작업의 임차를 갱신(heartbeat)해 계획·재계획·답변 작성이 길어져도
+  다른 정리 작업이 진행 중 작업을 `interrupted`로 오인하지 않게 한다
 - 최신 재조회(`refresh`)는 저장된 `query_scope.plan`을 재사용해 같은 조건을 새 기간으로 다시
   조회하고 답변 작성만 AI에 요청한다. 저장된 계획이 유효하지 않으면 다시 계획한다(DEC-098)
 - 실패 재시도: `POST /conversations/{id}/turns/{turn_id}/retry`에 새 `client_request_key`를 보낸다.
@@ -475,15 +483,14 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - 취소: 작업이 `writing` 전에 `cancelled`가 되면 늦게 도착한 답변·근거를 저장하지 않는다(DEC-125)
 - 작업 큐: 보고서 worker는 `kind=report`, 채팅 worker는 `kind=chat`만 선점한다. 임차 만료 정리는
   `python -m app.commands.reap_report_jobs`·`reap_chat_jobs`가 각각 담당한다
-- 도구 조회는 화면과 동일하게 현재 데이터를 대상으로 한다. `data_cutoff_at`은 답변에 표시할 기준
-  시각으로 저장하며, replay 기준 시각으로 조회 결과를 자르는 필터는 후속 검토다
-- 검증: pytest 376건(Ruff·mypy 포함)으로 계획 검증·1회 재시도·도구 인자 범위·이름 해석 실패·
-  보고서 권한 전달·답변/근거 저장·취소 시 폐기·재시도 허용/거부·kind별 선점을 확인했다. 일회용
-  PostgreSQL 18 DB에서 로컬 `.env`의 OpenAI 호환 제공자(`gpt-6.2-sol`)로 계획·답변을 실제 호출해
-  worker가 답변·`query_scope`·근거를 저장하고 보고서 작업을 선점하지 않는 것을 확인했다. 실패 작업
-  재시도는 가짜 AI 클라이언트로 확인하고 DB를 삭제했다
-- 미완료: 근거 권한 상실·삭제 시 과거 답변 가림(DEC-099·DEC-100), FE `/chat` 연동. AI에 전달하는
-  상세 필드는 DEC-128에 따라 팀 확인이 필요하다
+- 검증: pytest 380건(Ruff·mypy 포함)으로 계획 검증·1회 재시도·도구 인자 범위·이름 해석 실패·
+  보고서 권한 전달·답변/근거 저장·취소 시 폐기·재시도 허용/거부·kind별 선점·권한 상실 가림·
+  삭제 근거 표시·가려진 답변 검색 제외를 확인했다. 일회용 PostgreSQL 18 DB에서 로컬 `.env`의
+  OpenAI 호환 제공자(`gpt-6.2-sol`)로 계획·답변을 실제 호출해 worker 저장 흐름을 확인했고, 같은
+  DB에서 권한 상실 가림·관리자 열람·삭제 근거 표시·검색 제외·`data_cutoff_at` 필터를 확인한 뒤
+  DB를 삭제했다
+- 미완료: FE `/chat` 연동, 이후 대화 맥락 전달(현재 worker는 과거 답변을 AI 맥락으로 보내지
+  않는다). AI에 전달하는 상세 필드는 DEC-128에 따라 팀 확인이 필요하다
 
 ### 품질 통계 현재 구현 범위 (2026-11-23)
 

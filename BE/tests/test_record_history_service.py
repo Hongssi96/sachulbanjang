@@ -81,6 +81,7 @@ def test_list_process_records_applies_period_and_pagination() -> None:
         product_id=None,
         period_from=datetime(2026, 11, 19, 15, 0, tzinfo=UTC),
         period_to=None,
+        data_cutoff_at=None,
     )
     repository.find_process_records.assert_called_once_with(
         equipment_id=20,
@@ -89,6 +90,7 @@ def test_list_process_records_applies_period_and_pagination() -> None:
         period_to=None,
         offset=10,
         limit=10,
+        data_cutoff_at=None,
     )
 
 
@@ -135,6 +137,7 @@ def test_list_inspection_records_applies_verdict_and_pagination() -> None:
         "verdict": "defect",
         "period_from": datetime(2026, 11, 19, 15, 0, tzinfo=UTC),
         "period_to": None,
+        "data_cutoff_at": None,
     }
     repository.count_inspection_records.assert_called_once_with(**expected)
     repository.find_inspection_records.assert_called_once_with(**expected, offset=10, limit=10)

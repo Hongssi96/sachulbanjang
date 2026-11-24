@@ -216,8 +216,36 @@ def test_read_conversation_returns_turn_job_and_evidence() -> None:
     body = response.json()
     assert body["turn_count"] == 1
     assert body["turns"][0]["turn_id"] == 5
+    assert body["turns"][0]["answer_status"] == "available"
     assert body["turns"][0]["job"]["state"] == "succeeded"
     assert body["turns"][0]["evidence"][0]["report_id"] == 2
+
+
+def test_read_conversation_marks_hidden_answer() -> None:
+    service = MagicMock(spec=ConversationService)
+    turn = make_turn()
+    turn.answer = "권한이 없어진 답변"
+    service.get_conversation.return_value = ConversationView(
+        conversation=make_conversation(),
+        turns=[
+            TurnView(
+                turn=turn,
+                job=make_job(),
+                evidence=[],
+                answer_status="hidden_permission",
+            )
+        ],
+    )
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/conversations/1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["turns"][0]["answer"] is None
+    assert body["turns"][0]["answer_status"] == "hidden_permission"
+    assert body["turns"][0]["evidence"] == []
 
 
 def test_read_conversation_maps_not_found() -> None:

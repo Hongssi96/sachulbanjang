@@ -49,6 +49,7 @@ def test_summary_computes_defect_rate_and_converts_period() -> None:
         product_id=None,
         period_from=datetime(2026, 11, 22, 15, 0, tzinfo=UTC),
         period_to=None,
+        data_cutoff_at=None,
     )
 
 

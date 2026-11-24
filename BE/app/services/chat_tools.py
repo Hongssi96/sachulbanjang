@@ -267,6 +267,7 @@ class ChatToolExecutor:
             product_id=product.id if product else None,
             date_from=date_from,
             date_to=date_to,
+            data_cutoff_at=data_cutoff_at,
         )
         data: dict[str, object] = {
             "status": "ok",
@@ -328,6 +329,7 @@ class ChatToolExecutor:
             date_to=date_to,
             page=1,
             page_size=arguments.limit,
+            data_cutoff_at=data_cutoff_at,
         )
         items = [
             {
@@ -397,6 +399,7 @@ class ChatToolExecutor:
             date_to=date_to,
             page=1,
             page_size=arguments.limit,
+            data_cutoff_at=data_cutoff_at,
         )
         items = [
             {
