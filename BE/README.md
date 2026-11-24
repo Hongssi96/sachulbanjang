@@ -97,6 +97,9 @@ uvicorn app.main:app --reload
   Pretendard 한글 글꼴로 즉시 생성하며 다운로드 버전·사용자를 기록),
   `GET .../reports/{id}/revisions/{version}/pdf` (선택한 이전 제목·본문과 보고서의 저장 집계로
   생성하며 선택한 버전의 다운로드 이력을 기록)
+- 보고서 불량 유형 그래프: `GET .../reports/{id}/charts/defect-types` (저장 집계 스냅샷으로 PNG를
+  즉시 생성, 불량 유형 데이터가 없으면 `204`, 생성 실패 시 `REPORT_CHART_FAILED`. 실패 후 같은 URL을
+  다시 요청하면 본문·수치·버전을 변경하지 않고 동일한 저장 집계로 그래프만 재생성)
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)

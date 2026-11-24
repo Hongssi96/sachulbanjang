@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.core.config import Settings
 from app.dependencies.auth import get_current_user
@@ -18,6 +18,7 @@ from app.services.report import (
     ReportService,
     ReportVersionConflictError,
 )
+from app.services.report_pdf import ReportChartError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -131,6 +132,62 @@ def test_download_report_revision_pdf_records_selected_version() -> None:
     actor = service.get_report.call_args.args[0]
     service.get_revision.assert_called_once_with(actor, 1, 2)
     service.record_pdf_download.assert_called_once_with(actor, 1, 2)
+
+
+def test_read_report_defect_chart_uses_stored_snapshot() -> None:
+    view = make_view()
+    view.report.generation_snapshot = {
+        "summary": {
+            "defect_types": [
+                {"type": "흑점", "count": 5},
+                {"type": "치수 불량", "count": 3},
+            ]
+        }
+    }
+    service = MagicMock(spec=ReportService)
+    service.get_report.return_value = view
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/reports/1/charts/defect-types")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_read_report_defect_chart_returns_empty_when_snapshot_has_no_defects() -> None:
+    view = make_view()
+    view.report.generation_snapshot = {"summary": {"defect_types": []}}
+    service = MagicMock(spec=ReportService)
+    service.get_report.return_value = view
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/reports/1/charts/defect-types")
+
+    assert response.status_code == 204
+    assert response.headers["cache-control"] == "no-store"
+    assert response.content == b""
+
+
+def test_read_report_defect_chart_returns_retryable_error() -> None:
+    service = MagicMock(spec=ReportService)
+    service.get_report.return_value = make_view()
+    application = make_application(service)
+
+    with (
+        patch(
+            "app.routers.reports.render_report_defect_chart",
+            side_effect=ReportChartError("불량 유형 그래프를 생성할 수 없습니다."),
+        ),
+        TestClient(application) as client,
+    ):
+        response = client.get("/api/v1/reports/1/charts/defect-types")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "REPORT_CHART_FAILED"
 
 
 def test_worker_creates_report() -> None:

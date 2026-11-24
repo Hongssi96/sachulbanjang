@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from app.models.report import Report
-from app.services.report_pdf import render_report_pdf
+from app.services.report_pdf import render_report_defect_chart, render_report_pdf
 
 
 def make_report() -> Report:
@@ -52,3 +52,10 @@ def test_render_report_pdf_contains_pdf_document() -> None:
 
     assert content.startswith(b"%PDF-")
     assert len(content) > 20_000
+
+
+def test_render_report_defect_chart_contains_png_document() -> None:
+    content = render_report_defect_chart(make_report())
+
+    assert content is not None
+    assert content.startswith(b"\x89PNG\r\n\x1a\n")

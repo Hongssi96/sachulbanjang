@@ -36,7 +36,9 @@ from app.services.report import (
     ReportVersionConflictError,
 )
 from app.services.report_pdf import (
+    ReportChartError,
     ReportPdfError,
+    render_report_defect_chart,
     render_report_pdf,
     render_report_revision_pdf,
 )
@@ -239,6 +241,34 @@ def download_report_pdf(
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "no-store",
         },
+    )
+
+
+@router.get("/{report_id}/charts/defect-types")
+def read_report_defect_chart(
+    report_id: Annotated[int, Path(ge=1)],
+    actor: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[ReportService, Depends(get_report_service)],
+) -> Response:
+    try:
+        report = service.get_report(actor, report_id).report
+        content = render_report_defect_chart(report)
+    except ReportNotFoundError as error:
+        _handle_write_error(error)
+        raise AssertionError("unreachable") from error
+    except ReportChartError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "REPORT_CHART_FAILED", "message": str(error)},
+        ) from None
+    if content is None:
+        return Response(
+            status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "no-store"}
+        )
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
     )
 
 
