@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import MagicMock
@@ -305,6 +306,11 @@ def test_process_next_sends_only_visible_history_to_ai() -> None:
         assert "DELETED-HISTORY-TOKEN" in prompt
         assert "HIDDEN-HISTORY-TOKEN" not in prompt
         assert '"evidence_deleted": true' in prompt
+    history = mocks["tools"].execute.call_args_list[0]
+    assert history  # executed with the current plan
+    answer_history = json.loads(answer_prompt)["history"]
+    assert answer_history[0]["data_cutoff_label"] == "2026-11-24 15:00 (KST)"
+    assert answer_history[0]["answered_at_label"] == "2026-11-24 15:00 (KST)"
     mocks["conversation_repository"].find_previous_answered_turns.assert_called_once_with(1, 5, 5)
 
 

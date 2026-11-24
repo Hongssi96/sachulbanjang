@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 from dataclasses import dataclass
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.core.datetime_labels import korean_kst_label
 from app.models.report import Report, ReportRevision
 
 _ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
@@ -62,6 +64,25 @@ class ReportPdfDocument:
     title: str
     body_markdown: str
     generation_snapshot: dict[str, object] | None
+    generation_data_cutoff_at: datetime | None = None
+
+
+def _cutoff_label(report: Report | ReportPdfDocument) -> str:
+    """Prefer the stored Korean label, then format the cutoff instant."""
+    snapshot = report.generation_snapshot or {}
+    label = snapshot.get("data_cutoff_label")
+    if isinstance(label, str) and label:
+        return label
+    cutoff = report.generation_data_cutoff_at
+    if cutoff is not None:
+        return korean_kst_label(cutoff)
+    raw = snapshot.get("data_cutoff_at")
+    if isinstance(raw, str) and raw:
+        try:
+            return korean_kst_label(datetime.fromisoformat(raw))
+        except ValueError:
+            return raw
+    return "-"
 
 
 def render_report_revision_pdf(report: Report, revision: ReportRevision) -> bytes:
@@ -70,6 +91,7 @@ def render_report_revision_pdf(report: Report, revision: ReportRevision) -> byte
             title=revision.title,
             body_markdown=revision.body_markdown,
             generation_snapshot=report.generation_snapshot,
+            generation_data_cutoff_at=report.generation_data_cutoff_at,
         )
     )
 
@@ -94,7 +116,7 @@ def render_report_pdf(report: Report | ReportPdfDocument) -> bytes:
     ]
     snapshot = report.generation_snapshot
     if snapshot is not None:
-        story.extend(_snapshot_story(snapshot, styles))
+        story.extend(_snapshot_story(report, snapshot, styles))
         try:
             chart = render_report_defect_chart(report)
         except ReportChartError as error:
@@ -215,7 +237,9 @@ def _styles() -> dict[str, ParagraphStyle]:
 
 
 def _snapshot_story(
-    snapshot: dict[str, object], styles: dict[str, ParagraphStyle]
+    report: Report | ReportPdfDocument,
+    snapshot: dict[str, object],
+    styles: dict[str, ParagraphStyle],
 ) -> list[Flowable]:
     period = _mapping(snapshot.get("period"))
     summary = _mapping(snapshot.get("summary"))
@@ -238,7 +262,7 @@ def _snapshot_story(
         ],
         [
             "집계 기준 시각",
-            str(snapshot.get("data_cutoff_at", "-")),
+            _cutoff_label(report),
             "시연 데이터",
             "포함" if summary.get("includes_demo") else "미포함",
         ],

@@ -120,6 +120,7 @@ def test_quality_summary_resolves_targets_and_records_scope() -> None:
     assert result.data["defect_rate_percent"] == "10.00"
     assert result.data["defect_types"] == [{"type": "흑점", "count": 1}]
     assert result.scope["period"] == {"from": FROM.isoformat(), "to": TODAY.isoformat()}
+    assert result.scope["data_cutoff_label"] == "2026-11-24 15:00 (KST)"
     target = cast(dict[str, object], result.scope["target"])
     assert target["product_id"] == 1
     assert result.is_demo is True

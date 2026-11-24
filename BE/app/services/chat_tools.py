@@ -9,6 +9,7 @@ from typing import Literal, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
+from app.core.datetime_labels import korean_kst_label
 from app.integrations.ai import validate_generated_markdown
 from app.models.master import AppUser, Equipment, Product
 from app.repositories.inventory import InventoryRepository
@@ -897,6 +898,9 @@ class ChatToolExecutor:
             },
             "data_cutoff_at": (
                 data_cutoff_at.astimezone(UTC).isoformat() if data_cutoff_at is not None else None
+            ),
+            "data_cutoff_label": (
+                korean_kst_label(data_cutoff_at) if data_cutoff_at is not None else None
             ),
         }
         if extra:

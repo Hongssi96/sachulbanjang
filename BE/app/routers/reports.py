@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy.orm import Session
 
+from app.core.datetime_labels import korean_kst_label
 from app.db.session import get_db_session
 from app.dependencies.auth import get_current_user, require_admin, require_csrf_token
 from app.models.master import AppUser
@@ -77,6 +78,11 @@ def _detail(view: ReportView) -> ReportDetail:
         last_editor_display_name=view.last_editor_display_name,
         generation_job_id=report.generation_job_id,
         generation_data_cutoff_at=report.generation_data_cutoff_at,
+        generation_data_cutoff_label=(
+            korean_kst_label(report.generation_data_cutoff_at)
+            if report.generation_data_cutoff_at is not None
+            else None
+        ),
         generation_snapshot=report.generation_snapshot,
     )
 

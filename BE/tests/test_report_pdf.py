@@ -1,7 +1,12 @@
 from datetime import UTC, datetime
 
 from app.models.report import Report
-from app.services.report_pdf import render_report_defect_chart, render_report_pdf
+from app.services.report_pdf import (
+    ReportPdfDocument,
+    _cutoff_label,
+    render_report_defect_chart,
+    render_report_pdf,
+)
 
 
 def make_report() -> Report:
@@ -59,3 +64,21 @@ def test_render_report_defect_chart_contains_png_document() -> None:
 
     assert content is not None
     assert content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_cutoff_label_prefers_stored_kst_label() -> None:
+    report = make_report()
+    assert report.generation_snapshot is not None
+    report.generation_snapshot["data_cutoff_label"] = "2026-11-23 15:00 (KST)"
+
+    assert _cutoff_label(report) == "2026-11-23 15:00 (KST)"
+
+
+def test_cutoff_label_formats_old_iso_snapshot() -> None:
+    document = ReportPdfDocument(
+        title="이전 보고서",
+        body_markdown="본문",
+        generation_snapshot={"data_cutoff_at": "2026-11-23T06:00:00+00:00"},
+    )
+
+    assert _cutoff_label(document) == "2026-11-23 15:00 (KST)"

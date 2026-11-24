@@ -409,3 +409,19 @@ def test_history_endpoints_return_items() -> None:
     assert revision_one.json()["editor_display_name"] == "사용자"
     assert events.json()["items"][0]["after_status"] == "completed"
     assert events.json()["items"][0]["actor_display_name"] == "관리자"
+
+
+def test_report_detail_includes_kst_cutoff_label() -> None:
+    service = MagicMock(spec=ReportService)
+    view = make_view()
+    view.report.generation_data_cutoff_at = datetime(2026, 11, 23, 6, 0, tzinfo=UTC)
+    service.get_report.return_value = view
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/reports/1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["generation_data_cutoff_at"] == "2026-11-23T06:00:00Z"
+    assert body["generation_data_cutoff_label"] == "2026-11-23 15:00 (KST)"

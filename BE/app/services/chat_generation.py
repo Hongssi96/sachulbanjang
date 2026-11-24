@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.datetime_labels import korean_kst_label
 from app.integrations.ai import AiGenerationError, OpenAiCompatibleClient
 from app.models.conversation import AnswerEvidence, ChatTurn
 from app.models.master import AppUser
@@ -63,6 +64,8 @@ _ANSWER_INSTRUCTIONS = """당신은 사출반장 업무 도우미입니다.
 - 제공되지 않은 수치·원인·전망을 만들지 마세요.
 - 결과 status가 not_found 또는 ambiguous이면 조회하지 못한 이유와 후보를 안내하세요.
 - 답변 첫 부분에 조회 기간·대상·데이터 기준 시각을 쓰고, 시연 데이터가 포함되면 명확히 표시하세요.
+- 기준 시각은 scope의 data_cutoff_label(예: 2026-11-24 11:36 (KST))을 그대로 쓰고 ISO·UTC 원문을
+  쓰지 마세요. 이전 답변 시각은 history의 answered_at_label을 사용하세요.
 - history는 과거 답변 참고 자료입니다. 현재 수치는 data만 사용하세요. history를 인용하면 이전
   답변임을 밝히고, evidence_deleted가 true이면 근거가 삭제된 과거 자료임을 함께 알리세요.
 - Markdown을 사용할 수 있지만 HTML, 이미지, 외부 링크는 쓰지 마세요.
@@ -268,8 +271,18 @@ class ChatGenerationService:
                     "answered_at": (
                         prior.answered_at.isoformat() if prior.answered_at is not None else None
                     ),
+                    "answered_at_label": (
+                        korean_kst_label(prior.answered_at)
+                        if prior.answered_at is not None
+                        else None
+                    ),
                     "data_cutoff_at": (
                         prior.data_cutoff_at.isoformat()
+                        if prior.data_cutoff_at is not None
+                        else None
+                    ),
+                    "data_cutoff_label": (
+                        korean_kst_label(prior.data_cutoff_at)
                         if prior.data_cutoff_at is not None
                         else None
                     ),

@@ -2075,3 +2075,13 @@
 - 검증: ruff·mypy 통과, pytest 407건 통과. 일회용 PostgreSQL 18 DB와 실제 AI로 예정 일정 질문이 `schedule_list`(window `upcoming`)로 미래 일정을 답하는 것을 확인했다.
 - 남은 사항: FE 화면 연동(팀원 진행).
 
+## DEC-225 — 집계·기준 시각의 한국 기준 표기
+
+- 기록일: 2026-11-24
+- 상태: 확정
+- 문제: 보고서 본문·AI 답변·보고서 상세의 집계 기준 시각이 ISO UTC로 길게 표시되어 읽기 어렵고 화면에서 잘렸다(예: `2026-11-23T06:00:00+00:00`).
+- 결정: 사람에게 보이는 시각은 한국 기준 `YYYY-MM-DD HH:MM (KST)` 라벨로 표기하고, 기계용 `data_cutoff_at` ISO 필드는 유지한다.
+- 적용: 보고서 생성 스냅샷에 `data_cutoff_label`을 넣고 프롬프트가 이 라벨만 쓰도록 지시한다. AI 답변의 `query_scope.data_cutoff_label`, 대화 맥락의 `answered_at_label`·`data_cutoff_label`도 같은 형식이다. `GET /reports/{id}`는 `generation_data_cutoff_label`을 함께 반환한다. 보고서 PDF 헤더도 저장된 라벨을 우선 사용하고, 이전 보고서는 ISO 값을 변환해 표시한다.
+- 검증: ruff·mypy 통과, pytest 413건 통과. 실제 AI로 보고서 본문·PDF 헤더·대화 답변이 (KST) 라벨을 쓰는지 확인했다.
+- 남은 사항: FE는 label 필드를 사용하고 ISO 원문 노출을 피한다(팀원 진행).
+
