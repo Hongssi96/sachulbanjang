@@ -13,10 +13,10 @@
 | ProcessService / InspectionService | 조회·관리자 정정·감사 이력·버전 충돌. 기록 Repository 의존 |
 | ProcessReplayService / Replay Worker | CSV 다음 레코드의 5초 간격 공개와 정상 종료. replay 행 잠금으로 동시 진행을 직렬화 |
 | CurrentProcessService | 최신 replay의 공개 레코드를 설비별 최신 1건으로 조회하고 15초 지연 상태를 계산. ProcessReplayRepository 의존 |
-| QualityService | 필터 범위 전체의 품질·가동률 집계. 공통 집계는 보고서도 사용 |
+| QualityService / OperationService | 필터 범위 전체의 품질 집계 / 설비·일자 가동 시간 합산과 가동률. 공통 집계는 보고서도 사용 |
 | ReportService | 중복 안내·권한·본문 버전·상태 변경·PDF 제공. 보고 Repository·작업 Repository·Renderer 의존 |
 | GenerationWorker | DB 작업 선점·현재 권한 확인·고정 집계로 AI 호출·원자적 결과 등록. AI 클라이언트·Repository 의존 |
-| ChatService / QueryExecutor | 질문·시도 관리와 현재 근거 권한 확인 / 검증된 SQL 실행 경계. DB 읽기 전용 연결을 일반 앱 연결과 분리 |
+| ChatGenerationService / ChatToolExecutor | 질문·작업 상태·답변 저장 / AI 계획 검증과 화이트리스트 조회 도구 실행. 자유 SQL 없음 |
 | StockService | 잔고 잠금·음수 방지·원장 정정·사후 확인. 재고 Repository 의존 |
 | ScheduleService / HandoverService | 본인·관리자 업무 권한과 날짜 검증·확인 기록 |
 | ChartRenderer / PdfRenderer | 저장 집계·본문으로 렌더링. DESIGN.md 기반 고정 스타일. 외부 이미지·임의 HTML 접근 금지 |
@@ -41,7 +41,7 @@ DB Session은 요청·작업 단위로 전달한다. Service가 트랜잭션 경
 
 ## AI SQL 실행 경계
 
-이 절은 DEC-061을 구현하기 위한 기술 설계이며 보안 검증 완료 주장이 아니다. 아래 제약이 실제 PostgreSQL에서 검증되기 전 자연어 SQL 기능을 완료 처리하지 않는다.
+현재 AI 대화는 자유 SQL을 생성하지 않고 DEC-216·DEC-217의 허용 조회 도구만 호출한다. 아래 SQL 경계는 자유 SQL 기능을 도입할 때 적용하며, 실제 PostgreSQL에서 검증되기 전에는 자유 SQL 기능을 완료 처리하지 않는다.
 
 1. 마이그레이션 소유자·일반 앱·AI 읽기 계정을 분리한다. AI 계정은 비소유자·비슈퍼유저·NOBYPASSRLS로 필요한 읽기 권한만 갖고 인증 테이블·credential·원본 대화·내부 오류에 접근하지 못한다.
 2. AI에는 허용된 업무 스키마만 설명한다. 사용자 정보를 클라이언트나 모델 SQL에서 받아 권한으로 신뢰하지 않는다.

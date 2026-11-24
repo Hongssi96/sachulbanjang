@@ -13,7 +13,8 @@ interface UseDebouncedSearchOptions {
 
 /**
  * 검색 입력값을 즉시 보여 주고, 입력이 멈춘 뒤에만 검색을 실행한다.
- * 한글 조합 중에는 검색을 실행하지 않고, 지우기처럼 즉시 반영이 필요한 동작은 searchNow를 쓴다.
+ * 한글 조합 중에도 입력이 멈추면 조합 중인 문자열로 검색하고,
+ * 지우기처럼 즉시 반영이 필요한 동작은 searchNow를 쓴다.
  */
 export function useDebouncedSearch({
   value,
@@ -21,19 +22,22 @@ export function useDebouncedSearch({
   delay = SEARCH_DEBOUNCE_MS,
 }: UseDebouncedSearchOptions) {
   const [input, setInput] = useState(value);
-  const composing = useRef(false);
+  // 조합 중에는 외부 값으로 입력을 덮어쓰지 않고, 조합이 끝나면 다시 동기화한다.
+  const [composing, setComposing] = useState(false);
   const applied = useRef(value);
   const onSearchRef = useRef(onSearch);
   onSearchRef.current = onSearch;
 
   useEffect(() => {
-    if (composing.current || value === applied.current) return;
+    // 조합이 끝난 뒤 외부 값(URL 등)과 입력이 어긋나면 맞춘다.
+    if (composing || value === applied.current) return;
     applied.current = value;
     setInput(value);
-  }, [value]);
+  }, [value, composing]);
 
   useEffect(() => {
-    if (composing.current || input === applied.current) return;
+    // 조합 중이어도 입력이 멈추면 현재 값으로 검색한다.
+    if (input === applied.current) return;
     const timer = window.setTimeout(() => {
       applied.current = input;
       onSearchRef.current(input);
@@ -52,11 +56,9 @@ export function useDebouncedSearch({
     setInput,
     searchNow,
     compositionHandlers: {
-      onCompositionStart: () => {
-        composing.current = true;
-      },
+      onCompositionStart: () => setComposing(true),
       onCompositionEnd: (event: CompositionEvent<HTMLInputElement>) => {
-        composing.current = false;
+        setComposing(false);
         setInput(event.currentTarget.value);
       },
     },

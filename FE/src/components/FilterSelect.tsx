@@ -17,6 +17,7 @@ export default function FilterSelect({
 }: FilterSelectProps) {
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
+  const [menuMaxHeight, setMenuMaxHeight] = useState(264);
   const selected = Math.max(
     0,
     options.findIndex((option) => option.value === value),
@@ -39,11 +40,36 @@ export default function FilterSelect({
         ?.querySelector('.filter-select-options > .highlighted')
         ?.scrollIntoView({ block: 'nearest' });
   }, [open, highlight]);
+  // 열려 있는 동안 스크롤·크기 변경에 맞춰 위치를 다시 잡는다.
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => place();
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [open]);
 
-  // 아래 공간이 부족하면 목록을 위로 펼쳐 화면 밖으로 잘리지 않게 한다.
-  const openMenu = () => {
+  // 목록이 잘리지 않도록, 모달 안이면 모달 경계까지의 여유 공간에 맞춰 방향과 높이를 정한다.
+  const place = () => {
     const element = trigger.current;
-    if (element) setDropUp(window.innerHeight - element.getBoundingClientRect().bottom < 300);
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const modal = element.closest('.modal');
+    const boundsTop = modal ? modal.getBoundingClientRect().top : 0;
+    const boundsBottom = modal
+      ? Math.min(modal.getBoundingClientRect().bottom, window.innerHeight)
+      : window.innerHeight;
+    const spaceBelow = boundsBottom - rect.bottom;
+    const spaceAbove = rect.top - boundsTop;
+    const up = spaceBelow < Math.min(spaceAbove, 280);
+    setDropUp(up);
+    setMenuMaxHeight(Math.max(120, Math.min(264, (up ? spaceAbove : spaceBelow) - 8)));
+  };
+  const openMenu = () => {
+    place();
     setOpen(true);
   };
   const choose = (index: number) => {
@@ -105,6 +131,7 @@ export default function FilterSelect({
           id={`${id}-list`}
           role="listbox"
           aria-label={label}
+          style={{ maxHeight: menuMaxHeight }}
         >
           {options.map((option, index) => (
             <div

@@ -5,7 +5,7 @@ from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.models.master import AppUser
-from app.models.report import Report, ReportRevision, ReportStatusEvent
+from app.models.report import Report, ReportDownloadEvent, ReportRevision, ReportStatusEvent
 
 
 @dataclass(frozen=True)
@@ -147,6 +147,9 @@ class ReportRepository:
         self._session.add(revision)
 
     def add_status_event(self, event: ReportStatusEvent) -> None:
+        self._session.add(event)
+
+    def add_download_event(self, event: ReportDownloadEvent) -> None:
         self._session.add(event)
 
     def list_revisions(self, report_id: int) -> list[tuple[ReportRevision, str]]:

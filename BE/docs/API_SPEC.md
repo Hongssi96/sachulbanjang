@@ -65,7 +65,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | 근무 | 구현 완료 | 로그인별 종료 시각·서버 시각 조회, 수동 1시간/지정 시각 연장, 종료 10분 전 실제 작업에 따른 자동 1시간 연장, 다중 탭 충돌·중복 자동 연장 방지, 연장 이력 구현. pytest 92건 확인 | 2026-11-23 |
 | 공정 | 구현 중 | 핵심 스키마·CSV 적재·5초 재생·정상 종료·15초 지연 판정, 현재 공정 조회, 생산 이력 목록·상세 조회(기간·설비·품목 필터·페이지네이션), 관리자 정정과 변경 이력 조회 구현. 전체 pytest 및 PostgreSQL 18 replay·이력·정정 검증. FE polling·이력 화면 연동 미확인 | 2026-11-23 |
 | 마스터·담당 | 구현 완료 | 부서·라인·설비·제품 활성 목록 조회와 본인 담당 조회, 사용자 담당 테이블·조직/담당 초기 데이터 적재 명령 구현. pytest 192건 및 PostgreSQL 18 통합 검증. 담당 배정·변경 관리 화면은 추후 | 2026-11-23 |
-| 보고서·이력 | 구현 중 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회, 생성 작업 접수·조회·취소·재시도와 PostgreSQL 작업 큐(claim/lease/heartbeat·중단 정리) 구현. version 충돌·작성자/관리자 권한 적용. 실제 AI 실행·PDF·중복 안내는 미착수. pytest 250건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
+| 보고서·이력 | 구현 완료 | 보고서 목록·상세·수동 생성, 제목·본문 수정, 관리자 상태 변경, soft delete, 수정 이력·상태 이력 조회, 생성 작업 접수·조회·취소·재시도와 PostgreSQL 작업 큐(claim/lease/heartbeat·중단 정리), OpenAI 호환 AI worker·집계 스냅샷·성공 보고서 원자적 등록 구현. 같은 조건 완료 보고서 반환·명시적 재생성, 저장 집계 기반 PDF·불량 유형 그래프·다운로드 이력 구현. version 충돌·작성자/관리자 권한 적용 | 2026-11-23 |
 | 검사·품질 | 구현 중 | 검사 기록 테이블과 검사 이력 목록·상세 조회(기간·설비·품목·판정 필터·페이지네이션), 관리자 정정·변경 이력, 품질 통계(양품·불량·미분류·불량률·생산 기록 건수) 구현. 가동률·삭제 미착수. pytest 257건 및 PostgreSQL 18 검증 | 2026-11-23 |
 | AI 대화 | 미착수 | - | 2026-11-20 |
 | 일정 | 구현 완료 | 달력 범위·목록 페이지 조회, 종일/시간 지정 등록·수정·soft delete, 관리자 전체·고용자 본인 권한, version 충돌 처리 구현. 반복·복사 제외. pytest 272건 및 PostgreSQL 18 통합 검증 | 2026-11-23 |
@@ -124,7 +124,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /process-records/{id}, /inspection-records/{id} | 개별 기록 | 일반 조회 권한 |
 | PATCH /process-records/{id} | version, change_reason, occurred_at?, cycle_time_seconds?, product_id?, equipment_id? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
 | PATCH /inspection-records/{id} | version, change_reason, inspected_at?, product_id?, process_record_id?, verdict?, defect_type?, reason? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
-| DELETE /process-records/{id}, /inspection-records/{id} | expected_version·사유를 query/header 계약으로 확정 | 관리자 soft delete·감사 이력. 미구현 |
+| DELETE /process-records/{id}, /inspection-records/{id} | 본문 version, change_reason | 관리자, CSRF. soft delete와 감사 이력 기록 |
 | GET /process-records/{id}/changes, /inspection-records/{id}/changes | 없음 | 관리자만. 전후 값·사유·작업자·시각 |
 | GET /quality/summary | from·to·equipment_id·product_id | 관리자·고용자. 검사·양품·불량 건수, 불량률(null 허용), 유형 분포, 생산 기록 건수 |
 | GET /quality/operation | 한국 기준 날짜·설비 | 계획/실제 시간·가동률·is_demo |
@@ -144,10 +144,11 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /reports/{id}/pdf?version=... | 선택 버전 PDF 생성 | 조회 권한. 파일 응답, 다운로드 이벤트 |
 | GET /reports/{id}/downloads | 다운로드 사용자·시각·버전, 합계 | 현재 보고서 조회 권한 |
 | GET /reports/{id}/charts/{chart_key}?version=... | 저장 집계 기반 이미지 생성·재시도 | 조회 권한. 실패 시 JSON 오류+사유, 화면/PDF 대체 안내 |
-| POST /conversations, GET /conversations | 본인 대화 생성·검색 | 제목·질문·권한 있는 답변 검색 |
-| GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가 |
-| POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state |
+| POST /conversations, GET /conversations | 본인 대화 생성·검색 | 제목·질문·답변 검색, 최근 활동 기간 필터 |
+| GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가. 진행 중 작업은 취소 |
+| POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state. 생성 중 질문이 있으면 409 |
 | POST /conversations/{id}/turns/{turn_id}/refresh | 새 요청 키·기존 조건 기반 최신 재조회 | 새 질문·답변 추가. 실패 재시도와 구분 |
+| POST /conversations/{id}/turns/{turn_id}/retry | 새 요청 키 | failed·interrupted 작업만 같은 질문에 새 작업 연결 |
 | GET /schedules | from·to(한국 기준, 양 끝 포함), page, page_size | 양 역할. 범위와 겹치는 일정을 시작 순 반환 |
 | POST /schedules | title, category, description?, all_day, 종일 또는 시간 지정 필드 | 양 역할, CSRF |
 | GET /schedules/{id} | 없음 | 양 역할 전체 조회 |
@@ -333,8 +334,8 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 
 ### 생산·검사 기록 관리자 정정 현재 구현 범위 (2026-11-23)
 
-관리자만 실행할 수 있고 CSRF 더블 서브밋을 요구한다(DEC-158·DEC-162·DEC-208). 삭제(soft delete)는
-이번 범위에 포함하지 않는다.
+관리자만 실행할 수 있고 CSRF 더블 서브밋을 요구한다(DEC-158·DEC-162·DEC-208·DEC-222). 삭제는
+soft delete이며 감사 이력에 남긴다.
 
 - `PATCH /process-records/{id}`: `version`(필수), `change_reason`(필수, 공백 불가), 선택 필드
   `occurred_at`·`cycle_time_seconds`·`product_id`·`equipment_id`. 원천 식별자(`source_import_id`,
@@ -351,7 +352,13 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`: 관리자만 조회한다.
   `items`에 `before_value`·`after_value`(변경 필드만)·`reason`·`actor_id`·`actor_display_name`·`version`·
   `occurred_at`을 최신순으로 반환한다
-- 검증: pytest 211건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 정정 적용·version 충돌·무변경
+- `DELETE /process-records/{id}`·`DELETE /inspection-records/{id}`: 본문 `version`, `change_reason`을
+  받는다. 관리자·CSRF가 필요하고 `204`를 반환한다. `deleted_at`을 기록하는 soft delete이며 version을
+  1 올리고 `record_change`에 operation `delete`, 삭제 전 값(`before_value`), `after_value` 없음, 사유·
+  작업자·시각·결과 version을 같은 트랜잭션으로 남긴다. 삭제된 기록은 일반 조회·품질 집계·AI 조회에서
+  제외하고 관리자는 변경 이력으로 확인한다(DEC-160·DEC-162). 없거나 삭제된 기록은
+  `404 RECORD_NOT_FOUND`, version이 다르면 `409 VERSION_CONFLICT`다
+- 검증: pytest 396건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 정정 적용·version 충돌·무변경
   거부·null 비우기·감사 기록(전후 값·사유·작업자)·이력 정렬·soft delete 기록 404·원천 식별자 불변·
   인덱스 생성을 확인했다
 
@@ -410,8 +417,96 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
   자동 재실행은 하지 않는다(DEC-094)
 - 검증: pytest 250건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 접수·data_cutoff·중복 반환·
   키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인했다
-- 실제 AI 실행(`querying`·`writing` 단계와 `succeeded` 시 보고서 등록), 같은 조건 중복 안내
-  (`POST /report-duplicate-checks`)는 후속 작업이다
+- `POST /report-duplicate-checks`: `report_kind`, `category`, `period`, `targets`를 받아 같은 조건으로
+  성공 생성된 보고서를 안내한다. 관리자는 전체, 고용자는 본인 보고만 최대 5건 최신순으로 반환하고
+  응답은 `has_duplicate`, `reusable_report_id`(같은 요청자가 즉시 재사용할 완료 보고서),
+  `items`(제목·분류·상태·작성자·생성 시각)다. 생성 자체를 막지 않으며 재생성은 새 요청이다(DEC-210·DEC-221)
+- 검증(중복 안내): pytest 390건(Ruff·mypy 포함)으로 관리자 전체·고용자 본인 범위, 재사용 보고서 판정,
+  조건 불일치 검증을 확인했다
+- 실제 AI 보고서 실행은 `python -m app.commands.run_report_worker`로 구현되어 있다(DEC-082·DEC-095·DEC-127)
+
+### 대화 저장·조회와 채팅 작업 접수 현재 구현 범위 (2026-11-24)
+
+AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 chat worker로 분리하고, 이번 범위에서는
+대화·질문 저장, 작업 접수, 본인 조회·검색, soft delete까지 구현한다
+(DEC-030·DEC-032~034·DEC-062·DEC-095·DEC-122~126·DEC-216).
+
+- `POST /conversations`: `title`(1~200자)로 생성한다. CSRF가 필요하고 소유자는 로그인 사용자다.
+  응답은 `201`과 빈 `turns`를 포함한 상세다
+- `GET /conversations`: `q`(제목·질문·답변 부분 검색, 최대 100자), `from`·`to`(한국 기준 최근 활동
+  기간, `from` 포함·`to` 제외), `page`/`page_size`(기본 10·최대 100). `updated_at` 내림차순·
+  `id` 내림차순으로 `turn_count`와 함께 반환한다. 관리자도 본인 대화만 조회한다(DEC-032)
+- `GET /conversations/{id}`: 질문·답변·`answer_status`·작성 시각·데이터 기준 시각·시연 여부,
+  연결된 `job` 상태(`state`·`error_code`·`safe_error_message`), 근거 목록을 `turns`로 반환한다.
+  타인 대화·삭제 대화는 `404 CONVERSATION_NOT_FOUND`이며 응답에 `Cache-Control: no-store`가 붙는다
+- `DELETE /conversations/{id}`: CSRF가 필요하다. soft delete하고 진행 중인 채팅 작업을 취소하며
+  `204`를 반환한다(DEC-034·DEC-062)
+- `POST /conversations/{id}/turns`: `question`(1~1,000자), `client_request_key`(1~100자)를 받고
+  CSRF가 필요하다. `chat_turn`과 `kind=chat` 작업을 한 트랜잭션으로 접수해 `202`와 `turn_id`·
+  `job_id`·`state`·`accepted_at`·`data_cutoff_at`을 반환한다. 같은 요청 키·같은 내용은 기존 접수
+  결과를 반환하고 내용이 다르면 `409 REQUEST_KEY_CONFLICT`다. 같은 대화에 생성 중
+  (`accepted`·`querying`·`writing`) 작업이 있으면 `409 CHAT_TURN_IN_PROGRESS`다(DEC-125)
+- `POST /conversations/{id}/turns/{turn_id}/refresh`: `client_request_key`만 받는다. 원래 질문과
+  `query_scope`를 복사한 새 질문을 같은 대화에 추가해 최신 데이터 재조회를 접수한다. 실패 재시도와
+  구분하며, 같은 대화에 생성 중 작업이 있으면 `409 CHAT_TURN_IN_PROGRESS`다(DEC-098)
+- 채팅 작업 상태는 `GET /jobs?kind=chat`·`GET /jobs/{id}`로 조회하고 `POST /jobs/{id}/cancel`로
+  취소한다. 화면은 이 상태로 데이터 조회 중·답변 작성 중을 표시한다(DEC-095·DEC-126)
+- 검증: pytest 354건(Ruff·mypy 포함)으로 소유자 범위·검색·기간 필터·페이지네이션·soft delete·
+  진행 중 질문 차단·요청 키 멱등/충돌·refresh 질문/조건 복사·채팅 작업 접수·API 오류 매핑을 확인했다.
+  일회용 PostgreSQL 18 DB에서 Alembic head 적용, `ck_answer_evidence_source` 위반 거부, 인덱스 생성,
+  `20261123_0018`↔`20261124_0019` downgrade/upgrade를 확인하고 DB를 삭제했다
+- 미완료: FE `/chat` 연동. 답변 생성·재시도·과거 답변 가림은 다음 절에서 구현했다. `answer`·`evidence`는
+  worker가 채우기 전까지 비어 있다
+
+### AI 대화 답변 생성과 실패 재시도 현재 구현 범위 (2026-11-24)
+
+채팅 작업은 `python -m app.commands.run_chat_worker`가 처리한다(DEC-216·DEC-217). 답변은 자유 SQL이
+아니라 서버가 정의·검증한 조회 도구만 호출해 만든다.
+
+- 처리 흐름: `accepted`(접수) → `querying`(계획 변환·도구 실행) → `writing`(답변 작성) →
+  `succeeded`. AI·도구 실패는 `failed`와 `safe_error_message`로 남는다(DEC-095)
+- 계획: AI는 JSON 하나(`{"tool": ..., "arguments": {...}}`)만 출력한다. 서버는 도구 이름·인자
+  스키마·범위(기간 1~90일, 목록 1~20건)를 검증하고, 규칙에 맞지 않으면 1회 다시 요청한다.
+  두 번째도 실패하면 `CHAT_PLAN_FAILED`다
+- 도구 7종: `quality_summary`(검사·양품·불량·불량률·불량 유형·생산 기록 건수),
+  `inspection_records`(검사 목록), `process_records`(생산 목록), `report_search`(보고서 검색),
+  `stock_status`(제품별 현재 재고·최소 재고·부족 여부), `stock_movements`(입출고·조정 이력),
+  `schedule_list`(기간과 겹치는 일정). 그 밖의 도구·SQL·임의 컬럼은 실행하지 않는다(DEC-220)
+- 권한: 공정·검사·품질·재고·일정은 양 역할 전체, 보고서는 관리자 전체·고용자 본인으로 기존 조회
+  권한을 그대로 적용한다(DEC-037·DEC-058). 대화는 본인만 조회한다(DEC-032)
+- 제품·설비 이름은 서버가 활성 마스터와 대조해 ID로 바꾼다. 찾지 못하거나 후보가 여러 개면
+  조회하지 않고 `not_found`/`ambiguous`와 후보를 답변에 전달한다
+- 답변에는 조회 기간·대상·데이터 기준 시각과 시연 여부를 포함하고, 근거가 되는 보고서·생산·검사
+  기록을 `answer_evidence`에 저장한다. 집계 답변처럼 특정 기록 근거가 없으면 근거 행을 만들지
+  않고 `query_scope`에 조회 조건을 보존한다
+- 답변 조회 시 근거의 현재 권한을 다시 검증한다. 권한이 없으면 `answer`를 `null`로 가리고
+  `answer_status="hidden_permission"`으로 표시하며 근거 목록도 숨긴다. 근거가 soft delete된 답변은
+  내용을 유지하고 `answer_status="available_with_deleted_evidence"`로 알린다. 가려진 답변 본문은
+  대화 키워드 검색에서도 제외한다(DEC-099·DEC-100)
+- 도구 조회는 `data_cutoff_at` 이전에 발생한 검사·생산 기록만 집계·목록에 포함한다. 입출고 이력은
+  기간으로 조회하며 재고 현황과 일정은 현재 상태·등록 값을 그대로 사용한다. 보고서 검색은 저장된
+  보고서를 대상으로 기존 조회 권한을 적용한다
+- AI 호출 전 `querying`·`writing` 작업의 임차를 갱신(heartbeat)해 계획·재계획·답변 작성이 길어져도
+  다른 정리 작업이 진행 중 작업을 `interrupted`로 오인하지 않게 한다
+- 후속 질문에는 같은 대화의 이전 답변 중 현재 권한이 있는 최근 5건을 `history`로 전달한다. 질문은
+  300자·답변은 800자로 줄이고 작성 시각·데이터 기준 시각·시연 여부·근거 삭제 여부를 함께 보낸다.
+  권한이 없는 답변은 전달하지 않으며, `history`는 참고 자료일 뿐 현재 수치는 도구 조회 결과만
+  사용한다(DEC-101·DEC-219)
+- 최신 재조회(`refresh`)는 저장된 `query_scope.plan`을 재사용해 같은 조건을 새 기간으로 다시
+  조회하고 답변 작성만 AI에 요청한다. 저장된 계획이 유효하지 않으면 다시 계획한다(DEC-098)
+- 실패 재시도: `POST /conversations/{id}/turns/{turn_id}/retry`에 새 `client_request_key`를 보낸다.
+  최신 작업이 `failed`·`interrupted`일 때만 같은 질문에 새 작업을 연결해 `202`를 반환하고, 그 외는
+  `409 CHAT_TURN_NOT_RETRYABLE`이다(DEC-124)
+- 취소: 작업이 `writing` 전에 `cancelled`가 되면 늦게 도착한 답변·근거를 저장하지 않는다(DEC-125)
+- 작업 큐: 보고서 worker는 `kind=report`, 채팅 worker는 `kind=chat`만 선점한다. 임차 만료 정리는
+  `python -m app.commands.reap_report_jobs`·`reap_chat_jobs`가 각각 담당한다
+- 검증: pytest 386건(Ruff·mypy 포함)으로 계획 검증·1회 재시도·도구 인자 범위·이름 해석 실패·
+  보고서 권한 전달·답변/근거 저장·취소 시 폐기·재시도 허용/거부·kind별 선점·권한 상실 가림·
+  삭제 근거 표시·가려진 답변 검색 제외·권한 있는 과거 답변만 맥락 전달·재고/입출고/일정 도구 결과를
+  확인했다. 일회용 PostgreSQL 18 DB에서 로컬 `.env`의 OpenAI 호환 제공자(`gpt-6.2-sol`)로 계획·답변을
+  실제 호출해 worker 저장 흐름을 확인했고, 같은 DB에서 권한 상실 가림·관리자 열람·삭제 근거 표시·
+  검색 제외·`data_cutoff_at` 필터·맥락에서 가려진 답변 제외를 확인한 뒤 DB를 삭제했다
+- 미완료: FE `/chat` 연동. AI에 전달하는 상세 필드는 DEC-128에 따라 팀 확인이 필요하다
 
 ### 품질 통계 현재 구현 범위 (2026-11-23)
 
@@ -432,7 +527,26 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
   나타낸다
 - 검증: pytest 257건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 기간 경계·설비/품목 필터·
   soft delete 제외·불량률 반올림·분모 0 null·유형 분포 정렬·생산 기록 건수·시연 표시를 확인했다
-- 가동률(`GET /quality/operation`)은 `operation_day` 작업에서 별도 구현한다
+- 가동률(`GET /quality/operation`)은 다음 절에서 구현한다
+
+### 가동률 현재 구현 범위 (2026-11-24)
+
+시연 데이터로 제공하고 실제 측정값과 구분해 시연 여부를 표시한다(DEC-163·DEC-164·DEC-223). 기간·설비
+범위의 계획·실제 시간을 각각 합산한 뒤 가동률을 계산하며, 일별 비율의 평균을 쓰지 않는다.
+
+- 데이터: `operation_day`(설비·일자별 `planned_seconds`·`actual_seconds`, `is_demo`,
+  `(equipment_id, day)` UNIQUE, 시간 >= 0 CHECK). `20261124_0020`으로 구현
+- 시연 적재: `python -m app.commands.seed_operation_days [--days 14]`가 활성 설비별로 최근 N일
+  (기본 14일, 주말 포함) 행을 만든다. 계획 8시간, 실제 6~8시간을 `(설비, 날짜)` 기준 결정적으로
+  배정하고 이미 있는 행은 덮어쓰지 않는다
+- `GET /quality/operation`: 선택 query `from`·`to`(한국 기준 날짜, 양 끝 포함), `equipment_id`(1 이상).
+  응답은 `equipment_id`, `from_date`, `to_date`, `planned_hours`, `actual_hours`(소수 둘째 자리),
+  `operation_rate`(실제 ÷ 계획 × 100, 계획 합계 0이면 `null`), `includes_demo`다. 양 역할 모두 조회한다
+- AI 도구 `operation_summary`: 기간 1~90일과 선택 설비로 같은 집계를 답한다. 근거 행은 만들지 않고
+  `query_scope`에 기간·대상을 보존하며 시연 여부를 전달한다
+- 검증: pytest 405건(Ruff·mypy 포함), 일회용 PostgreSQL 18 DB에서 `20261124_0020` 적용, 시연 적재
+  (설비·14일), 설비/기간 필터 합산, 계획 0 null, 시연 표시를 확인했다
+- 실제 가동률 데이터 연동은 범위에서 제외한다(DEC-163)
 
 ### 일정 현재 구현 범위 (2026-11-23)
 

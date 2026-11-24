@@ -58,23 +58,14 @@ class ReportJobTargets(BaseModel):
         return value
 
 
-class ReportJobCreateRequest(BaseModel):
-    client_request_key: str = Field(min_length=1, max_length=100)
+class ReportConditionRequest(BaseModel):
     report_kind: ReportKind = "general"
     category: ReportCategory
     period: ReportJobPeriod = Field(default_factory=ReportJobPeriod)
     targets: ReportJobTargets = Field(default_factory=ReportJobTargets)
 
-    @field_validator("client_request_key")
-    @classmethod
-    def strip_key(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("요청 키를 입력해 주세요.")
-        return normalized
-
     @model_validator(mode="after")
-    def match_kind_to_category(self) -> ReportJobCreateRequest:
+    def match_kind_to_category(self) -> ReportConditionRequest:
         expected = _PERIODIC_KIND.get(self.category, "general")
         if self.report_kind != expected:
             raise ValueError("보고 분류와 보고 종류가 맞지 않습니다.")
@@ -96,6 +87,23 @@ class ReportJobCreateRequest(BaseModel):
         }
 
 
+class ReportJobCreateRequest(ReportConditionRequest):
+    client_request_key: str = Field(min_length=1, max_length=100)
+    force_regenerate: bool = False
+
+    @field_validator("client_request_key")
+    @classmethod
+    def strip_key(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("요청 키를 입력해 주세요.")
+        return normalized
+
+
+class ReportDuplicateCheckRequest(ReportConditionRequest):
+    pass
+
+
 class JobRetryRequest(BaseModel):
     client_request_key: str = Field(min_length=1, max_length=100)
 
@@ -113,6 +121,7 @@ class ReportJobAcceptedResponse(BaseModel):
     state: JobState
     accepted_at: datetime
     data_cutoff_at: datetime | None
+    report_id: int | None = None
 
 
 class JobListItem(BaseModel):
@@ -140,3 +149,20 @@ class JobDetail(JobListItem):
 class JobListResponse(BaseModel):
     items: list[JobListItem]
     pagination: Pagination
+
+
+class ReportDuplicateItem(BaseModel):
+    report_id: int
+    title: str
+    category: ReportCategory
+    report_kind: ReportKind
+    business_status: Literal["pending", "in_progress", "completed"]
+    author_id: int
+    author_display_name: str
+    created_at: datetime
+
+
+class ReportDuplicateCheckResponse(BaseModel):
+    has_duplicate: bool
+    reusable_report_id: int | None
+    items: list[ReportDuplicateItem]

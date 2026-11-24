@@ -35,6 +35,7 @@ class RecordHistoryRepository:
         product_id: int | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None,
     ) -> list[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = [ProcessRecord.deleted_at.is_(None)]
         if equipment_id is not None:
@@ -45,6 +46,8 @@ class RecordHistoryRepository:
             conditions.append(ProcessRecord.occurred_at >= period_from)
         if period_to is not None:
             conditions.append(ProcessRecord.occurred_at < period_to)
+        if data_cutoff_at is not None:
+            conditions.append(ProcessRecord.occurred_at <= data_cutoff_at)
         return conditions
 
     def count_process_records(
@@ -54,12 +57,14 @@ class RecordHistoryRepository:
         product_id: int | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None = None,
     ) -> int:
         conditions = self._process_conditions(
             equipment_id=equipment_id,
             product_id=product_id,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         return (
             self._session.scalar(select(func.count()).select_from(ProcessRecord).where(*conditions))
@@ -75,12 +80,14 @@ class RecordHistoryRepository:
         period_to: datetime | None,
         offset: int,
         limit: int,
+        data_cutoff_at: datetime | None = None,
     ) -> list[ProcessRecordView]:
         conditions = self._process_conditions(
             equipment_id=equipment_id,
             product_id=product_id,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         statement = (
             select(ProcessRecord, Equipment, Product)
@@ -104,6 +111,7 @@ class RecordHistoryRepository:
         verdict: str | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None,
     ) -> list[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = [InspectionRecord.deleted_at.is_(None)]
         if equipment_id is not None:
@@ -116,6 +124,8 @@ class RecordHistoryRepository:
             conditions.append(InspectionRecord.inspected_at >= period_from)
         if period_to is not None:
             conditions.append(InspectionRecord.inspected_at < period_to)
+        if data_cutoff_at is not None:
+            conditions.append(InspectionRecord.inspected_at <= data_cutoff_at)
         return conditions
 
     def count_inspection_records(
@@ -126,6 +136,7 @@ class RecordHistoryRepository:
         verdict: str | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None = None,
     ) -> int:
         conditions = self._inspection_conditions(
             equipment_id=equipment_id,
@@ -133,6 +144,7 @@ class RecordHistoryRepository:
             verdict=verdict,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         return (
             self._session.scalar(
@@ -151,6 +163,7 @@ class RecordHistoryRepository:
         period_to: datetime | None,
         offset: int,
         limit: int,
+        data_cutoff_at: datetime | None = None,
     ) -> list[InspectionRecordView]:
         conditions = self._inspection_conditions(
             equipment_id=equipment_id,
@@ -158,6 +171,7 @@ class RecordHistoryRepository:
             verdict=verdict,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         statement = (
             select(InspectionRecord, Equipment, Product)

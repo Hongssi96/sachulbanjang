@@ -16,7 +16,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
 }
 .rp-toolbar-end .filter-select {
@@ -27,7 +27,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1 1 220px;
+  flex: 0 1 220px;
+  width: 220px;
   min-width: 0;
   height: 44px;
   padding: 0 12px;
@@ -166,6 +167,16 @@
   opacity: 0.4;
   cursor: default;
 }
+.rp-pagination-slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  flex-shrink: 0;
+}
+.rp-pagination-slot .rp-pagination {
+  margin-top: 0;
+}
 .rp-gap {
   min-width: 24px;
   text-align: center;
@@ -175,6 +186,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 56px 24px;
   border: 1px solid var(--border);
@@ -182,6 +194,14 @@
   background: var(--surface);
   color: var(--muted);
   text-align: center;
+}
+/* 검색 결과가 없어도 게시판을 유지해 화면 높이가 바뀌지 않게 한다. */
+.rp-empty-inside {
+  flex: 1;
+  min-height: 240px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .rp-empty strong {
   font-size: var(--fs-md);
@@ -476,6 +496,18 @@
   color: #1a1826;
 }
 @media (max-width: 720px) {
+  /* 조회 조건이 한 줄에 다 들어가지 않으므로 자연스럽게 줄을 나눈다. */
+  .rp-toolbar-end {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .rp-toolbar-end .filter-select {
+    flex: 1 1 120px;
+    width: auto;
+  }
+  .rp-search {
+    flex: 1 1 100%;
+  }
   /* 좁은 화면: 제목과 상태만 남긴다. */
   .rp-board {
     --rp-cols: minmax(0, 1fr) auto;
@@ -535,5 +567,9 @@
     position: sticky;
     top: 0;
     z-index: 1;
+  }
+  /* 페이지가 1개뿐이어도 같은 높이를 차지해 게시판 높이가 바뀌지 않게 한다. */
+  .fit-viewport .rp-pagination-slot {
+    min-height: 54px;
   }
 }

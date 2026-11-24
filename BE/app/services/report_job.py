@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.master import AppUser
+from app.models.report import Report
 from app.models.report_job import TERMINAL_JOB_STATES, GenerationJob
 from app.repositories.report_job import ReportJobRepository
 
@@ -18,7 +19,7 @@ Clock = Callable[[], datetime]
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "accepted": {"querying", "failed"},
     "querying": {"writing", "failed"},
-    "writing": {"failed"},
+    "writing": {"succeeded", "failed"},
 }
 
 _INTERRUPTED_MESSAGE = "서버 중단으로 작업이 끝나지 않았습니다. 다시 시도해 주세요."
@@ -65,6 +66,12 @@ class JobPage:
     total_items: int
 
 
+@dataclass(frozen=True)
+class DuplicateCheckResult:
+    items: list[tuple[GenerationJob, Report, str]]
+    reusable_report_id: int | None
+
+
 class ReportJobService:
     """Accept, inspect, cancel, and retry report generation jobs.
 
@@ -89,36 +96,70 @@ class ReportJobService:
         *,
         client_request_key: str,
         payload: dict[str, object],
+        force_regenerate: bool = False,
     ) -> tuple[GenerationJob, bool]:
         digest = request_digest(payload)
         existing = self._repository.find_by_request_key(requester.id, "report", client_request_key)
         if existing is not None:
             return self._reuse_or_conflict(existing, digest)
-
-        now = self._clock()
-        job = GenerationJob(
-            requester_id=requester.id,
+        if not force_regenerate:
+            completed = self._repository.find_completed_report_by_digest(requester.id, digest)
+            if completed is not None:
+                return completed[0], False
+        return self._create_job(
+            requester,
             kind="report",
             client_request_key=client_request_key,
-            request_payload=payload,
-            request_digest=digest,
-            state="accepted",
-            accepted_at=now,
-            data_cutoff_at=self._repository.latest_data_cutoff() or now,
-            attempt_count=0,
+            payload=payload,
+            digest=digest,
         )
-        try:
-            self._repository.add_job(job)
-            self._session.commit()
-        except IntegrityError:
-            self._session.rollback()
-            existing = self._repository.find_by_request_key(
-                requester.id, "report", client_request_key
-            )
-            if existing is None:
-                raise
+
+    def find_request(
+        self, requester: AppUser, *, kind: str, client_request_key: str
+    ) -> GenerationJob | None:
+        return self._repository.find_by_request_key(requester.id, kind, client_request_key)
+
+    def check_duplicate_reports(
+        self, actor: AppUser, *, payload: dict[str, object]
+    ) -> DuplicateCheckResult:
+        """List visible completed reports generated from the same condition."""
+        digest = request_digest(payload)
+        requester_id = None if actor.role == "admin" else actor.id
+        items = self._repository.find_duplicate_reports(
+            request_digest=digest, requester_id=requester_id, limit=5
+        )
+        reusable = self._repository.find_completed_report_by_digest(actor.id, digest)
+        return DuplicateCheckResult(
+            items=items,
+            reusable_report_id=reusable[1] if reusable is not None else None,
+        )
+
+    def submit_job(
+        self,
+        requester: AppUser,
+        *,
+        kind: str,
+        client_request_key: str,
+        payload: dict[str, object],
+        commit: bool = True,
+    ) -> tuple[GenerationJob, bool]:
+        """Accept a generation job.
+
+        Passing ``commit=False`` keeps the job in the caller's transaction so a
+        related row (for example a chat turn) can be written atomically with it.
+        """
+        digest = request_digest(payload)
+        existing = self._repository.find_by_request_key(requester.id, kind, client_request_key)
+        if existing is not None:
             return self._reuse_or_conflict(existing, digest)
-        return job, True
+        return self._create_job(
+            requester,
+            kind=kind,
+            client_request_key=client_request_key,
+            payload=payload,
+            digest=digest,
+            commit=commit,
+        )
 
     def list_jobs(
         self,
@@ -165,34 +206,20 @@ class ReportJobService:
         if existing is not None:
             return self._reuse_or_conflict(existing, digest)
 
-        now = self._clock()
-        job = GenerationJob(
-            requester_id=requester.id,
+        return self._create_job(
+            requester,
             kind=original.kind,
             client_request_key=client_request_key,
-            request_payload=original.request_payload,
-            request_digest=digest,
-            state="accepted",
-            accepted_at=now,
-            data_cutoff_at=self._repository.latest_data_cutoff() or now,
+            payload=original.request_payload,
+            digest=digest,
             retry_of_id=original.id,
             attempt_count=original.attempt_count + 1,
         )
-        try:
-            self._repository.add_job(job)
-            self._session.commit()
-        except IntegrityError:
-            self._session.rollback()
-            existing = self._repository.find_by_request_key(
-                requester.id, original.kind, client_request_key
-            )
-            if existing is None:
-                raise
-            return self._reuse_or_conflict(existing, digest)
-        return job, True
 
-    def claim_next_job(self, *, lease_seconds: int) -> GenerationJob | None:
-        job = self._repository.claim_next_accepted()
+    def claim_next_job(
+        self, *, lease_seconds: int, kind: str | None = None
+    ) -> GenerationJob | None:
+        job = self._repository.claim_next_accepted(kind=kind)
         if job is None:
             return None
         now = self._clock()
@@ -238,9 +265,9 @@ class ReportJobService:
         self._session.commit()
         return job
 
-    def mark_stale_jobs_interrupted(self) -> int:
+    def mark_stale_jobs_interrupted(self, *, kind: str | None = None) -> int:
         now = self._clock()
-        jobs = self._repository.find_stale_jobs(now)
+        jobs = self._repository.find_stale_jobs(now, kind=kind)
         for job in jobs:
             job.state = "interrupted"
             job.error_code = "WORKER_INTERRUPTED"
@@ -249,6 +276,45 @@ class ReportJobService:
         if jobs:
             self._session.commit()
         return len(jobs)
+
+    def _create_job(
+        self,
+        requester: AppUser,
+        *,
+        kind: str,
+        client_request_key: str,
+        payload: dict[str, object],
+        digest: str,
+        retry_of_id: int | None = None,
+        attempt_count: int = 0,
+        commit: bool = True,
+    ) -> tuple[GenerationJob, bool]:
+        now = self._clock()
+        job = GenerationJob(
+            requester_id=requester.id,
+            kind=kind,
+            client_request_key=client_request_key,
+            request_payload=payload,
+            request_digest=digest,
+            state="accepted",
+            accepted_at=now,
+            data_cutoff_at=self._repository.latest_data_cutoff() or now,
+            retry_of_id=retry_of_id,
+            attempt_count=attempt_count,
+        )
+        try:
+            self._repository.add_job(job)
+            if commit:
+                self._session.commit()
+            else:
+                self._session.flush()
+        except IntegrityError:
+            self._session.rollback()
+            existing = self._repository.find_by_request_key(requester.id, kind, client_request_key)
+            if existing is None:
+                raise
+            return self._reuse_or_conflict(existing, digest)
+        return job, True
 
     def _owned_job(self, requester: AppUser, job_id: int) -> tuple[GenerationJob, int | None]:
         row = self._repository.find_job_with_report(job_id)

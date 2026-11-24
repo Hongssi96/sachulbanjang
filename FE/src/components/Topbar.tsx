@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bell, Moon, Sun } from 'lucide-react';
 import type { AuthenticatedUser } from '../api/auth';
+import { useWorkTime, workEndMinutes } from '../services/workTimeStore';
 
-// 주간 근무 08:00–17:00 기준 퇴근 시각(분 단위)
-const WORK_END_MINUTES = 17 * 60;
-
-function offWorkCountdown(now: Date) {
-  const remaining = WORK_END_MINUTES - (now.getHours() * 60 + now.getMinutes());
+function offWorkCountdown(now: Date, endMinutes: number) {
+  const remaining = endMinutes - (now.getHours() * 60 + now.getMinutes());
   if (remaining >= 60) return '퇴근까지 60분!';
   if (remaining > 0) return `퇴근까지 ${remaining}분!`;
   return '퇴근 시간이에요!';
@@ -25,6 +23,7 @@ interface TopbarProps {
   sessionEnded: boolean;
   sessionFired: boolean;
   onSessionEnd: () => void;
+  onProfile: () => void;
   onLogout: () => void;
   loggingOut: boolean;
 }
@@ -40,18 +39,36 @@ export default function Topbar({
   sessionEnded,
   sessionFired,
   onSessionEnd,
+  onProfile,
   onLogout,
   loggingOut,
 }: TopbarProps) {
   const [now, setNow] = useState(() => new Date());
+  const workTime = useWorkTime();
+  const endMinutes = workEndMinutes(workTime);
+  // 근무 종료 시각을 넘어가는 순간에만 퇴근 알림을 띄운다.
+  // (이미 지난 시각으로 설정하거나, 앱을 늦게 열어도 알림이 곧바로 뜨지 않게 한다.)
+  const crossing = useRef<{ key: string; remaining: number } | null>(null);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    const remaining = WORK_END_MINUTES - (now.getHours() * 60 + now.getMinutes());
-    if (remaining <= 0 && !sessionFired && !extended) onSessionEnd();
-  }, [now, sessionFired, extended, onSessionEnd]);
+    const remaining = endMinutes - (now.getHours() * 60 + now.getMinutes());
+    const key = `${now.toDateString()}-${endMinutes}`;
+    const previous = crossing.current;
+    if (
+      previous &&
+      previous.key === key &&
+      previous.remaining > 0 &&
+      remaining <= 0 &&
+      !sessionFired &&
+      !extended
+    ) {
+      onSessionEnd();
+    }
+    crossing.current = { key, remaining };
+  }, [now, sessionFired, extended, onSessionEnd, endMinutes]);
   return (
     <header className="topbar">
       <div className="topbar-heading">
@@ -74,13 +91,19 @@ export default function Topbar({
           <Bell size={20} />
           <i />
         </button>
-        <span className="avatar" aria-hidden="true">
-          {user.display_name.trim().charAt(0) || '?'}
-        </span>
-        <span className="user-greeting">
-          {user.display_name} 님{' '}
-          {sessionEnded ? '퇴근 완료' : extended ? '오늘 야근 중이에요' : offWorkCountdown(now)}
-        </span>
+        <button type="button" className="topbar-profile" onClick={onProfile} aria-label="관리 열기">
+          <span className="avatar" aria-hidden="true">
+            {user.display_name.trim().charAt(0) || '?'}
+          </span>
+          <span className="user-greeting">
+            {user.display_name} 님{' '}
+            {sessionEnded
+              ? '퇴근 완료'
+              : extended
+                ? '오늘 야근 중이에요'
+                : offWorkCountdown(now, endMinutes)}
+          </span>
+        </button>
         <button
           className="button button-white topbar-extend"
           onClick={extended ? onLogout : onToggleExtended}

@@ -267,21 +267,23 @@
   flex: 1;
   min-width: 0;
 }
+/* 홈의 '사출반장의 품질 인사이트' 카드와 같은 위계(라벨 14 < 본문 16 < 제목 24)를 쓴다. */
 .qr-observation-label {
   display: block;
   color: #817592;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
+  font-weight: 600;
   line-height: 20px;
   margin-bottom: 4px;
 }
 .quality-report-page .qr-observation h2 {
-  font-size: var(--fs-lg);
-  line-height: 26px;
+  font-size: var(--fs-2xl);
+  line-height: 32px;
   font-weight: 600;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.8px;
 }
 .qr-observation p {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   line-height: 24px;
   color: #756c86;
   margin-top: 8px;
@@ -377,7 +379,7 @@
 }
 .qr-history-table {
   width: 100%;
-  min-width: 1000px;
+  min-width: 940px;
   border-collapse: collapse;
   text-align: left;
   font-size: var(--fs-sm);
@@ -412,9 +414,9 @@
 }
 .qr-history-table th:last-child,
 .qr-history-table td:last-child {
-  padding-right: 24px;
+  width: 150px;
+  padding-right: 20px;
   padding-left: 8px;
-  width: 44px;
 }
 .qr-history-table .qr-number {
   text-align: right;
@@ -477,6 +479,27 @@
 .qr-pill-danger {
   background: #fbedef;
   color: #ad4256;
+}
+/* 생산·검사 이력·재고 표와 같은 '상세 보기' 링크 형태를 쓴다. */
+.qr-detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: #8d849f;
+  white-space: nowrap;
+}
+.qr-detail-link:hover {
+  color: var(--primary);
+  background: #eeeaf5;
+}
+.dark .qr-detail-link:hover {
+  color: #cfbff1;
+  background: #443958;
 }
 .qr-table-footer {
   display: flex;
@@ -829,17 +852,6 @@
   .qr-defect-legend small {
     font-size: var(--fs-sm);
   }
-  .qr-observation-label {
-    font-size: var(--fs-sm);
-  }
-  .qr-observation p {
-    font-size: var(--fs-md);
-    line-height: 28px;
-  }
-  .quality-report-page .qr-observation h2 {
-    font-size: var(--fs-2xl);
-    line-height: 32px;
-  }
 }
 @media (max-width: 1250px) {
   .qr-intro-actions {
@@ -889,6 +901,33 @@
   .qr-table-toolbar > span {
     display: none;
   }
+  .qr-observation-label {
+    font-size: var(--fs-xs);
+  }
+  /* 좁은 화면에서는 표가 잘리지 않도록 설비·담당자 열을 숨긴다(배치 상세에서 확인 가능). */
+  .qr-history-table th:nth-child(3),
+  .qr-history-table td:nth-child(3),
+  .qr-history-table th:nth-child(8),
+  .qr-history-table td:nth-child(8) {
+    display: none;
+  }
+  .qr-history-table {
+    min-width: 700px;
+  }
+  .qr-history-table th,
+  .qr-history-table td {
+    padding: 10px 8px;
+  }
+  .qr-history-table th:first-child,
+  .qr-history-table td:first-child {
+    padding-left: 16px;
+  }
+  .qr-history-table th:last-child,
+  .qr-history-table td:last-child {
+    width: 130px;
+    padding-right: 16px;
+    padding-left: 8px;
+  }
 }
 @media (max-width: 1050px) {
   .qr-analysis-grid {
@@ -911,6 +950,14 @@
   }
   .qr-analysis-grid h2 {
     font-size: var(--fs-2xl);
+  }
+  /* 홈 인사이트 카드와 같이 좁은 화면에서 제목이 한 단계 커지고 본문은 줄어든다. */
+  .quality-report-page .qr-observation h2 {
+    font-size: var(--fs-3xl);
+    line-height: 36px;
+  }
+  .qr-observation p {
+    font-size: var(--fs-sm);
   }
   .qr-chart-legend {
     max-width: 220px;
@@ -1245,9 +1292,6 @@
 }
 .quality-report-page .qr-product-cell {
   text-align: center;
-  margin-inline: auto;
-}
-.quality-report-page .qr-history-table .icon-button {
   margin-inline: auto;
 }
 .quality-report-page .qr-breakdown {

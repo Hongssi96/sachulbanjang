@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.models.master import AppUser
+from app.models.report import Report
 from app.models.report_job import GenerationJob
 from app.repositories.report_job import ReportJobRepository
 from app.services.report_job import (
@@ -65,6 +66,7 @@ def build_service() -> tuple[ReportJobService, MagicMock, MagicMock]:
     session = MagicMock(spec=Session)
     repository = MagicMock(spec=ReportJobRepository)
     repository.latest_data_cutoff.return_value = None
+    repository.find_completed_report_by_digest.return_value = None
     service = ReportJobService(session, repository, clock=lambda: NOW)
     return service, repository, session
 
@@ -114,6 +116,24 @@ def test_submit_reuses_same_key_and_payload() -> None:
     assert created is False
     repository.add_job.assert_not_called()
     session.commit.assert_not_called()
+
+
+def test_submit_reuses_completed_report_unless_regeneration_is_explicit() -> None:
+    service, repository, _ = build_service()
+    completed = make_job(state="succeeded")
+    repository.find_by_request_key.return_value = None
+    repository.find_completed_report_by_digest.return_value = (completed, 77)
+
+    reused, created = service.submit_report_job(
+        make_user(), client_request_key="key-2", payload=PAYLOAD
+    )
+    assert reused is completed
+    assert created is False
+
+    service.submit_report_job(
+        make_user(), client_request_key="key-3", payload=PAYLOAD, force_regenerate=True
+    )
+    repository.add_job.assert_called_once()
 
 
 def test_submit_rejects_same_key_with_different_payload() -> None:
@@ -256,3 +276,63 @@ def test_fail_and_interrupt_mark_terminal_states() -> None:
     assert stale.error_code == "WORKER_INTERRUPTED"
     assert stale.safe_error_message
     session.commit.assert_called()
+
+
+def test_claim_and_reap_can_filter_job_kind() -> None:
+    service, repository, _ = build_service()
+    repository.claim_next_accepted.return_value = None
+    repository.find_stale_jobs.return_value = []
+
+    service.claim_next_job(kind="chat", lease_seconds=60)
+    service.mark_stale_jobs_interrupted(kind="chat")
+
+    repository.claim_next_accepted.assert_called_once_with(kind="chat")
+    repository.find_stale_jobs.assert_called_once_with(NOW, kind="chat")
+
+
+def make_report(report_id: int = 77) -> Report:
+    report = Report(
+        id=report_id,
+        author_id=1,
+        title="주간 품질 보고",
+        body_markdown="본문",
+        category="periodic_weekly",
+        report_kind="weekly",
+        business_status="completed",
+        version=1,
+    )
+    report.created_at = NOW
+    report.updated_at = NOW
+    return report
+
+
+def test_duplicate_check_scopes_worker_to_own_reports() -> None:
+    service, repository, _ = build_service()
+    job = make_job(state="succeeded")
+    repository.find_duplicate_reports.return_value = [(job, make_report(), "사용자")]
+    repository.find_completed_report_by_digest.return_value = (job, 77)
+
+    result = service.check_duplicate_reports(make_user(user_id=5), payload=PAYLOAD)
+
+    assert result.reusable_report_id == 77
+    assert len(result.items) == 1
+    repository.find_duplicate_reports.assert_called_once_with(
+        request_digest=request_digest(PAYLOAD), requester_id=5, limit=5
+    )
+
+
+def test_duplicate_check_lets_admin_see_all_but_reuses_own() -> None:
+    service, repository, _ = build_service()
+    repository.find_duplicate_reports.return_value = []
+    repository.find_completed_report_by_digest.return_value = None
+    admin = make_user(user_id=1)
+    admin.role = "admin"
+
+    result = service.check_duplicate_reports(admin, payload=PAYLOAD)
+
+    assert result.items == []
+    assert result.reusable_report_id is None
+    repository.find_duplicate_reports.assert_called_once_with(
+        request_digest=request_digest(PAYLOAD), requester_id=None, limit=5
+    )
+    repository.find_completed_report_by_digest.assert_called_once_with(1, request_digest(PAYLOAD))

@@ -155,6 +155,15 @@ erDiagram
         timestamptz occurred_at
     }
 
+    OPERATION_DAY {
+        bigint id PK
+        bigint equipment_id FK
+        date day
+        integer planned_seconds
+        integer actual_seconds
+        boolean is_demo
+    }
+
     GENERATION_JOB {
         bigint id PK
         bigint requester_id FK
@@ -275,6 +284,36 @@ erDiagram
         varchar error_code "nullable"
     }
 
+    CONVERSATION {
+        bigint id PK
+        bigint owner_id FK
+        varchar title
+        timestamptz deleted_at "nullable"
+    }
+
+    CHAT_TURN {
+        bigint id PK
+        bigint conversation_id FK
+        text question
+        text answer "nullable"
+        bigint active_job_id FK "nullable"
+        timestamptz answered_at "nullable"
+        jsonb query_scope "nullable"
+        timestamptz data_cutoff_at "nullable"
+        boolean is_demo "nullable"
+    }
+
+    ANSWER_EVIDENCE {
+        bigint id PK
+        bigint chat_turn_id FK
+        bigint report_id FK "nullable"
+        bigint process_record_id FK "nullable"
+        bigint inspection_record_id FK "nullable"
+        bigint product_id FK "nullable"
+        integer source_version "nullable"
+        timestamptz source_time "nullable"
+    }
+
     DEPARTMENT ||--o{ PRODUCTION_LINE : contains
     PRODUCTION_LINE o|--o{ EQUIPMENT : optionally_groups
     SOURCE_IMPORT ||--o{ PROCESS_RECORD : contains
@@ -282,6 +321,7 @@ erDiagram
     EQUIPMENT ||--o{ PROCESS_RECORD : produces
     PRODUCT o|--o{ PROCESS_RECORD : identifies
     EQUIPMENT ||--o{ INSPECTION_RECORD : inspects
+    EQUIPMENT ||--o{ OPERATION_DAY : runs
     PRODUCT o|--o{ INSPECTION_RECORD : identifies
     PROCESS_RECORD o|--o{ INSPECTION_RECORD : inspected_by
     APP_USER ||--o{ AUTH_SESSION : owns
@@ -306,6 +346,14 @@ erDiagram
     APP_USER ||--o{ GENERATION_JOB : requests
     GENERATION_JOB o|--o{ GENERATION_JOB : retries
     REPORT o|--|| GENERATION_JOB : generated_by
+    APP_USER ||--o{ CONVERSATION : owns
+    CONVERSATION ||--o{ CHAT_TURN : contains
+    GENERATION_JOB o|--o{ CHAT_TURN : generates
+    CHAT_TURN ||--o{ ANSWER_EVIDENCE : cites
+    REPORT o|--o{ ANSWER_EVIDENCE : cited_by
+    PROCESS_RECORD o|--o{ ANSWER_EVIDENCE : cited_by
+    INSPECTION_RECORD o|--o{ ANSWER_EVIDENCE : cited_by
+    PRODUCT o|--o{ ANSWER_EVIDENCE : cited_by
     APP_USER ||--o{ SCHEDULE : authors
     PRODUCT ||--|| STOCK_BALANCE : balances
     PRODUCT ||--o{ STOCK_MOVEMENT : moves
@@ -381,13 +429,16 @@ erDiagram
 
 ## 구현 위치
 
-- ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/auth.py`,
+- ORM: `BE/app/models/master.py`, `BE/app/models/process.py`, `BE/app/models/operation.py`,
+  `BE/app/models/auth.py`,
   `BE/app/models/account_audit.py`, `BE/app/models/report.py`, `BE/app/models/report_job.py`,
-  `BE/app/models/schedule.py`, `BE/app/models/stock.py`, `BE/app/models/handover.py`
+  `BE/app/models/schedule.py`, `BE/app/models/stock.py`, `BE/app/models/handover.py`,
+  `BE/app/models/conversation.py`
 - 마이그레이션: `20261120_0002_core_master.py`, `20261120_0003_process_replay.py`,
   `20261120_0005_auth_session.py`, `20261123_0006_work_session.py`,
   `20261123_0007_temp_password_expiry.py`, `20261123_0008_account_audit.py`,
   `20261123_0009_inspection_record.py`, `20261123_0010_user_assignment.py`,
   `20261123_0011_record_change.py`, `20261123_0012_report.py`, `20261123_0013_generation_job.py`,
-  `20261123_0014_schedule.py`, `20261123_0015_inventory.py`, `20261123_0016_handover.py`
+  `20261123_0014_schedule.py`, `20261123_0015_inventory.py`, `20261123_0016_handover.py`,
+  `20261124_0019_conversation.py`, `20261124_0020_operation_day.py`
 - 상세 규칙과 향후 테이블: [DATABASE_DESIGN.md](DATABASE_DESIGN.md)

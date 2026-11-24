@@ -59,6 +59,7 @@ class RecordHistoryService:
         date_to: date | None,
         page: int,
         page_size: int,
+        data_cutoff_at: datetime | None = None,
     ) -> ProcessRecordPage:
         period_from, period_to = period_bounds(date_from, date_to)
         total_items = self._repository.count_process_records(
@@ -66,6 +67,7 @@ class RecordHistoryService:
             product_id=product_id,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         records = self._repository.find_process_records(
             equipment_id=equipment_id,
@@ -74,6 +76,7 @@ class RecordHistoryService:
             period_to=period_to,
             offset=(page - 1) * page_size,
             limit=page_size,
+            data_cutoff_at=data_cutoff_at,
         )
         return ProcessRecordPage(records=records, total_items=total_items)
 
@@ -93,6 +96,7 @@ class RecordHistoryService:
         date_to: date | None,
         page: int,
         page_size: int,
+        data_cutoff_at: datetime | None = None,
     ) -> InspectionRecordPage:
         period_from, period_to = period_bounds(date_from, date_to)
         total_items = self._repository.count_inspection_records(
@@ -101,6 +105,7 @@ class RecordHistoryService:
             verdict=verdict,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         records = self._repository.find_inspection_records(
             equipment_id=equipment_id,
@@ -110,6 +115,7 @@ class RecordHistoryService:
             period_to=period_to,
             offset=(page - 1) * page_size,
             limit=page_size,
+            data_cutoff_at=data_cutoff_at,
         )
         return InspectionRecordPage(records=records, total_items=total_items)
 

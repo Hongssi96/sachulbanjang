@@ -93,9 +93,19 @@ uvicorn app.main:app --reload
   `DELETE .../reports/{id}?expected_version=` (soft delete)
 - 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
   `GET .../reports/{id}/status-events`
+- 보고서 PDF: `GET .../reports/{id}/pdf` (현재 버전 Markdown·저장 집계·불량 유형 그래프를
+  Pretendard 한글 글꼴로 즉시 생성하며 다운로드 버전·사용자를 기록),
+  `GET .../reports/{id}/revisions/{version}/pdf` (선택한 이전 제목·본문과 보고서의 저장 집계로
+  생성하며 선택한 버전의 다운로드 이력을 기록)
+- 보고서 불량 유형 그래프: `GET .../reports/{id}/charts/defect-types` (저장 집계 스냅샷으로 PNG를
+  즉시 생성, 불량 유형 데이터가 없으면 `204`, 생성 실패 시 `REPORT_CHART_FAILED`. 실패 후 같은 URL을
+  다시 요청하면 본문·수치·버전을 변경하지 않고 동일한 저장 집계로 그래프만 재생성)
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
+- 가동률: `GET http://localhost:8000/api/v1/quality/operation`
+  (`from`, `to`(한국 기준 날짜, 양 끝 포함), `equipment_id`. 계획·실제 시간 합계,
+  가동률(계획 0이면 null), 시연 포함 여부. 시연 데이터는 `seed_operation_days`로 적재)
 - 인수인계 목록: `GET http://localhost:8000/api/v1/handover-notes`
   (`q`, `department_id`/`production_line_id`/`equipment_id`, `include_all`, `page`, `page_size`.
   고용자 기본은 본인 담당 필터)
@@ -120,9 +130,19 @@ uvicorn app.main:app --reload
 - 일정 수정·삭제: `PATCH .../schedules/{id}` (`version` + 변경 필드, 날짜·시각 혼용 금지),
   `DELETE .../schedules/{id}?expected_version=` (soft delete. 관리자 전체·고용자 본인)
 - 보고서 생성 작업 접수: `POST .../report-jobs` (`client_request_key`, `report_kind`, `category`,
-  `period`, `targets`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을 반환
+  `period`, `targets`, `force_regenerate`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을
+  반환하며, 같은 조건의 완료 보고서가 있으면 `report_id`를 반환한다. 명시적 재생성은
+  새 요청 키와 `force_regenerate=true`를 사용한다
 - 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,
   `POST .../jobs/{id}/retry` (요청자 본인, CSRF 필요 시 헤더 포함)
+- 대화 생성·목록·상세·삭제: `POST .../conversations`, `GET .../conversations` (`q`, `from`, `to`,
+  `page`, `page_size`), `GET .../conversations/{id}`, `DELETE .../conversations/{id}`
+  (본인 대화만. 생성·삭제는 `X-CSRF-Token` 헤더, 삭제는 `204`)
+- 대화 질문 접수·최신 재조회: `POST .../conversations/{id}/turns` (`question`, `client_request_key`),
+  `POST .../conversations/{id}/turns/{turn_id}/refresh` (`client_request_key`). `202`로 `turn_id`·
+  `job_id`·`state`를 반환하며 답변 생성은 별도 chat worker가 처리한다
+- 대화 질문 재시도: `POST .../conversations/{id}/turns/{turn_id}/retry` (`client_request_key`).
+  실패·중단된 질문만 같은 질문에 새 작업을 연결하며 그 외는 `409 CHAT_TURN_NOT_RETRYABLE`
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비
@@ -167,6 +187,15 @@ python -m app.commands.seed_master_data --file master.json
 재실행해도 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않는다. 없는 사용자·설비나 다른 라인에 이미
 속한 설비가 있으면 전체를 롤백하고 실패한다.
 
+### 가동률 시연 데이터 적재
+
+활성 설비별로 최근 N일(기본 14일, 주말 포함) 계획 8시간·실제 6~8시간을 결정적으로 만들어
+`operation_day`에 넣는다. 이미 있는 `(설비, 날짜)` 행은 덮어쓰지 않는다.
+
+```powershell
+python -m app.commands.seed_operation_days --days 14
+```
+
 ### 보고서 생성 작업 큐 정리
 
 worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`로 정리한다. 실제 AI 실행 worker는
@@ -175,6 +204,64 @@ worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`�
 ```powershell
 python -m app.commands.reap_report_jobs
 ```
+
+채팅 작업은 `python -m app.commands.reap_chat_jobs`로 정리한다. 보고서·채팅 worker는 서로의 작업을
+선점하지 않도록 `kind`별로 대기 작업을 조회한다.
+
+### AI 보고서 생성 worker
+
+`APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`을 설정한 뒤 API 서버와 별도 프로세스로
+worker를 실행한다. worker는 접수된 작업의 기간·부서·라인·설비 조건으로 서버 집계를 만들고,
+개별 사용자 정보나 원본 레코드 대신 집계 스냅샷만 OpenAI 호환 `/chat/completions` API에 전달한다.
+생성 성공 시 Markdown 보고서와 집계 기준 시각·대상·수치를 한 트랜잭션으로 저장한다.
+
+```powershell
+python -m app.commands.run_report_worker
+```
+
+대기 작업을 최대 한 건만 처리해 연결을 점검하려면 `--once`를 사용한다. 외부 요청 제한 시간은
+`APP_AI_REQUEST_TIMEOUT_SECONDS`, worker 임차 시간은 `APP_REPORT_WORKER_LEASE_SECONDS`로 조정한다.
+임차 시간은 외부 요청 제한 시간보다 길게 설정한다. AI 설정이 없으면 일반 API는 계속 실행되지만
+worker는 시작하지 않는다.
+
+### AI 채팅 답변 worker
+
+`APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`을 설정한 뒤 별도 프로세스로 실행한다. worker는
+질문을 검증된 조회 계획(JSON)으로 바꾸고 허용 도구(품질 집계·검사 목록·생산 목록·보고서 검색·재고
+현황·입출고 이력·일정 목록·가동률)만 실행한 뒤, 조회 결과만 근거로 답변을 작성해 질문에 저장한다. 자유
+SQL은 실행하지 않는다. AI가 만든 계획이 규칙에 맞지 않으면 1회 다시 요청하고, 재실패하면
+`CHAT_PLAN_FAILED`로 남긴다.
+
+```powershell
+python -m app.commands.run_chat_worker
+```
+
+`--once`로 대기 작업 한 건만 처리할 수 있다. 임차가 만료된 채팅 작업은
+`python -m app.commands.reap_chat_jobs`로 `interrupted` 처리한다. 실패·중단된 질문은 화면에서
+재시도 API로 다시 접수한다. 대화 상세는 근거의 현재 권한을 다시 확인해 `answer_status`
+(`available`, `hidden_permission`, `available_with_deleted_evidence`)로 가림 여부를 알린다. 후속
+질문에는 현재 권한이 있는 최근 5건의 이전 답변을 참고 자료로만 전달하고, 현재 수치는 도구 조회
+결과로 다시 확인한다.
+
+#### 운영 실행 확인
+
+1. 배포 전에 API 프로세스와 분리된 단계에서 `alembic upgrade head`를 한 번 실행한다.
+2. API와 worker는 같은 코드 버전·DB·AI 환경변수를 사용하되 별도 프로세스로 실행한다.
+3. 최초 배포에서는 `python -m app.commands.run_report_worker --once`로 대기 작업 한 건의
+   `accepted → querying → writing → succeeded` 전환과 보고서 등록을 확인한다.
+4. 채팅은 `python -m app.commands.run_chat_worker --once`로 대화 질문 한 건의 답변·근거 저장을
+   확인한다.
+5. 확인 후 장기 실행 worker를 프로세스 관리자나 별도 컨테이너 서비스로 실행한다. API 프로세스에
+   worker를 함께 띄우지 않는다.
+6. worker 중단 또는 서버 재시작 뒤에는 `python -m app.commands.reap_report_jobs`와
+   `python -m app.commands.reap_chat_jobs`를 실행해 임차가 만료된 작업을 `interrupted`로 정리한다.
+   중단 작업은 자동 재실행하지 않고 요청자가 재시도한다.
+7. 운영 로그에서 작업 ID·요청 ID와 `failed`·`interrupted` 상태를 확인한다. AI 키·프롬프트 원문·
+   개인정보는 로그에 기록하지 않는다.
+
+`APP_REPORT_WORKER_LEASE_SECONDS`는 `APP_AI_REQUEST_TIMEOUT_SECONDS`보다 길어야 한다. 배포 시 두 값을
+함께 확인하고, 실제 모델 응답 시간을 측정하기 전에는 임차 시간을 요청 제한 시간 이하로 줄이지 않는다.
+정상 종료 신호를 받으면 진행 중인 한 건의 처리가 끝날 시간을 확보한 뒤 프로세스를 종료한다.
 
 ### 공정 CSV 적재
 

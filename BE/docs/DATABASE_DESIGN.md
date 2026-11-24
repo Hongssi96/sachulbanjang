@@ -55,8 +55,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 | source_import | source_name, source_fingerprint UNIQUE, status, started_at, finished_at?, error_code?. 파일 해시만으로 행의 업무 식별자를 대체하지 않음 |
 | process_record | source_import_id FK, source_row_number, equipment_id FK, product_id? FK, occurred_at, available_at?, cycle_time_seconds?, source_namespace, source_record_key, source_payload, is_demo, version, deleted_at. (source_import_id, source_row_number), (source_namespace, source_record_key) UNIQUE |
 | inspection_record | equipment_id FK, product_id? FK, process_record_id? FK, inspected_at, available_at?, verdict(good/defect), defect_type?, reason?, is_demo, version, deleted_at. 검사 이력과 품질 집계의 원천이며 20261123_0009로 구현 |
-| operation_day | equipment_id FK, local_date, planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, local_date) UNIQUE |
-| record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation(update/delete), before_value?, after_value?, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나. 20261123_0011로 구현(현재 update만) |
+| operation_day | equipment_id FK, day(date), planned_seconds >= 0, actual_seconds >= 0, is_demo. (equipment_id, day) UNIQUE. 20261124_0020으로 구현. 시연 시간은 `seed_operation_days` 명령이 적재 |
+| record_change | process_record_id? FK, inspection_record_id? FK, actor_id FK, operation(update/delete), before_value?, after_value?, reason, version, occurred_at. 공정·검사 FK 중 정확히 하나. 20261123_0011로 구현(update·delete) |
 | process_replay | source_import_id FK, cursor, data_time?, last_advanced_at?, state. 재시작 절차는 Q-167 보류 |
 
 확인한 세 CSV 모두 `_id`를 제공하며 elice_v1과 labeled 데이터에 같은 키가 재등장한다. 원본 파일과 1부터 시작하는 행 번호로 파일 내 위치를 식별하고, source namespace와 `_id` 조합의 UNIQUE로 교차 파일 중복 적재를 막는다. 같은 키·같은 원본 내용은 건너뛰고 내용이 다르면 충돌로 전체 적재를 롤백한다. 같은 파일 fingerprint의 재적재도 거부하고 원본 행 전체를 source_payload에 보존한다. 자동 검사 결과의 수동 등록 API는 만들지 않는다. 공정·검사 수정·삭제는 관리자 전용이며 record_change와 같은 트랜잭션에서 저장한다.
@@ -68,6 +68,8 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 `inspection_record`와 이력 조회 인덱스는 `20261123_0009`로 구현했다. 목록 조회는 `process_record(occurred_at, id)`, 검사 `(equipment_id, inspected_at, id)`·`(product_id, inspected_at, id)`·`(verdict, inspected_at, id)`·`(inspected_at, id)` 인덱스를 사용한다. 판정 저장 값은 `good`·`defect`이고 불량 유형 누락은 null이며 표시·집계에서 ‘미분류’로 처리한다(DEC-165·DEC-206).
 
 불량률은 불량/(양품+불량)이다. 가동률은 기간별 실제 시간 합계/계획 시간 합계이며 일별 비율의 평균을 사용하지 않는다. 분모 0은 null과 표시용 ‘—’로 구분한다. 가동률 시연의 기본 조회 단위는 설비·날짜이며 품목별 실제 가동률로 확장하지 않는다. 임의 기간의 시연 시간 배분과 화면 필터는 데이터 준비 때 확인한다. CSV 행 수는 생산 기록 건수이며 생산 개수로 바꾸지 않는다.
+
+가동률 시연 데이터는 `operation_day`에 설비·일자별로 저장하고 `python -m app.commands.seed_operation_days`가 최근 14일(주말 포함) 계획 8시간·실제 6~8시간을 `(equipment_id, day)` 기준 결정적으로 만든다. 이미 있는 행은 덮어쓰지 않고, 화면·AI 답변에 시연 여부를 표시한다(DEC-163·DEC-164·DEC-223).
 
 ## 보고서·생성 작업
 
@@ -85,21 +87,25 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 접수 때 데이터 기준 시각과 대상 설비를 고정하고 같은 DB 스냅샷에서 조회·집계한 결과를 영속화한 뒤 AI에 전달한다. 접수 이후 수정·삭제·추가된 데이터로 과거 접수 결과가 바뀌지 않게 한다. 집계 입력 확보가 오래 걸리는 경우의 접수 응답 시간은 실제 CSV로 검증한다. AI 호출 동안 DB 트랜잭션·행 잠금을 유지하지 않는다.
 보고서 작업의 input_snapshot은 접수 트랜잭션에서 채운다. 성공 시 report.aggregate_snapshot에 동일한 결과를 연결·보존한다. 채팅의 자연어 SQL 입력 결과는 조회 단계에서 확보하며 보고서의 접수 시 집계 보장과 혼동하지 않는다. 작업별로 기준 시각을 표시한다.
 
-보고서 생성 종류·기간·대상 중복은 안내 대상이며 UNIQUE로 생성 자체를 금지하지 않는다. 사용자의 명시적 재생성은 새 요청이다. 동일 요청 키에 다른 요청 본문을 재사용하면 충돌로 거부한다.
+보고서 생성 종류·기간·대상 중복은 안내 대상이며 UNIQUE로 생성 자체를 금지하지 않는다. 사용자의 명시적 재생성은 새 요청이다. 동일 요청 키에 다른 요청 본문을 재사용하면 충돌로 거부한다. 중복 안내는 접수와 같은 정규화 payload의 `request_digest`로 `generation_job`과 `report`를 조인해 조회하며 관리자 전체·고용자 본인 범위를 적용한다(DEC-221).
 
 ## 대화·일정·인수인계
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| conversation | owner_id FK, title, deleted_at |
-| chat_turn | conversation_id FK, question, answer?, active_job_id? FK, answered_at?, query_scope?, data_cutoff_at?, is_demo?. 실패 재시도는 동일 질문에 새 작업 연결 |
-| answer_evidence | chat_turn_id FK, report_id?·process_record_id?·inspection_record_id?·product_id? FK, source_version?, source_time. 최소 하나의 근거, 종류 확장 시 명시적 FK 추가 |
+| conversation | owner_id FK, title, deleted_at. 20261124_0019로 구현 |
+| chat_turn | conversation_id FK, question, answer?, active_job_id? FK, answered_at?, query_scope?, data_cutoff_at?, is_demo?. 실패 재시도는 동일 질문에 새 작업 연결. 20261124_0019로 구현 |
+| answer_evidence | chat_turn_id FK, report_id?·process_record_id?·inspection_record_id?·product_id? FK, source_version?, source_time. 최소 하나의 근거 CHECK, 종류 확장 시 명시적 FK 추가. 20261124_0019로 구현 |
 | schedule | author_id FK, title, category(inspection/production/meeting/other), description?, all_day, start_date?, end_date_exclusive?, starts_at?, ends_at?, version, deleted_at. 종일/시간 지정 중 하나만(CHECK). 20261123_0014로 구현 |
 | handover_note | author_id FK, body, version, deleted_at. 대상은 별도 handover_target에서 관리. 20261123_0016으로 구현 |
 | handover_target | handover_note_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나(CHECK). 20261123_0016으로 구현 |
 | handover_read | handover_note_id FK, user_id FK, confirmed_at. (handover_note_id, user_id) UNIQUE. 20261123_0016으로 구현 |
 
 답변 전체의 근거를 식별해 현재 권한을 검사하며 검증할 수 없는 근거를 가진 과거 답변을 그대로 외부 AI에 전달하지 않는다. 집계 답변도 조회 범위·소스 종류·작성 당시 권한 범위를 별도로 보존한다. 삭제된 근거와 권한 상실은 구분한다. 근거가 없는 일반 설명에는 업무 자료 근거를 조작해 넣지 않는다.
+
+구현 기준(20261124_0019·DEC-217): `conversation`의 삭제는 soft delete이며 하위 `chat_turn`·`answer_evidence`는 보존하되 대화 조회·검색에서 제외한다. 대화 목록의 기간 필터는 마지막 질문 접수 시 갱신한 `updated_at`을 사용한다. 한 대화에 동시에 하나의 비종료 채팅 작업만 허용하는 규칙은 대화 행 잠금을 사용하는 Service에서 검사하며 DB UNIQUE로 강제하지 않는다. `answer`·`answered_at`·`is_demo`와 `answer_evidence`는 chat worker가 저장한다. `query_scope`에는 검증된 도구 계획(`plan`)과 기간·대상·기준 시각(`scope`)을 보존해 최신 재조회가 같은 조건을 재사용한다. 집계 답변처럼 특정 기록 근거가 없으면 근거 행을 만들지 않는다.
+
+답변 조회 시 근거 보고서의 현재 권한·삭제 상태와 근거 기록의 삭제 여부를 다시 확인해 `hidden_permission` 또는 `available_with_deleted_evidence`를 계산한다. 권한이 없으면 답변 본문·근거를 응답에서 가리고 검색 조건에서도 제외한다. AI 도구 조회는 `chat_turn.data_cutoff_at` 이전에 발생한 기록만 사용한다(DEC-218). 후속 질문에 전달하는 대화 맥락은 별도로 저장하지 않고 생성 시점에 현재 권한을 재검증해 만들어 전달하며, 권한 없는 과거 답변은 제외한다(DEC-101·DEC-219). 재고·일정 도구는 기존 재고·일정 테이블을 읽기만 하며, 단일 제품 필터 재고 답변은 `product_id` 근거를 남기고 일정 답변은 근거 행을 만들지 않는다(DEC-220).
 
 종일 일정은 date 쌍, 시간 지정 일정은 timestamptz 쌍으로 서로 배타적으로 저장한다. 종료 경계는 내부·API에서 exclusive라는 기술 기본안을 사용해 화면의 마지막 날짜와 변환한다. 종료 > 시작을 CHECK로 보장한다. 일정·노트의 version은 일관된 충돌 처리를 위한 기술 기본안이다.
 

@@ -15,6 +15,9 @@ from app.schemas.report_job import (
     JobListResponse,
     JobRetryRequest,
     Pagination,
+    ReportDuplicateCheckRequest,
+    ReportDuplicateCheckResponse,
+    ReportDuplicateItem,
     ReportJobAcceptedResponse,
     ReportJobCreateRequest,
 )
@@ -104,12 +107,13 @@ def _detail(job: GenerationJob, report_id: int | None) -> JobDetail:
     )
 
 
-def _accepted(job: GenerationJob) -> ReportJobAcceptedResponse:
+def _accepted(job: GenerationJob, report_id: int | None = None) -> ReportJobAcceptedResponse:
     return ReportJobAcceptedResponse(
         job_id=job.id,
         state=job.state,
         accepted_at=job.accepted_at,
         data_cutoff_at=job.data_cutoff_at,
+        report_id=report_id,
     )
 
 
@@ -129,11 +133,40 @@ def submit_report_job(
             requester,
             client_request_key=request.client_request_key,
             payload=request.payload(),
+            force_regenerate=request.force_regenerate,
         )
     except RequestKeyConflictError as error:
         _handle_error(error)
         raise AssertionError("unreachable") from error
-    return _accepted(job)
+    _, report_id = service.get_job(requester, job.id)
+    return _accepted(job, report_id)
+
+
+@router.post("/report-duplicate-checks", response_model=ReportDuplicateCheckResponse)
+def check_report_duplicates(
+    request: ReportDuplicateCheckRequest,
+    actor: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[ReportJobService, Depends(get_report_job_service)],
+) -> ReportDuplicateCheckResponse:
+    result = service.check_duplicate_reports(actor, payload=request.payload())
+    items = [
+        ReportDuplicateItem(
+            report_id=report.id,
+            title=report.title,
+            category=report.category,
+            report_kind=report.report_kind,
+            business_status=report.business_status,
+            author_id=job.requester_id,
+            author_display_name=author_name,
+            created_at=report.created_at,
+        )
+        for job, report, author_name in result.items
+    ]
+    return ReportDuplicateCheckResponse(
+        has_duplicate=bool(items),
+        reusable_report_id=result.reusable_report_id,
+        items=items,
+    )
 
 
 @router.get("/jobs", response_model=JobListResponse)

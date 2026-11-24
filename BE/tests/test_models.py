@@ -6,8 +6,11 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 def test_core_schema_registers_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
         "account_audit_event",
+        "answer_evidence",
         "app_user",
         "auth_session",
+        "chat_turn",
+        "conversation",
         "department",
         "equipment",
         "generation_job",
@@ -15,6 +18,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "handover_read",
         "handover_target",
         "inspection_record",
+        "operation_day",
         "process_record",
         "process_replay",
         "product",
@@ -22,6 +26,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "record_change",
         "refresh_credential",
         "report",
+        "report_download_event",
         "report_revision",
         "report_status_event",
         "schedule",
@@ -91,5 +96,44 @@ def test_auth_session_tracks_shared_work_end_and_extension_version() -> None:
     assert any(
         isinstance(constraint, CheckConstraint)
         and constraint.name == "ck_auth_session_work_session_version"
+        for constraint in table.constraints
+    )
+
+
+def test_answer_evidence_requires_at_least_one_source() -> None:
+    table = Base.metadata.tables["answer_evidence"]
+
+    assert not table.c.chat_turn_id.nullable
+    assert all(
+        table.c[name].nullable
+        for name in (
+            "report_id",
+            "process_record_id",
+            "inspection_record_id",
+            "product_id",
+        )
+    )
+    assert any(
+        isinstance(constraint, CheckConstraint) and constraint.name == "ck_answer_evidence_source"
+        for constraint in table.constraints
+    )
+
+
+def test_operation_day_requires_unique_equipment_day_and_non_negative_times() -> None:
+    table = Base.metadata.tables["operation_day"]
+
+    assert not table.c.equipment_id.nullable
+    assert not table.c.day.nullable
+    assert any(
+        isinstance(constraint, UniqueConstraint)
+        and {column.name for column in constraint.columns} == {"equipment_id", "day"}
+        for constraint in table.constraints
+    )
+    assert any(
+        isinstance(constraint, CheckConstraint) and constraint.name == "ck_operation_day_planned"
+        for constraint in table.constraints
+    )
+    assert any(
+        isinstance(constraint, CheckConstraint) and constraint.name == "ck_operation_day_actual"
         for constraint in table.constraints
     )

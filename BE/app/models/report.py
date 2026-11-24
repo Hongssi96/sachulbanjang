@@ -11,6 +11,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -66,6 +67,8 @@ class Report(TimestampMixin, SoftDeleteMixin, Base):
     generation_job_id: Mapped[int | None] = mapped_column(
         ForeignKey("generation_job.id", ondelete="RESTRICT"), unique=True
     )
+    generation_data_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    generation_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSONB)
 
 
 class ReportRevision(Base):
@@ -110,6 +113,23 @@ class ReportStatusEvent(Base):
     )
     before_status: Mapped[str] = mapped_column(String(20), nullable=False)
     after_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_id: Mapped[int] = mapped_column(
+        ForeignKey("app_user.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ReportDownloadEvent(Base):
+    __tablename__ = "report_download_event"
+    __table_args__ = (Index("ix_report_download_event_report", "report_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    report_id: Mapped[int] = mapped_column(
+        ForeignKey("report.id", ondelete="RESTRICT"), nullable=False
+    )
+    report_version: Mapped[int] = mapped_column(nullable=False)
     actor_id: Mapped[int] = mapped_column(
         ForeignKey("app_user.id", ondelete="RESTRICT"), nullable=False
     )

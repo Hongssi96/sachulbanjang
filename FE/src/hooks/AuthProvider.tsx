@@ -79,6 +79,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     setUser(await getCurrentUser());
   }, []);
+
+  const updateUser = useCallback((nextUser: AuthenticatedUser) => {
+    setUser(nextUser);
+  }, []);
+
   useEffect(() => {
     const expired = () => {
       setUser(null);
@@ -89,8 +94,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, login, logout, refreshUser }),
-    [status, user, login, logout, refreshUser],
+    () => ({ status, user, login, logout, refreshUser, updateUser }),
+    [status, user, login, logout, refreshUser, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

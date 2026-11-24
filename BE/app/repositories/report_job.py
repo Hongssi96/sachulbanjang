@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 
+from app.models.master import AppUser
 from app.models.process import ProcessReplay
 from app.models.report import Report
 from app.models.report_job import GenerationJob
@@ -28,6 +29,48 @@ class ReportJobRepository:
                 GenerationJob.client_request_key == client_request_key,
             )
         )
+
+    def find_completed_report_by_digest(
+        self, requester_id: int, request_digest: str
+    ) -> tuple[GenerationJob, int] | None:
+        row = self._session.execute(
+            select(GenerationJob, Report.id)
+            .join(Report, Report.generation_job_id == GenerationJob.id)
+            .where(
+                GenerationJob.requester_id == requester_id,
+                GenerationJob.kind == "report",
+                GenerationJob.request_digest == request_digest,
+                GenerationJob.state == "succeeded",
+                Report.deleted_at.is_(None),
+            )
+            .order_by(GenerationJob.finished_at.desc(), GenerationJob.id.desc())
+            .limit(1)
+        ).first()
+        if row is None:
+            return None
+        job, report_id = row
+        return job, report_id
+
+    def find_duplicate_reports(
+        self, *, request_digest: str, requester_id: int | None, limit: int
+    ) -> list[tuple[GenerationJob, Report, str]]:
+        conditions: list[ColumnElement[bool]] = [
+            GenerationJob.kind == "report",
+            GenerationJob.state == "succeeded",
+            GenerationJob.request_digest == request_digest,
+            Report.deleted_at.is_(None),
+        ]
+        if requester_id is not None:
+            conditions.append(GenerationJob.requester_id == requester_id)
+        rows = self._session.execute(
+            select(GenerationJob, Report, AppUser.display_name)
+            .join(Report, Report.generation_job_id == GenerationJob.id)
+            .join(AppUser, AppUser.id == GenerationJob.requester_id)
+            .where(*conditions)
+            .order_by(GenerationJob.finished_at.desc(), GenerationJob.id.desc())
+            .limit(limit)
+        )
+        return [(job, report, author_name) for job, report, author_name in rows]
 
     def lock_job(self, job_id: int) -> GenerationJob | None:
         return self._session.scalar(
@@ -90,24 +133,22 @@ class ReportJobRepository:
             select(ProcessReplay.data_time).order_by(ProcessReplay.id.desc()).limit(1)
         )
 
-    def claim_next_accepted(self) -> GenerationJob | None:
+    def claim_next_accepted(self, *, kind: str | None = None) -> GenerationJob | None:
+        statement = select(GenerationJob).where(GenerationJob.state == "accepted")
+        if kind is not None:
+            statement = statement.where(GenerationJob.kind == kind)
         return self._session.scalar(
-            select(GenerationJob)
-            .where(GenerationJob.state == "accepted")
-            .order_by(GenerationJob.accepted_at.asc(), GenerationJob.id.asc())
+            statement.order_by(GenerationJob.accepted_at.asc(), GenerationJob.id.asc())
             .limit(1)
             .with_for_update(skip_locked=True)
         )
 
-    def find_stale_jobs(self, now: datetime) -> list[GenerationJob]:
-        return list(
-            self._session.scalars(
-                select(GenerationJob)
-                .where(
-                    GenerationJob.state.in_(("querying", "writing")),
-                    GenerationJob.lease_expires_at.is_not(None),
-                    GenerationJob.lease_expires_at < now,
-                )
-                .with_for_update(skip_locked=True)
-            )
+    def find_stale_jobs(self, now: datetime, *, kind: str | None = None) -> list[GenerationJob]:
+        statement = select(GenerationJob).where(
+            GenerationJob.state.in_(("querying", "writing")),
+            GenerationJob.lease_expires_at.is_not(None),
+            GenerationJob.lease_expires_at < now,
         )
+        if kind is not None:
+            statement = statement.where(GenerationJob.kind == kind)
+        return list(self._session.scalars(statement.with_for_update(skip_locked=True)))
