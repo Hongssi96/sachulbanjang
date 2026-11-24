@@ -43,6 +43,9 @@ _MINT = colors.HexColor("#61E2A6")
 _CORAL = colors.HexColor("#D95F70")
 _WARM_CLOUD = colors.HexColor("#F5F5F2")
 _TEXT = colors.HexColor("#29263F")
+_BORDER_HEX = "#E2E2E8"
+_CORAL_HEX = "#D95F70"
+_TEXT_HEX = "#29263F"
 
 
 class ReportPdfError(Exception):
@@ -77,10 +80,24 @@ def render_report_pdf(report: Report) -> bytes:
                     Spacer(1, 4 * mm),
                     Paragraph("불량 유형 분포", styles["Heading2"]),
                     Image(chart, width=160 * mm, height=72 * mm),
+                    Paragraph(
+                        "단위: 건 · 보고서 생성 시점의 저장 집계 데이터를 기준으로 작성",
+                        styles["Caption"],
+                    ),
                     PageBreak(),
                 ]
             )
-    story.extend(_markdown_story(report.body_markdown, styles))
+    story.extend(
+        [
+            Paragraph("AI 분석 코멘트", styles["Heading1"]),
+            Paragraph(
+                "아래 내용은 집계된 생산·검사 데이터를 바탕으로 AI가 작성한 분석입니다.",
+                styles["Caption"],
+            ),
+            Spacer(1, 2 * mm),
+            *_markdown_story(report.body_markdown, styles),
+        ]
+    )
     try:
         document.build(story, onFirstPage=_page_decorations, onLaterPages=_page_decorations)
     except Exception as error:
@@ -148,6 +165,15 @@ def _styles() -> dict[str, ParagraphStyle]:
             firstLineIndent=-7,
             textColor=_TEXT,
             spaceAfter=3,
+        ),
+        "Caption": ParagraphStyle(
+            "Caption",
+            parent=base["BodyText"],
+            fontName=_FONT_NAME,
+            fontSize=9,
+            leading=13,
+            textColor=colors.HexColor("#6E6B7D"),
+            spaceAfter=4,
         ),
     }
 
@@ -239,16 +265,49 @@ def _defect_chart(snapshot: dict[str, object]) -> BytesIO | None:
             values.append(count)
     if not values:
         return None
-    font = font_manager.FontProperties(fname=str(_REGULAR_FONT))
-    figure, axis = plt.subplots(figsize=(8.2, 3.7), dpi=150)
-    axis.barh(labels[::-1], values[::-1], color="#635B85")
-    axis.set_xlabel("건수", fontproperties=font, color="#29263F")
-    axis.tick_params(axis="both", colors="#29263F")
-    for label in axis.get_yticklabels() + axis.get_xticklabels():
+    sorted_items = sorted(zip(labels, values, strict=True), key=lambda item: item[1], reverse=True)
+    labels = [item[0] for item in sorted_items]
+    values = [item[1] for item in sorted_items]
+
+    font = font_manager.FontProperties(fname=str(_REGULAR_FONT), size=12)
+    bold_font = font_manager.FontProperties(fname=str(_BOLD_FONT), size=12)
+    figure, axis = plt.subplots(figsize=(8.2, 3.15), dpi=150)
+    figure.patch.set_facecolor("white")
+    axis.set_facecolor("white")
+
+    bar_height = 0.46
+    max_value = max(values)
+    axis.set_xlim(0, max_value * 1.2)
+    axis.set_ylim(-0.65, len(values) - 0.35)
+    axis.barh(
+        range(len(values)),
+        values,
+        height=bar_height,
+        color=_CORAL_HEX,
+        edgecolor="none",
+        zorder=3,
+    )
+    for position, value in enumerate(values):
+        axis.text(
+            value + max_value * 0.025,
+            position,
+            f"{value:,}건",
+            va="center",
+            ha="left",
+            color=_TEXT_HEX,
+            fontproperties=bold_font,
+        )
+
+    axis.set_yticks(range(len(labels)), labels=labels, fontproperties=font)
+    axis.invert_yaxis()
+    axis.set_axisbelow(True)
+    axis.xaxis.grid(True, color=_BORDER_HEX, linewidth=0.8)
+    axis.tick_params(axis="y", colors=_TEXT_HEX, length=0, pad=12)
+    axis.tick_params(axis="x", colors=_TEXT_HEX, labelsize=9, length=0, pad=6)
+    for label in axis.get_xticklabels():
         label.set_fontproperties(font)
-    axis.spines[["top", "right", "left"]].set_visible(False)
-    axis.grid(axis="x", alpha=0.18)
-    figure.tight_layout()
+    axis.spines[["top", "right", "left", "bottom"]].set_visible(False)
+    figure.subplots_adjust(left=0.2, right=0.93, top=0.94, bottom=0.13)
     image = BytesIO()
     figure.savefig(image, format="png", transparent=False, bbox_inches="tight")
     plt.close(figure)
