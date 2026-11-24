@@ -132,6 +132,12 @@ uvicorn app.main:app --reload
   새 요청 키와 `force_regenerate=true`를 사용한다
 - 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,
   `POST .../jobs/{id}/retry` (요청자 본인, CSRF 필요 시 헤더 포함)
+- 대화 생성·목록·상세·삭제: `POST .../conversations`, `GET .../conversations` (`q`, `from`, `to`,
+  `page`, `page_size`), `GET .../conversations/{id}`, `DELETE .../conversations/{id}`
+  (본인 대화만. 생성·삭제는 `X-CSRF-Token` 헤더, 삭제는 `204`)
+- 대화 질문 접수·최신 재조회: `POST .../conversations/{id}/turns` (`question`, `client_request_key`),
+  `POST .../conversations/{id}/turns/{turn_id}/refresh` (`client_request_key`). `202`로 `turn_id`·
+  `job_id`·`state`를 반환하며 답변 생성은 별도 chat worker 후속 범위다
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비

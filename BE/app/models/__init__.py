@@ -1,5 +1,6 @@
 from app.models.account_audit import AccountAuditEvent
 from app.models.auth import AuthSession, RefreshCredential
+from app.models.conversation import AnswerEvidence, ChatTurn, Conversation
 from app.models.handover import HandoverNote, HandoverRead, HandoverTarget
 from app.models.master import (
     AppUser,
@@ -23,8 +24,11 @@ from app.models.stock import StockBalance, StockMovement
 
 __all__ = [
     "AccountAuditEvent",
+    "AnswerEvidence",
     "AppUser",
     "AuthSession",
+    "ChatTurn",
+    "Conversation",
     "Department",
     "Equipment",
     "GenerationJob",

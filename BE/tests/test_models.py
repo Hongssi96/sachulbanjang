@@ -6,8 +6,11 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 def test_core_schema_registers_expected_tables() -> None:
     assert set(Base.metadata.tables) == {
         "account_audit_event",
+        "answer_evidence",
         "app_user",
         "auth_session",
+        "chat_turn",
+        "conversation",
         "department",
         "equipment",
         "generation_job",
@@ -92,5 +95,24 @@ def test_auth_session_tracks_shared_work_end_and_extension_version() -> None:
     assert any(
         isinstance(constraint, CheckConstraint)
         and constraint.name == "ck_auth_session_work_session_version"
+        for constraint in table.constraints
+    )
+
+
+def test_answer_evidence_requires_at_least_one_source() -> None:
+    table = Base.metadata.tables["answer_evidence"]
+
+    assert not table.c.chat_turn_id.nullable
+    assert all(
+        table.c[name].nullable
+        for name in (
+            "report_id",
+            "process_record_id",
+            "inspection_record_id",
+            "product_id",
+        )
+    )
+    assert any(
+        isinstance(constraint, CheckConstraint) and constraint.name == "ck_answer_evidence_source"
         for constraint in table.constraints
     )
