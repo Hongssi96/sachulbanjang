@@ -11,14 +11,18 @@ from sqlalchemy.orm import Session
 
 from app.integrations.ai import validate_generated_markdown
 from app.models.master import AppUser, Equipment, Product
+from app.repositories.inventory import InventoryRepository
 from app.repositories.master_data import MasterDataRepository
 from app.repositories.quality import QualityRepository
 from app.repositories.record_history import RecordHistoryRepository
 from app.repositories.report import ReportRepository
+from app.repositories.schedule import ScheduleRepository
+from app.services.inventory import InventoryService
 from app.services.master_data import MasterDataService
 from app.services.quality import QualityService
 from app.services.record_history import SEOUL, RecordHistoryService
 from app.services.report import ReportService
+from app.services.schedule import ScheduleService
 
 Clock = Callable[[], datetime]
 
@@ -27,12 +31,23 @@ ChatToolName = Literal[
     "inspection_records",
     "process_records",
     "report_search",
+    "stock_status",
+    "stock_movements",
+    "schedule_list",
     "clarify",
 ]
-_RECORD_TOOL_NAMES = ("quality_summary", "inspection_records", "process_records", "report_search")
+_READ_TOOL_NAMES = (
+    "quality_summary",
+    "inspection_records",
+    "process_records",
+    "report_search",
+    "stock_status",
+    "stock_movements",
+    "schedule_list",
+)
 _MAX_PLAN_LENGTH = 4_000
 
-TOOL_CATALOG = """사용 가능한 조회 도구는 다음 네 가지뿐입니다.
+TOOL_CATALOG = """사용 가능한 조회 도구는 다음과 같습니다.
 1. quality_summary: 기간 내 검사 수량·양품·불량·불량률·불량 유형과 생산 기록 건수 집계
    arguments: {"days": 1~90, "product": "제품명 또는 코드(선택)", "equipment": "설비 코드 또는 이름(선택)"}
 2. inspection_records: 기간 내 검사 기록 목록(최신순)
@@ -41,6 +56,16 @@ TOOL_CATALOG = """사용 가능한 조회 도구는 다음 네 가지뿐입니�
    arguments: {"days": 1~90, "product": "선택", "equipment": "선택", "limit": 1~20}
 4. report_search: 조회 권한이 있는 보고서 검색(최신순)
    arguments: {"query": "제목·본문 검색어(선택)", "days": 1~90, "limit": 1~10}
+5. stock_status: 제품별 현재 재고와 최소 재고·부족 여부
+   arguments: {"product": "제품명 또는 코드(선택)", "low_stock": "부족한 제품만 true(선택)", "limit": 1~20}
+6. stock_movements: 기간 내 입출고·조정 이력(최신순)
+   arguments: {"days": 1~90, "product": "선택", "kind": "initial|receipt|issue|adjustment|correction(선택)", "limit": 1~20}
+7. schedule_list: 기간과 겹치는 일정(시작 순)
+   arguments: {"days": 1~90, "limit": 1~20}
+
+질문 예시와 도구 선택: 불량률·검사 집계→quality_summary, 검사 기록→inspection_records,
+생산 기록→process_records, 보고서→report_search, 재고 수량·부족→stock_status,
+입출고·조정 이력→stock_movements, 일정→schedule_list.
 
 조회 도구로 답할 수 없거나 대상·기간이 모호하면 clarify를 사용합니다.
 {"tool": "clarify", "question": "사용자에게 되물을 짧은 질문"}
@@ -118,11 +143,46 @@ class ReportSearchArguments(_ToolArguments):
         return value
 
 
+class StockStatusArguments(_ToolArguments):
+    product: str | None = Field(default=None, max_length=100)
+    low_stock: bool = False
+    limit: int = Field(default=10, ge=1, le=20)
+
+    @field_validator("product", mode="before")
+    @classmethod
+    def blank_to_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+
+class StockMovementsArguments(_ToolArguments):
+    days: int = Field(default=7, ge=1, le=90)
+    product: str | None = Field(default=None, max_length=100)
+    kind: Literal["initial", "receipt", "issue", "adjustment", "correction"] | None = None
+    limit: int = Field(default=10, ge=1, le=20)
+
+    @field_validator("product", mode="before")
+    @classmethod
+    def blank_to_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+
+class ScheduleListArguments(_ToolArguments):
+    days: int = Field(default=7, ge=1, le=90)
+    limit: int = Field(default=10, ge=1, le=20)
+
+
 _ARGUMENT_MODELS: dict[str, type[_ToolArguments]] = {
     "quality_summary": QualitySummaryArguments,
     "inspection_records": InspectionRecordsArguments,
     "process_records": ProcessRecordsArguments,
     "report_search": ReportSearchArguments,
+    "stock_status": StockStatusArguments,
+    "stock_movements": StockMovementsArguments,
+    "schedule_list": ScheduleListArguments,
 }
 
 _ArgumentsT = TypeVar("_ArgumentsT", bound=_ToolArguments)
@@ -155,7 +215,7 @@ def parse_query_plan(raw: str) -> ChatQueryPlan:
         plan = ChatQueryPlan.model_validate(payload)
     except ValidationError as error:
         raise ChatPlanError("planner response does not match the tool schema") from error
-    if plan.tool in _RECORD_TOOL_NAMES:
+    if plan.tool in _READ_TOOL_NAMES:
         model = _ARGUMENT_MODELS[plan.tool]
         try:
             model.model_validate(plan.arguments)
@@ -194,6 +254,8 @@ class ChatToolExecutor:
         self._records = RecordHistoryService(RecordHistoryRepository(session))
         self._reports = ReportService(session, ReportRepository(session))
         self._master = MasterDataService(MasterDataRepository(session))
+        self._inventory = InventoryService(session, InventoryRepository(session))
+        self._schedules = ScheduleService(session, ScheduleRepository(session))
         self._clock = clock
 
     def execute(
@@ -207,6 +269,8 @@ class ChatToolExecutor:
                 scope={"tool": "clarify"},
                 clarification=clarification,
             )
+        if plan.tool == "stock_status":
+            return self._stock_status(self._arguments(StockStatusArguments, plan))
         today = self._clock().astimezone(SEOUL).date()
         if plan.tool == "quality_summary":
             quality_arguments = self._arguments(QualitySummaryArguments, plan)
@@ -222,6 +286,14 @@ class ChatToolExecutor:
             process_arguments = self._arguments(ProcessRecordsArguments, plan)
             date_from, date_to = _period(process_arguments.days, today)
             return self._process_records(process_arguments, date_from, date_to, data_cutoff_at)
+        if plan.tool == "stock_movements":
+            movement_arguments = self._arguments(StockMovementsArguments, plan)
+            date_from, date_to = _period(movement_arguments.days, today)
+            return self._stock_movements(movement_arguments, date_from, date_to)
+        if plan.tool == "schedule_list":
+            schedule_arguments = self._arguments(ScheduleListArguments, plan)
+            date_from, date_to = _period(schedule_arguments.days, today)
+            return self._schedule_list(schedule_arguments, date_from, date_to)
         report_arguments = self._arguments(ReportSearchArguments, plan)
         date_from, date_to = _period(report_arguments.days, today)
         return self._report_search(
@@ -503,6 +575,180 @@ class ChatToolExecutor:
             scope=scope,
             evidence=evidence,
         )
+
+    def _stock_status(self, arguments: StockStatusArguments) -> ChatQueryResult:
+        product, product_note = self._resolve_product(arguments.product)
+        target: dict[str, object] = {
+            "product_id": product.id if product else None,
+            "product_name": product.name if product else None,
+        }
+        scope: dict[str, object] = {
+            "tool": "stock_status",
+            "target": target,
+            "low_stock": arguments.low_stock,
+        }
+        if product_note is not None:
+            return ChatQueryResult(
+                tool="stock_status",
+                data={"status": product_note["status"], **product_note},
+                scope=scope,
+            )
+        page = self._inventory.list_stocks(
+            query=None if product is None else product.name,
+            low_stock_only=arguments.low_stock,
+            page=1,
+            page_size=arguments.limit,
+        )
+        rows = [row for row in page.rows if product is None or row.product.id == product.id]
+        items = [
+            {
+                "product_id": row.product.id,
+                "product": row.product.name,
+                "product_code": row.product.product_code,
+                "quantity": row.quantity,
+                "minimum_stock": row.product.minimum_stock,
+                "is_low_stock": (
+                    row.product.minimum_stock is not None
+                    and row.quantity < row.product.minimum_stock
+                ),
+            }
+            for row in rows
+        ]
+        data: dict[str, object] = {
+            "status": "ok",
+            "target": target,
+            "low_stock": arguments.low_stock,
+            "total_count": len(rows) if product is not None else page.total_items,
+            "returned_count": len(items),
+            "items": items,
+        }
+        evidence = [EvidenceSource(product_id=product.id)] if product is not None else []
+        return ChatQueryResult(
+            tool="stock_status",
+            data=data,
+            scope=scope,
+            evidence=evidence,
+        )
+
+    def _stock_movements(
+        self,
+        arguments: StockMovementsArguments,
+        date_from: date,
+        date_to: date,
+    ) -> ChatQueryResult:
+        product, product_note = self._resolve_product(arguments.product)
+        scope = self._scope(
+            "stock_movements",
+            date_from,
+            date_to,
+            product,
+            None,
+            None,
+            extra={"kind": arguments.kind},
+        )
+        if product_note is not None:
+            return ChatQueryResult(
+                tool="stock_movements",
+                data={"status": product_note["status"], **product_note},
+                scope=scope,
+            )
+        page = self._inventory.list_movements(
+            product_id=product.id if product else None,
+            kind=arguments.kind,
+            date_from=date_from,
+            date_to=date_to,
+            page=1,
+            page_size=arguments.limit,
+        )
+        items = [
+            {
+                "movement_id": row.movement.id,
+                "created_at": row.movement.created_at.isoformat(),
+                "product": row.product_name,
+                "product_code": row.product_code,
+                "kind": row.movement.kind,
+                "delta": row.movement.delta,
+                "reason": row.movement.reason,
+                "actor": row.actor_display_name,
+                "is_checked": row.movement.checked_at is not None,
+                "checked_at": (
+                    row.movement.checked_at.isoformat()
+                    if row.movement.checked_at is not None
+                    else None
+                ),
+            }
+            for row in page.rows
+        ]
+        data: dict[str, object] = {
+            "status": "ok",
+            "period": scope["period"],
+            "target": scope["target"],
+            "kind": arguments.kind,
+            "total_count": page.total_items,
+            "returned_count": len(items),
+            "items": items,
+        }
+        evidence = [EvidenceSource(product_id=product.id)] if product is not None else []
+        return ChatQueryResult(
+            tool="stock_movements",
+            data=data,
+            scope=scope,
+            evidence=evidence,
+        )
+
+    def _schedule_list(
+        self,
+        arguments: ScheduleListArguments,
+        date_from: date,
+        date_to: date,
+    ) -> ChatQueryResult:
+        scope: dict[str, object] = {
+            "tool": "schedule_list",
+            "period": {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        }
+        page = self._schedules.list_schedules(
+            date_from=date_from,
+            date_to=date_to,
+            page=1,
+            page_size=arguments.limit,
+        )
+        items = [
+            {
+                "schedule_id": view.schedule.id,
+                "title": view.schedule.title,
+                "category": view.schedule.category,
+                "description": view.schedule.description,
+                "all_day": view.schedule.all_day,
+                "start_date": (
+                    view.schedule.start_date.isoformat()
+                    if view.schedule.start_date is not None
+                    else None
+                ),
+                "end_date_exclusive": (
+                    view.schedule.end_date_exclusive.isoformat()
+                    if view.schedule.end_date_exclusive is not None
+                    else None
+                ),
+                "starts_at": (
+                    view.schedule.starts_at.isoformat()
+                    if view.schedule.starts_at is not None
+                    else None
+                ),
+                "ends_at": (
+                    view.schedule.ends_at.isoformat() if view.schedule.ends_at is not None else None
+                ),
+                "author": view.author_display_name,
+            }
+            for view in page.schedules
+        ]
+        data: dict[str, object] = {
+            "status": "ok",
+            "period": scope["period"],
+            "total_count": page.total_items,
+            "returned_count": len(items),
+            "items": items,
+        }
+        return ChatQueryResult(tool="schedule_list", data=data, scope=scope)
 
     def _resolve_product(self, term: str | None) -> tuple[Product | None, dict[str, object] | None]:
         if term is None:
