@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -30,7 +31,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.models.report import Report
+from app.models.report import Report, ReportRevision
 
 _ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
 _REGULAR_FONT = _ASSET_DIR / "Pretendard-Regular.ttf"
@@ -52,7 +53,28 @@ class ReportPdfError(Exception):
     """Raised when a report PDF cannot be rendered safely."""
 
 
-def render_report_pdf(report: Report) -> bytes:
+class ReportChartError(Exception):
+    """Raised when a stored report snapshot chart cannot be rendered."""
+
+
+@dataclass(frozen=True)
+class ReportPdfDocument:
+    title: str
+    body_markdown: str
+    generation_snapshot: dict[str, object] | None
+
+
+def render_report_revision_pdf(report: Report, revision: ReportRevision) -> bytes:
+    return render_report_pdf(
+        ReportPdfDocument(
+            title=revision.title,
+            body_markdown=revision.body_markdown,
+            generation_snapshot=report.generation_snapshot,
+        )
+    )
+
+
+def render_report_pdf(report: Report | ReportPdfDocument) -> bytes:
     _register_fonts()
     output = BytesIO()
     document = SimpleDocTemplate(
@@ -73,13 +95,16 @@ def render_report_pdf(report: Report) -> bytes:
     snapshot = report.generation_snapshot
     if snapshot is not None:
         story.extend(_snapshot_story(snapshot, styles))
-        chart = _defect_chart(snapshot)
+        try:
+            chart = render_report_defect_chart(report)
+        except ReportChartError as error:
+            raise ReportPdfError("보고서 그래프를 생성할 수 없습니다.") from error
         if chart is not None:
             story.extend(
                 [
                     Spacer(1, 4 * mm),
                     Paragraph("불량 유형 분포", styles["Heading2"]),
-                    Image(chart, width=160 * mm, height=72 * mm),
+                    Image(BytesIO(chart), width=160 * mm, height=72 * mm),
                     Paragraph(
                         "단위: 건 · 보고서 생성 시점의 저장 집계 데이터를 기준으로 작성",
                         styles["Caption"],
@@ -103,6 +128,17 @@ def render_report_pdf(report: Report) -> bytes:
     except Exception as error:
         raise ReportPdfError("보고서 PDF를 생성할 수 없습니다.") from error
     return output.getvalue()
+
+
+def render_report_defect_chart(report: Report | ReportPdfDocument) -> bytes | None:
+    snapshot = report.generation_snapshot
+    if snapshot is None:
+        return None
+    try:
+        chart = _defect_chart(snapshot)
+    except Exception as error:
+        raise ReportChartError("불량 유형 그래프를 생성할 수 없습니다.") from error
+    return None if chart is None else chart.getvalue()
 
 
 def _register_fonts() -> None:
