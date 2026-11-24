@@ -29,6 +29,27 @@ class ReportJobRepository:
             )
         )
 
+    def find_completed_report_by_digest(
+        self, requester_id: int, request_digest: str
+    ) -> tuple[GenerationJob, int] | None:
+        row = self._session.execute(
+            select(GenerationJob, Report.id)
+            .join(Report, Report.generation_job_id == GenerationJob.id)
+            .where(
+                GenerationJob.requester_id == requester_id,
+                GenerationJob.kind == "report",
+                GenerationJob.request_digest == request_digest,
+                GenerationJob.state == "succeeded",
+                Report.deleted_at.is_(None),
+            )
+            .order_by(GenerationJob.finished_at.desc(), GenerationJob.id.desc())
+            .limit(1)
+        ).first()
+        if row is None:
+            return None
+        job, report_id = row
+        return job, report_id
+
     def lock_job(self, job_id: int) -> GenerationJob | None:
         return self._session.scalar(
             select(GenerationJob).where(GenerationJob.id == job_id).with_for_update()

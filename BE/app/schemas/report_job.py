@@ -64,6 +64,7 @@ class ReportJobCreateRequest(BaseModel):
     category: ReportCategory
     period: ReportJobPeriod = Field(default_factory=ReportJobPeriod)
     targets: ReportJobTargets = Field(default_factory=ReportJobTargets)
+    force_regenerate: bool = False
 
     @field_validator("client_request_key")
     @classmethod
@@ -113,6 +114,7 @@ class ReportJobAcceptedResponse(BaseModel):
     state: JobState
     accepted_at: datetime
     data_cutoff_at: datetime | None
+    report_id: int | None = None
 
 
 class JobListItem(BaseModel):

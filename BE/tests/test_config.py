@@ -21,6 +21,8 @@ def test_ai_key_is_optional() -> None:
     assert settings.ai_api_key is None
     assert settings.ai_base_url is None
     assert settings.ai_model == "gpt-6.2-sol"
+    assert settings.ai_request_timeout_seconds == 120
+    assert settings.report_worker_lease_seconds == 300
 
 
 def test_ai_connection_settings_can_be_overridden() -> None:

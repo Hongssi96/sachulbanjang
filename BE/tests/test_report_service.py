@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from app.models.master import AppUser
-from app.models.report import Report, ReportRevision, ReportStatusEvent
+from app.models.report import Report, ReportDownloadEvent, ReportRevision, ReportStatusEvent
 from app.repositories.report import ReportRepository, ReportView
 from app.services.report import (
     CreateReportCommand,
@@ -264,3 +264,18 @@ def test_history_reads_require_visible_report() -> None:
     repository.find_revision.return_value = None
     with pytest.raises(ReportNotFoundError):
         service.get_revision(make_user(user_id=1), 1, 99)
+
+
+def test_record_pdf_download_saves_actor_and_version() -> None:
+    service, repository, session = build_service()
+    repository.find_report.return_value = make_view()
+
+    service.record_pdf_download(make_user(user_id=1), 1, 3)
+
+    event = repository.add_download_event.call_args.args[0]
+    assert isinstance(event, ReportDownloadEvent)
+    assert event.report_id == 1
+    assert event.report_version == 3
+    assert event.actor_id == 1
+    assert event.created_at == NOW
+    session.commit.assert_called_once_with()

@@ -104,12 +104,13 @@ def _detail(job: GenerationJob, report_id: int | None) -> JobDetail:
     )
 
 
-def _accepted(job: GenerationJob) -> ReportJobAcceptedResponse:
+def _accepted(job: GenerationJob, report_id: int | None = None) -> ReportJobAcceptedResponse:
     return ReportJobAcceptedResponse(
         job_id=job.id,
         state=job.state,
         accepted_at=job.accepted_at,
         data_cutoff_at=job.data_cutoff_at,
+        report_id=report_id,
     )
 
 
@@ -129,11 +130,13 @@ def submit_report_job(
             requester,
             client_request_key=request.client_request_key,
             payload=request.payload(),
+            force_regenerate=request.force_regenerate,
         )
     except RequestKeyConflictError as error:
         _handle_error(error)
         raise AssertionError("unreachable") from error
-    return _accepted(job)
+    _, report_id = service.get_job(requester, job.id)
+    return _accepted(job, report_id)
 
 
 @router.get("/jobs", response_model=JobListResponse)
