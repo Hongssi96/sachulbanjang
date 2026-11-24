@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 
@@ -30,7 +31,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.models.report import Report
+from app.models.report import Report, ReportRevision
 
 _ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
 _REGULAR_FONT = _ASSET_DIR / "Pretendard-Regular.ttf"
@@ -52,7 +53,24 @@ class ReportPdfError(Exception):
     """Raised when a report PDF cannot be rendered safely."""
 
 
-def render_report_pdf(report: Report) -> bytes:
+@dataclass(frozen=True)
+class ReportPdfDocument:
+    title: str
+    body_markdown: str
+    generation_snapshot: dict[str, object] | None
+
+
+def render_report_revision_pdf(report: Report, revision: ReportRevision) -> bytes:
+    return render_report_pdf(
+        ReportPdfDocument(
+            title=revision.title,
+            body_markdown=revision.body_markdown,
+            generation_snapshot=report.generation_snapshot,
+        )
+    )
+
+
+def render_report_pdf(report: Report | ReportPdfDocument) -> bytes:
     _register_fonts()
     output = BytesIO()
     document = SimpleDocTemplate(

@@ -105,6 +105,34 @@ def test_download_report_pdf_records_version() -> None:
     service.record_pdf_download.assert_called_once_with(service.get_report.call_args.args[0], 1, 3)
 
 
+def test_download_report_revision_pdf_records_selected_version() -> None:
+    revision = ReportRevision(
+        id=2,
+        report_id=1,
+        version=2,
+        title="수정 전 주간 보고",
+        body_markdown="# 이전 내용",
+        editor_id=1,
+        created_at=NOW,
+    )
+    service = MagicMock(spec=ReportService)
+    service.get_report.return_value = make_view(version=3)
+    service.get_revision.return_value = (revision, "사용자")
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/reports/1/revisions/2/pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["content-disposition"] == 'attachment; filename="report-1-v2.pdf"'
+    assert response.content.startswith(b"%PDF-")
+    actor = service.get_report.call_args.args[0]
+    service.get_revision.assert_called_once_with(actor, 1, 2)
+    service.record_pdf_download.assert_called_once_with(actor, 1, 2)
+
+
 def test_worker_creates_report() -> None:
     service = MagicMock(spec=ReportService)
     service.create_report.return_value = make_view()
