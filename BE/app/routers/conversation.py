@@ -132,7 +132,8 @@ def _turn(view: TurnView) -> ChatTurnItem:
     return ChatTurnItem(
         turn_id=turn.id,
         question=turn.question,
-        answer=turn.answer,
+        answer=view.answer,
+        answer_status=view.answer_status,
         answered_at=turn.answered_at,
         created_at=turn.created_at,
         data_cutoff_at=turn.data_cutoff_at,

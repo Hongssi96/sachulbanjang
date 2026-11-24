@@ -141,6 +141,8 @@ def test_process_next_plans_queries_and_publishes_answer() -> None:
     assert added.inspection_record_id == 5
     mocks["job_service"].transition_job.assert_called_once_with(7, "writing")
     mocks["job_service"].claim_next_job.assert_called_once_with(kind="chat", lease_seconds=300)
+    assert mocks["job_service"].heartbeat_job.call_count == 2
+    assert mocks["job_service"].heartbeat_job.call_args.kwargs == {"lease_seconds": 300}
     session.commit.assert_called_once_with()
     assert ai_client.generate_markdown.call_count == 2
     assert "employee_no" not in ai_client.generate_markdown.call_args_list[1].kwargs["user_prompt"]
@@ -157,6 +159,7 @@ def test_process_next_reuses_stored_plan_for_latest_requery() -> None:
     assert result is not None
     assert result.state == "succeeded"
     assert ai_client.generate_markdown.call_count == 1
+    assert mocks["job_service"].heartbeat_job.call_count == 1
     plan = mocks["tools"].execute.call_args.args[0]
     assert plan.tool == "report_search"
     assert plan.arguments == {"query": "품질"}
@@ -179,6 +182,7 @@ def test_process_next_retries_planner_once_then_succeeds() -> None:
     assert result is not None
     assert result.state == "succeeded"
     assert ai_client.generate_markdown.call_count == 3
+    assert mocks["job_service"].heartbeat_job.call_count == 3
     assert turn.answer == "정상 답변"
 
 

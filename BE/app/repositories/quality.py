@@ -28,6 +28,7 @@ class QualityRepository:
         product_id: int | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None,
     ) -> list[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = [InspectionRecord.deleted_at.is_(None)]
         if equipment_id is not None:
@@ -38,6 +39,8 @@ class QualityRepository:
             conditions.append(InspectionRecord.inspected_at >= period_from)
         if period_to is not None:
             conditions.append(InspectionRecord.inspected_at < period_to)
+        if data_cutoff_at is not None:
+            conditions.append(InspectionRecord.inspected_at <= data_cutoff_at)
         return conditions
 
     def inspection_totals(
@@ -47,12 +50,14 @@ class QualityRepository:
         product_id: int | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None = None,
     ) -> InspectionTotals:
         conditions = self._inspection_conditions(
             equipment_id=equipment_id,
             product_id=product_id,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         row = self._session.execute(
             select(
@@ -76,12 +81,14 @@ class QualityRepository:
         product_id: int | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None = None,
     ) -> list[tuple[str | None, int]]:
         conditions = self._inspection_conditions(
             equipment_id=equipment_id,
             product_id=product_id,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         conditions.append(InspectionRecord.verdict == "defect")
         rows = self._session.execute(
@@ -99,6 +106,7 @@ class QualityRepository:
         product_id: int | None,
         period_from: datetime | None,
         period_to: datetime | None,
+        data_cutoff_at: datetime | None = None,
     ) -> int:
         conditions: list[ColumnElement[bool]] = [ProcessRecord.deleted_at.is_(None)]
         if equipment_id is not None:
@@ -109,6 +117,8 @@ class QualityRepository:
             conditions.append(ProcessRecord.occurred_at >= period_from)
         if period_to is not None:
             conditions.append(ProcessRecord.occurred_at < period_to)
+        if data_cutoff_at is not None:
+            conditions.append(ProcessRecord.occurred_at <= data_cutoff_at)
         return (
             self._session.scalar(select(func.count()).select_from(ProcessRecord).where(*conditions))
             or 0

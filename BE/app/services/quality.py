@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.repositories.quality import QualityRepository
@@ -33,6 +33,7 @@ class QualityService:
         product_id: int | None,
         date_from: date | None,
         date_to: date | None,
+        data_cutoff_at: datetime | None = None,
     ) -> QualitySummary:
         period_from, period_to = period_bounds(date_from, date_to)
         totals = self._repository.inspection_totals(
@@ -40,6 +41,7 @@ class QualityService:
             product_id=product_id,
             period_from=period_from,
             period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
         )
         denominator = totals.good_count + totals.defect_count
         defect_rate: Decimal | None = None
@@ -57,12 +59,14 @@ class QualityService:
                 product_id=product_id,
                 period_from=period_from,
                 period_to=period_to,
+                data_cutoff_at=data_cutoff_at,
             ),
             production_record_count=self._repository.production_record_count(
                 equipment_id=equipment_id,
                 product_id=product_id,
                 period_from=period_from,
                 period_to=period_to,
+                data_cutoff_at=data_cutoff_at,
             ),
             includes_demo=totals.includes_demo,
         )

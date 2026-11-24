@@ -5,7 +5,12 @@ import pytest
 from app.models.conversation import AnswerEvidence, ChatTurn, Conversation
 from app.models.master import AppUser
 from app.models.report_job import GenerationJob
-from app.repositories.conversation import ConversationRepository, ConversationSummary, TurnJobRow
+from app.repositories.conversation import (
+    ConversationRepository,
+    ConversationSummary,
+    ReportAccess,
+    TurnJobRow,
+)
 from app.services.conversation import (
     ChatTurnInProgressError,
     ChatTurnNotFoundError,
@@ -120,6 +125,7 @@ def test_list_conversations_scopes_to_owner_and_paginates() -> None:
     assert page.conversations[0].turn_count == 2
     kwargs = repository.find_conversations.call_args.kwargs
     assert kwargs["owner_id"] == 4
+    assert kwargs["is_admin"] is False
     assert kwargs["query"] == "RG3"
     assert kwargs["period_from"] is not None
     assert kwargs["period_to"] is not None
@@ -146,14 +152,81 @@ def test_get_conversation_hides_other_owners_and_groups_evidence() -> None:
     repository.list_evidence.return_value = [
         AnswerEvidence(chat_turn_id=5, report_id=2, source_version=3)
     ]
+    repository.find_report_access.return_value = {2: ReportAccess(author_id=1, deleted=False)}
+    repository.find_deleted_source_ids.return_value = (set(), set(), set())
 
     view = service.get_conversation(make_user(1), 1)
 
     assert view.conversation.id == 1
     assert view.turns[0].job is not None
     assert view.turns[0].job.state == "succeeded"
+    assert view.turns[0].answer_status == "available"
     assert view.turns[0].evidence[0].report_id == 2
     repository.list_evidence.assert_called_once_with([5])
+
+
+def test_get_conversation_hides_answer_when_report_permission_is_lost() -> None:
+    service, repository, _, _ = build_service()
+    turn = make_turn()
+    turn.answer = "다른 사용자의 보고 내용"
+    repository.find_conversation.return_value = make_conversation()
+    repository.find_turns_with_jobs.return_value = [
+        TurnJobRow(turn=turn, job=make_job(state="succeeded"))
+    ]
+    repository.list_evidence.return_value = [AnswerEvidence(chat_turn_id=5, report_id=2)]
+    repository.find_report_access.return_value = {2: ReportAccess(author_id=99, deleted=False)}
+    repository.find_deleted_source_ids.return_value = (set(), set(), set())
+
+    view = service.get_conversation(make_user(1), 1)
+
+    assert view.turns[0].answer_status == "hidden_permission"
+    assert view.turns[0].answer is None
+    assert view.turns[0].evidence == []
+
+
+def test_get_conversation_keeps_answer_for_admin_or_deleted_evidence() -> None:
+    service, repository, _, _ = build_service()
+    turn = make_turn()
+    turn.answer = "과거 보고 내용"
+    repository.find_conversation.return_value = make_conversation()
+    repository.find_turns_with_jobs.return_value = [
+        TurnJobRow(turn=turn, job=make_job(state="succeeded"))
+    ]
+    repository.list_evidence.return_value = [AnswerEvidence(chat_turn_id=5, report_id=2)]
+    repository.find_report_access.return_value = {2: ReportAccess(author_id=99, deleted=False)}
+    repository.find_deleted_source_ids.return_value = (set(), set(), set())
+    admin = make_user(1)
+    admin.role = "admin"
+
+    admin_view = service.get_conversation(admin, 1)
+
+    assert admin_view.turns[0].answer_status == "available"
+    assert admin_view.turns[0].answer == "과거 보고 내용"
+
+    repository.find_report_access.return_value = {2: ReportAccess(author_id=1, deleted=True)}
+    deleted_view = service.get_conversation(make_user(1), 1)
+
+    assert deleted_view.turns[0].answer_status == "available_with_deleted_evidence"
+    assert deleted_view.turns[0].answer == "과거 보고 내용"
+    assert deleted_view.turns[0].evidence[0].report_id == 2
+
+
+def test_get_conversation_marks_deleted_record_evidence() -> None:
+    service, repository, _, _ = build_service()
+    turn = make_turn()
+    turn.answer = "검사 기록 답변"
+    repository.find_conversation.return_value = make_conversation()
+    repository.find_turns_with_jobs.return_value = [
+        TurnJobRow(turn=turn, job=make_job(state="succeeded"))
+    ]
+    repository.list_evidence.return_value = [AnswerEvidence(chat_turn_id=5, inspection_record_id=7)]
+    repository.find_report_access.return_value = {}
+    repository.find_deleted_source_ids.return_value = (set(), {7}, set())
+
+    view = service.get_conversation(make_user(1), 1)
+
+    assert view.turns[0].answer_status == "available_with_deleted_evidence"
+    assert view.turns[0].answer == "검사 기록 답변"
 
 
 def test_delete_conversation_soft_deletes_and_cancels_active_job() -> None:

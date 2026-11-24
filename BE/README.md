@@ -225,7 +225,8 @@ python -m app.commands.run_chat_worker
 
 `--once`로 대기 작업 한 건만 처리할 수 있다. 임차가 만료된 채팅 작업은
 `python -m app.commands.reap_chat_jobs`로 `interrupted` 처리한다. 실패·중단된 질문은 화면에서
-재시도 API로 다시 접수한다.
+재시도 API로 다시 접수한다. 대화 상세는 근거의 현재 권한을 다시 확인해 `answer_status`
+(`available`, `hidden_permission`, `available_with_deleted_evidence`)로 가림 여부를 알린다.
 
 #### 운영 실행 확인
 

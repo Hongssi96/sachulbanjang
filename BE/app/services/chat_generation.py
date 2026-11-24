@@ -111,6 +111,7 @@ class ChatGenerationService:
             if result.clarification is not None:
                 answer = result.clarification
             else:
+                self._heartbeat(job.id)
                 answer = self._ai_client.generate_markdown(
                     system_prompt=_ANSWER_INSTRUCTIONS,
                     user_prompt=json.dumps(
@@ -178,6 +179,7 @@ class ChatGenerationService:
         payload: dict[str, object] = {"question": turn.question, "today": today.isoformat()}
         last_error: ChatPlanError | None = None
         for _ in range(2):
+            self._heartbeat(job.id)
             raw = self._ai_client.generate_markdown(
                 system_prompt=build_plan_prompt(today),
                 user_prompt=json.dumps(payload, ensure_ascii=False),
@@ -243,3 +245,6 @@ class ChatGenerationService:
             )
         except InvalidJobTransitionError:
             logger.info("chat job was already finished", extra={"job_id": job_id})
+
+    def _heartbeat(self, job_id: int) -> None:
+        self._job_service.heartbeat_job(job_id, lease_seconds=self._lease_seconds)

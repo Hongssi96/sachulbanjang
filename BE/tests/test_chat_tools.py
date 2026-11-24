@@ -116,6 +116,7 @@ def test_quality_summary_resolves_targets_and_records_scope() -> None:
         product_id=1,
         date_from=FROM,
         date_to=TODAY,
+        data_cutoff_at=NOW,
     )
 
 
