@@ -192,6 +192,22 @@ class ConversationRepository:
             )
         )
 
+    def find_previous_answered_turns(
+        self, conversation_id: int, before_turn_id: int, limit: int
+    ) -> list[ChatTurn]:
+        return list(
+            self._session.scalars(
+                select(ChatTurn)
+                .where(
+                    ChatTurn.conversation_id == conversation_id,
+                    ChatTurn.id < before_turn_id,
+                    ChatTurn.answer.is_not(None),
+                )
+                .order_by(ChatTurn.id.desc())
+                .limit(limit)
+            )
+        )
+
     def find_turn_by_active_job(self, job_id: int) -> ChatTurn | None:
         return self._session.scalar(select(ChatTurn).where(ChatTurn.active_job_id == job_id))
 
