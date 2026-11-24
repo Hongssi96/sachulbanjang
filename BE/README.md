@@ -93,6 +93,8 @@ uvicorn app.main:app --reload
   `DELETE .../reports/{id}?expected_version=` (soft delete)
 - 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
   `GET .../reports/{id}/status-events`
+- 보고서 PDF: `GET .../reports/{id}/pdf` (현재 버전 Markdown·저장 집계·불량 유형 그래프를
+  Pretendard 한글 글꼴로 즉시 생성하며 다운로드 버전·사용자를 기록)
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
@@ -120,7 +122,9 @@ uvicorn app.main:app --reload
 - 일정 수정·삭제: `PATCH .../schedules/{id}` (`version` + 변경 필드, 날짜·시각 혼용 금지),
   `DELETE .../schedules/{id}?expected_version=` (soft delete. 관리자 전체·고용자 본인)
 - 보고서 생성 작업 접수: `POST .../report-jobs` (`client_request_key`, `report_kind`, `category`,
-  `period`, `targets`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을 반환
+  `period`, `targets`, `force_regenerate`, `X-CSRF-Token` 헤더). 같은 키·같은 내용은 기존 작업을
+  반환하며, 같은 조건의 완료 보고서가 있으면 `report_id`를 반환한다. 명시적 재생성은
+  새 요청 키와 `force_regenerate=true`를 사용한다
 - 생성 작업 조회·취소·재시도: `GET .../jobs`, `GET .../jobs/{id}`, `POST .../jobs/{id}/cancel`,
   `POST .../jobs/{id}/retry` (요청자 본인, CSRF 필요 시 헤더 포함)
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
@@ -175,6 +179,22 @@ worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`�
 ```powershell
 python -m app.commands.reap_report_jobs
 ```
+
+### AI 보고서 생성 worker
+
+`APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`을 설정한 뒤 API 서버와 별도 프로세스로
+worker를 실행한다. worker는 접수된 작업의 기간·부서·라인·설비 조건으로 서버 집계를 만들고,
+개별 사용자 정보나 원본 레코드 대신 집계 스냅샷만 OpenAI 호환 `/chat/completions` API에 전달한다.
+생성 성공 시 Markdown 보고서와 집계 기준 시각·대상·수치를 한 트랜잭션으로 저장한다.
+
+```powershell
+python -m app.commands.run_report_worker
+```
+
+대기 작업을 최대 한 건만 처리해 연결을 점검하려면 `--once`를 사용한다. 외부 요청 제한 시간은
+`APP_AI_REQUEST_TIMEOUT_SECONDS`, worker 임차 시간은 `APP_REPORT_WORKER_LEASE_SECONDS`로 조정한다.
+임차 시간은 외부 요청 제한 시간보다 길게 설정한다. AI 설정이 없으면 일반 API는 계속 실행되지만
+worker는 시작하지 않는다.
 
 ### 공정 CSV 적재
 

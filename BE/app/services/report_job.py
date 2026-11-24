@@ -18,7 +18,7 @@ Clock = Callable[[], datetime]
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "accepted": {"querying", "failed"},
     "querying": {"writing", "failed"},
-    "writing": {"failed"},
+    "writing": {"succeeded", "failed"},
 }
 
 _INTERRUPTED_MESSAGE = "서버 중단으로 작업이 끝나지 않았습니다. 다시 시도해 주세요."
@@ -89,11 +89,16 @@ class ReportJobService:
         *,
         client_request_key: str,
         payload: dict[str, object],
+        force_regenerate: bool = False,
     ) -> tuple[GenerationJob, bool]:
         digest = request_digest(payload)
         existing = self._repository.find_by_request_key(requester.id, "report", client_request_key)
         if existing is not None:
             return self._reuse_or_conflict(existing, digest)
+        if not force_regenerate:
+            completed = self._repository.find_completed_report_by_digest(requester.id, digest)
+            if completed is not None:
+                return completed[0], False
 
         now = self._clock()
         job = GenerationJob(

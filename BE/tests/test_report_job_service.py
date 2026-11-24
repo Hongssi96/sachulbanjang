@@ -65,6 +65,7 @@ def build_service() -> tuple[ReportJobService, MagicMock, MagicMock]:
     session = MagicMock(spec=Session)
     repository = MagicMock(spec=ReportJobRepository)
     repository.latest_data_cutoff.return_value = None
+    repository.find_completed_report_by_digest.return_value = None
     service = ReportJobService(session, repository, clock=lambda: NOW)
     return service, repository, session
 
@@ -114,6 +115,24 @@ def test_submit_reuses_same_key_and_payload() -> None:
     assert created is False
     repository.add_job.assert_not_called()
     session.commit.assert_not_called()
+
+
+def test_submit_reuses_completed_report_unless_regeneration_is_explicit() -> None:
+    service, repository, _ = build_service()
+    completed = make_job(state="succeeded")
+    repository.find_by_request_key.return_value = None
+    repository.find_completed_report_by_digest.return_value = (completed, 77)
+
+    reused, created = service.submit_report_job(
+        make_user(), client_request_key="key-2", payload=PAYLOAD
+    )
+    assert reused is completed
+    assert created is False
+
+    service.submit_report_job(
+        make_user(), client_request_key="key-3", payload=PAYLOAD, force_regenerate=True
+    )
+    repository.add_job.assert_called_once()
 
 
 def test_submit_rejects_same_key_with_different_payload() -> None:

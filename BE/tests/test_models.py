@@ -22,6 +22,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "record_change",
         "refresh_credential",
         "report",
+        "report_download_event",
         "report_revision",
         "report_status_event",
         "schedule",

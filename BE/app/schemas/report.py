@@ -104,6 +104,9 @@ class ReportDetail(ReportListItem):
     body_markdown: str
     last_editor_id: int | None
     last_editor_display_name: str | None
+    generation_job_id: int | None
+    generation_data_cutoff_at: datetime | None
+    generation_snapshot: dict[str, object] | None
 
 
 class ReportListResponse(BaseModel):

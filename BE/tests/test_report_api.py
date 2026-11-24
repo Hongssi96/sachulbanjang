@@ -90,6 +90,21 @@ def test_reports_require_authentication() -> None:
     assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
+def test_download_report_pdf_records_version() -> None:
+    service = MagicMock(spec=ReportService)
+    service.get_report.return_value = make_view(version=3)
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get("/api/v1/reports/1/pdf")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.content.startswith(b"%PDF-")
+    service.record_pdf_download.assert_called_once_with(service.get_report.call_args.args[0], 1, 3)
+
+
 def test_worker_creates_report() -> None:
     service = MagicMock(spec=ReportService)
     service.create_report.return_value = make_view()

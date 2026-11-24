@@ -95,6 +95,7 @@ def test_jobs_require_authentication() -> None:
 def test_submit_report_job_returns_accepted() -> None:
     service = MagicMock(spec=ReportJobService)
     service.submit_report_job.return_value = (make_job(), True)
+    service.get_job.return_value = (make_job(), None)
     application = make_application(service)
 
     with TestClient(application) as client:
@@ -115,10 +116,12 @@ def test_submit_report_job_returns_accepted() -> None:
         "state": "accepted",
         "accepted_at": "2026-11-23T06:00:00Z",
         "data_cutoff_at": "2026-11-23T06:00:00Z",
+        "report_id": None,
     }
     kwargs = service.submit_report_job.call_args.kwargs
     assert kwargs["client_request_key"] == "key-1"
     assert kwargs["payload"] == PAYLOAD
+    assert kwargs["force_regenerate"] is False
 
 
 def test_submit_requires_csrf_and_validates_payload() -> None:

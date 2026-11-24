@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from sqlalchemy.orm import Session
 
 from app.models.master import AppUser
-from app.models.report import Report, ReportRevision, ReportStatusEvent
+from app.models.report import Report, ReportDownloadEvent, ReportRevision, ReportStatusEvent
 from app.repositories.report import ReportRepository, ReportView
 from app.services.record_history import period_bounds
 
@@ -231,6 +231,18 @@ class ReportService:
     ) -> list[tuple[ReportStatusEvent, str]]:
         self._visible_report(actor, report_id)
         return self._repository.list_status_events(report_id)
+
+    def record_pdf_download(self, actor: AppUser, report_id: int, report_version: int) -> None:
+        self._visible_report(actor, report_id)
+        self._repository.add_download_event(
+            ReportDownloadEvent(
+                report_id=report_id,
+                report_version=report_version,
+                actor_id=actor.id,
+                created_at=self._clock(),
+            )
+        )
+        self._session.commit()
 
     def _visible_report(self, actor: AppUser, report_id: int) -> ReportView:
         view = self._repository.find_report(report_id)

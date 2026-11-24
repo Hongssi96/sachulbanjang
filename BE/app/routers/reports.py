@@ -35,6 +35,7 @@ from app.services.report import (
     ReportService,
     ReportVersionConflictError,
 )
+from app.services.report_pdf import ReportPdfError, render_report_pdf
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -68,6 +69,9 @@ def _detail(view: ReportView) -> ReportDetail:
         body_markdown=report.body_markdown,
         last_editor_id=report.last_editor_id,
         last_editor_display_name=view.last_editor_display_name,
+        generation_job_id=report.generation_job_id,
+        generation_data_cutoff_at=report.generation_data_cutoff_at,
+        generation_snapshot=report.generation_snapshot,
     )
 
 
@@ -203,6 +207,35 @@ def read_report(
     except ReportNotFoundError as error:
         _handle_write_error(error)
         raise AssertionError("unreachable") from error
+
+
+@router.get("/{report_id}/pdf")
+def download_report_pdf(
+    report_id: Annotated[int, Path(ge=1)],
+    actor: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[ReportService, Depends(get_report_service)],
+) -> Response:
+    try:
+        report = service.get_report(actor, report_id).report
+        content = render_report_pdf(report)
+        service.record_pdf_download(actor, report.id, report.version)
+    except ReportNotFoundError as error:
+        _handle_write_error(error)
+        raise AssertionError("unreachable") from error
+    except ReportPdfError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "REPORT_PDF_FAILED", "message": str(error)},
+        ) from None
+    filename = f"report-{report_id}-v{report.version}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.patch(
