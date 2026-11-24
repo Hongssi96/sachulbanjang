@@ -91,15 +91,17 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 
 | 테이블 | 주요 필드와 제약 |
 | --- | --- |
-| conversation | owner_id FK, title, deleted_at |
-| chat_turn | conversation_id FK, question, answer?, active_job_id? FK, answered_at?, query_scope?, data_cutoff_at?, is_demo?. 실패 재시도는 동일 질문에 새 작업 연결 |
-| answer_evidence | chat_turn_id FK, report_id?·process_record_id?·inspection_record_id?·product_id? FK, source_version?, source_time. 최소 하나의 근거, 종류 확장 시 명시적 FK 추가 |
+| conversation | owner_id FK, title, deleted_at. 20261124_0019로 구현 |
+| chat_turn | conversation_id FK, question, answer?, active_job_id? FK, answered_at?, query_scope?, data_cutoff_at?, is_demo?. 실패 재시도는 동일 질문에 새 작업 연결. 20261124_0019로 구현 |
+| answer_evidence | chat_turn_id FK, report_id?·process_record_id?·inspection_record_id?·product_id? FK, source_version?, source_time. 최소 하나의 근거 CHECK, 종류 확장 시 명시적 FK 추가. 20261124_0019로 구현 |
 | schedule | author_id FK, title, category(inspection/production/meeting/other), description?, all_day, start_date?, end_date_exclusive?, starts_at?, ends_at?, version, deleted_at. 종일/시간 지정 중 하나만(CHECK). 20261123_0014로 구현 |
 | handover_note | author_id FK, body, version, deleted_at. 대상은 별도 handover_target에서 관리. 20261123_0016으로 구현 |
 | handover_target | handover_note_id FK, department_id?·production_line_id?·equipment_id? FK. 정확히 하나(CHECK). 20261123_0016으로 구현 |
 | handover_read | handover_note_id FK, user_id FK, confirmed_at. (handover_note_id, user_id) UNIQUE. 20261123_0016으로 구현 |
 
 답변 전체의 근거를 식별해 현재 권한을 검사하며 검증할 수 없는 근거를 가진 과거 답변을 그대로 외부 AI에 전달하지 않는다. 집계 답변도 조회 범위·소스 종류·작성 당시 권한 범위를 별도로 보존한다. 삭제된 근거와 권한 상실은 구분한다. 근거가 없는 일반 설명에는 업무 자료 근거를 조작해 넣지 않는다.
+
+구현 기준(20261124_0019): `conversation`의 삭제는 soft delete이며 하위 `chat_turn`·`answer_evidence`는 보존하되 대화 조회·검색에서 제외한다. 대화 목록의 기간 필터는 마지막 질문 접수 시 갱신한 `updated_at`을 사용한다. 한 대화에 동시에 하나의 비종료 채팅 작업만 허용하는 규칙은 대화 행 잠금을 사용하는 Service에서 검사하며 DB UNIQUE로 강제하지 않는다. `answer`·`answered_at`·`query_scope`·`is_demo`와 `answer_evidence`는 chat worker가 채우는 후속 범위다.
 
 종일 일정은 date 쌍, 시간 지정 일정은 timestamptz 쌍으로 서로 배타적으로 저장한다. 종료 경계는 내부·API에서 exclusive라는 기술 기본안을 사용해 화면의 마지막 날짜와 변환한다. 종료 > 시작을 CHECK로 보장한다. 일정·노트의 version은 일관된 충돌 처리를 위한 기술 기본안이다.
 

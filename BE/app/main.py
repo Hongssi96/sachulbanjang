@@ -19,6 +19,7 @@ from app.errors import (
 )
 from app.middleware import RequestContextMiddleware
 from app.routers.auth import router as auth_router
+from app.routers.conversation import router as conversation_router
 from app.routers.handover import router as handover_router
 from app.routers.health import router as health_router
 from app.routers.inventory import router as inventory_router
@@ -71,6 +72,7 @@ def create_app(
     application.include_router(records_router, prefix="/api/v1")
     application.include_router(reports_router, prefix="/api/v1")
     application.include_router(report_jobs_router, prefix="/api/v1")
+    application.include_router(conversation_router, prefix="/api/v1")
     application.include_router(quality_router, prefix="/api/v1")
     application.include_router(schedules_router, prefix="/api/v1")
     application.include_router(inventory_router, prefix="/api/v1")

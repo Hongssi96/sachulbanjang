@@ -144,9 +144,9 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /reports/{id}/pdf?version=... | 선택 버전 PDF 생성 | 조회 권한. 파일 응답, 다운로드 이벤트 |
 | GET /reports/{id}/downloads | 다운로드 사용자·시각·버전, 합계 | 현재 보고서 조회 권한 |
 | GET /reports/{id}/charts/{chart_key}?version=... | 저장 집계 기반 이미지 생성·재시도 | 조회 권한. 실패 시 JSON 오류+사유, 화면/PDF 대체 안내 |
-| POST /conversations, GET /conversations | 본인 대화 생성·검색 | 제목·질문·권한 있는 답변 검색 |
-| GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가 |
-| POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state |
+| POST /conversations, GET /conversations | 본인 대화 생성·검색 | 제목·질문·답변 검색, 최근 활동 기간 필터 |
+| GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가. 진행 중 작업은 취소 |
+| POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state. 생성 중 질문이 있으면 409 |
 | POST /conversations/{id}/turns/{turn_id}/refresh | 새 요청 키·기존 조건 기반 최신 재조회 | 새 질문·답변 추가. 실패 재시도와 구분 |
 | GET /schedules | from·to(한국 기준, 양 끝 포함), page, page_size | 양 역할. 범위와 겹치는 일정을 시작 순 반환 |
 | POST /schedules | title, category, description?, all_day, 종일 또는 시간 지정 필드 | 양 역할, CSRF |
@@ -412,6 +412,40 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
   키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인했다
 - 실제 AI 실행(`querying`·`writing` 단계와 `succeeded` 시 보고서 등록), 같은 조건 중복 안내
   (`POST /report-duplicate-checks`)는 후속 작업이다
+
+### 대화 저장·조회와 채팅 작업 접수 현재 구현 범위 (2026-11-24)
+
+AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 chat worker로 분리하고, 이번 범위에서는
+대화·질문 저장, 작업 접수, 본인 조회·검색, soft delete까지 구현한다
+(DEC-030·DEC-032~034·DEC-062·DEC-095·DEC-122~126·DEC-216).
+
+- `POST /conversations`: `title`(1~200자)로 생성한다. CSRF가 필요하고 소유자는 로그인 사용자다.
+  응답은 `201`과 빈 `turns`를 포함한 상세다
+- `GET /conversations`: `q`(제목·질문·답변 부분 검색, 최대 100자), `from`·`to`(한국 기준 최근 활동
+  기간, `from` 포함·`to` 제외), `page`/`page_size`(기본 10·최대 100). `updated_at` 내림차순·
+  `id` 내림차순으로 `turn_count`와 함께 반환한다. 관리자도 본인 대화만 조회한다(DEC-032)
+- `GET /conversations/{id}`: 질문·답변·작성 시각·데이터 기준 시각·시연 여부, 연결된 `job` 상태
+  (`state`·`error_code`·`safe_error_message`), 근거 목록을 `turns`로 반환한다. 타인 대화·삭제
+  대화는 `404 CONVERSATION_NOT_FOUND`이며 응답에 `Cache-Control: no-store`가 붙는다
+- `DELETE /conversations/{id}`: CSRF가 필요하다. soft delete하고 진행 중인 채팅 작업을 취소하며
+  `204`를 반환한다(DEC-034·DEC-062)
+- `POST /conversations/{id}/turns`: `question`(1~1,000자), `client_request_key`(1~100자)를 받고
+  CSRF가 필요하다. `chat_turn`과 `kind=chat` 작업을 한 트랜잭션으로 접수해 `202`와 `turn_id`·
+  `job_id`·`state`·`accepted_at`·`data_cutoff_at`을 반환한다. 같은 요청 키·같은 내용은 기존 접수
+  결과를 반환하고 내용이 다르면 `409 REQUEST_KEY_CONFLICT`다. 같은 대화에 생성 중
+  (`accepted`·`querying`·`writing`) 작업이 있으면 `409 CHAT_TURN_IN_PROGRESS`다(DEC-125)
+- `POST /conversations/{id}/turns/{turn_id}/refresh`: `client_request_key`만 받는다. 원래 질문과
+  `query_scope`를 복사한 새 질문을 같은 대화에 추가해 최신 데이터 재조회를 접수한다. 실패 재시도와
+  구분하며, 같은 대화에 생성 중 작업이 있으면 `409 CHAT_TURN_IN_PROGRESS`다(DEC-098)
+- 채팅 작업 상태는 `GET /jobs?kind=chat`·`GET /jobs/{id}`로 조회하고 `POST /jobs/{id}/cancel`로
+  취소한다. 화면은 이 상태로 데이터 조회 중·답변 작성 중을 표시한다(DEC-095·DEC-126)
+- 검증: pytest 354건(Ruff·mypy 포함)으로 소유자 범위·검색·기간 필터·페이지네이션·soft delete·
+  진행 중 질문 차단·요청 키 멱등/충돌·refresh 질문/조건 복사·채팅 작업 접수·API 오류 매핑을 확인했다.
+  일회용 PostgreSQL 18 DB에서 Alembic head 적용, `ck_answer_evidence_source` 위반 거부, 인덱스 생성,
+  `20261123_0018`↔`20261124_0019` downgrade/upgrade를 확인하고 DB를 삭제했다
+- 미완료: AI 조회·답변 생성 chat worker, 답변 근거 기록, 근거 권한 상실·삭제 시 과거 답변 가림
+  (DEC-099·DEC-100), 실패 재시도 API(DEC-124). 현재 `answer`·`evidence`는 worker가 채우기 전까지
+  비어 있다
 
 ### 품질 통계 현재 구현 범위 (2026-11-23)
 
