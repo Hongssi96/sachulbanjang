@@ -18,6 +18,7 @@ def test_core_schema_registers_expected_tables() -> None:
         "handover_read",
         "handover_target",
         "inspection_record",
+        "operation_day",
         "process_record",
         "process_replay",
         "product",
@@ -114,5 +115,25 @@ def test_answer_evidence_requires_at_least_one_source() -> None:
     )
     assert any(
         isinstance(constraint, CheckConstraint) and constraint.name == "ck_answer_evidence_source"
+        for constraint in table.constraints
+    )
+
+
+def test_operation_day_requires_unique_equipment_day_and_non_negative_times() -> None:
+    table = Base.metadata.tables["operation_day"]
+
+    assert not table.c.equipment_id.nullable
+    assert not table.c.day.nullable
+    assert any(
+        isinstance(constraint, UniqueConstraint)
+        and {column.name for column in constraint.columns} == {"equipment_id", "day"}
+        for constraint in table.constraints
+    )
+    assert any(
+        isinstance(constraint, CheckConstraint) and constraint.name == "ck_operation_day_planned"
+        for constraint in table.constraints
+    )
+    assert any(
+        isinstance(constraint, CheckConstraint) and constraint.name == "ck_operation_day_actual"
         for constraint in table.constraints
     )

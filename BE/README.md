@@ -103,6 +103,9 @@ uvicorn app.main:app --reload
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
+- 가동률: `GET http://localhost:8000/api/v1/quality/operation`
+  (`from`, `to`(한국 기준 날짜, 양 끝 포함), `equipment_id`. 계획·실제 시간 합계,
+  가동률(계획 0이면 null), 시연 포함 여부. 시연 데이터는 `seed_operation_days`로 적재)
 - 인수인계 목록: `GET http://localhost:8000/api/v1/handover-notes`
   (`q`, `department_id`/`production_line_id`/`equipment_id`, `include_all`, `page`, `page_size`.
   고용자 기본은 본인 담당 필터)
@@ -184,6 +187,15 @@ python -m app.commands.seed_master_data --file master.json
 재실행해도 중복 생성하지 않고 기존 값을 임의로 덮어쓰지 않는다. 없는 사용자·설비나 다른 라인에 이미
 속한 설비가 있으면 전체를 롤백하고 실패한다.
 
+### 가동률 시연 데이터 적재
+
+활성 설비별로 최근 N일(기본 14일, 주말 포함) 계획 8시간·실제 6~8시간을 결정적으로 만들어
+`operation_day`에 넣는다. 이미 있는 `(설비, 날짜)` 행은 덮어쓰지 않는다.
+
+```powershell
+python -m app.commands.seed_operation_days --days 14
+```
+
 ### 보고서 생성 작업 큐 정리
 
 worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`로 정리한다. 실제 AI 실행 worker는
@@ -216,7 +228,7 @@ worker는 시작하지 않는다.
 
 `APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`을 설정한 뒤 별도 프로세스로 실행한다. worker는
 질문을 검증된 조회 계획(JSON)으로 바꾸고 허용 도구(품질 집계·검사 목록·생산 목록·보고서 검색·재고
-현황·입출고 이력·일정 목록)만 실행한 뒤, 조회 결과만 근거로 답변을 작성해 질문에 저장한다. 자유
+현황·입출고 이력·일정 목록·가동률)만 실행한 뒤, 조회 결과만 근거로 답변을 작성해 질문에 저장한다. 자유
 SQL은 실행하지 않는다. AI가 만든 계획이 규칙에 맞지 않으면 1회 다시 요청하고, 재실패하면
 `CHAT_PLAN_FAILED`로 남긴다.
 

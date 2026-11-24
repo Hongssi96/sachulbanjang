@@ -124,7 +124,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /process-records/{id}, /inspection-records/{id} | 개별 기록 | 일반 조회 권한 |
 | PATCH /process-records/{id} | version, change_reason, occurred_at?, cycle_time_seconds?, product_id?, equipment_id? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
 | PATCH /inspection-records/{id} | version, change_reason, inspected_at?, product_id?, process_record_id?, verdict?, defect_type?, reason? | 관리자, CSRF. 원천 식별자·is_demo 변경 불가 |
-| DELETE /process-records/{id}, /inspection-records/{id} | expected_version·사유를 query/header 계약으로 확정 | 관리자 soft delete·감사 이력. 미구현 |
+| DELETE /process-records/{id}, /inspection-records/{id} | 본문 version, change_reason | 관리자, CSRF. soft delete와 감사 이력 기록 |
 | GET /process-records/{id}/changes, /inspection-records/{id}/changes | 없음 | 관리자만. 전후 값·사유·작업자·시각 |
 | GET /quality/summary | from·to·equipment_id·product_id | 관리자·고용자. 검사·양품·불량 건수, 불량률(null 허용), 유형 분포, 생산 기록 건수 |
 | GET /quality/operation | 한국 기준 날짜·설비 | 계획/실제 시간·가동률·is_demo |
@@ -334,8 +334,8 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 
 ### 생산·검사 기록 관리자 정정 현재 구현 범위 (2026-11-23)
 
-관리자만 실행할 수 있고 CSRF 더블 서브밋을 요구한다(DEC-158·DEC-162·DEC-208). 삭제(soft delete)는
-이번 범위에 포함하지 않는다.
+관리자만 실행할 수 있고 CSRF 더블 서브밋을 요구한다(DEC-158·DEC-162·DEC-208·DEC-222). 삭제는
+soft delete이며 감사 이력에 남긴다.
 
 - `PATCH /process-records/{id}`: `version`(필수), `change_reason`(필수, 공백 불가), 선택 필드
   `occurred_at`·`cycle_time_seconds`·`product_id`·`equipment_id`. 원천 식별자(`source_import_id`,
@@ -352,7 +352,13 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 - `GET /process-records/{id}/changes`·`GET /inspection-records/{id}/changes`: 관리자만 조회한다.
   `items`에 `before_value`·`after_value`(변경 필드만)·`reason`·`actor_id`·`actor_display_name`·`version`·
   `occurred_at`을 최신순으로 반환한다
-- 검증: pytest 211건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 정정 적용·version 충돌·무변경
+- `DELETE /process-records/{id}`·`DELETE /inspection-records/{id}`: 본문 `version`, `change_reason`을
+  받는다. 관리자·CSRF가 필요하고 `204`를 반환한다. `deleted_at`을 기록하는 soft delete이며 version을
+  1 올리고 `record_change`에 operation `delete`, 삭제 전 값(`before_value`), `after_value` 없음, 사유·
+  작업자·시각·결과 version을 같은 트랜잭션으로 남긴다. 삭제된 기록은 일반 조회·품질 집계·AI 조회에서
+  제외하고 관리자는 변경 이력으로 확인한다(DEC-160·DEC-162). 없거나 삭제된 기록은
+  `404 RECORD_NOT_FOUND`, version이 다르면 `409 VERSION_CONFLICT`다
+- 검증: pytest 396건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 정정 적용·version 충돌·무변경
   거부·null 비우기·감사 기록(전후 값·사유·작업자)·이력 정렬·soft delete 기록 404·원천 식별자 불변·
   인덱스 생성을 확인했다
 
@@ -411,8 +417,13 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
   자동 재실행은 하지 않는다(DEC-094)
 - 검증: pytest 250건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 접수·data_cutoff·중복 반환·
   키 충돌·요청자 범위·취소·재시도·claim/lease/heartbeat·임차 만료 interrupted·인덱스/UNIQUE를 확인했다
-- 실제 AI 실행(`querying`·`writing` 단계와 `succeeded` 시 보고서 등록), 같은 조건 중복 안내
-  (`POST /report-duplicate-checks`)는 후속 작업이다
+- `POST /report-duplicate-checks`: `report_kind`, `category`, `period`, `targets`를 받아 같은 조건으로
+  성공 생성된 보고서를 안내한다. 관리자는 전체, 고용자는 본인 보고만 최대 5건 최신순으로 반환하고
+  응답은 `has_duplicate`, `reusable_report_id`(같은 요청자가 즉시 재사용할 완료 보고서),
+  `items`(제목·분류·상태·작성자·생성 시각)다. 생성 자체를 막지 않으며 재생성은 새 요청이다(DEC-210·DEC-221)
+- 검증(중복 안내): pytest 390건(Ruff·mypy 포함)으로 관리자 전체·고용자 본인 범위, 재사용 보고서 판정,
+  조건 불일치 검증을 확인했다
+- 실제 AI 보고서 실행은 `python -m app.commands.run_report_worker`로 구현되어 있다(DEC-082·DEC-095·DEC-127)
 
 ### 대화 저장·조회와 채팅 작업 접수 현재 구현 범위 (2026-11-24)
 
@@ -516,7 +527,26 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
   나타낸다
 - 검증: pytest 257건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 기간 경계·설비/품목 필터·
   soft delete 제외·불량률 반올림·분모 0 null·유형 분포 정렬·생산 기록 건수·시연 표시를 확인했다
-- 가동률(`GET /quality/operation`)은 `operation_day` 작업에서 별도 구현한다
+- 가동률(`GET /quality/operation`)은 다음 절에서 구현한다
+
+### 가동률 현재 구현 범위 (2026-11-24)
+
+시연 데이터로 제공하고 실제 측정값과 구분해 시연 여부를 표시한다(DEC-163·DEC-164·DEC-223). 기간·설비
+범위의 계획·실제 시간을 각각 합산한 뒤 가동률을 계산하며, 일별 비율의 평균을 쓰지 않는다.
+
+- 데이터: `operation_day`(설비·일자별 `planned_seconds`·`actual_seconds`, `is_demo`,
+  `(equipment_id, day)` UNIQUE, 시간 >= 0 CHECK). `20261124_0020`으로 구현
+- 시연 적재: `python -m app.commands.seed_operation_days [--days 14]`가 활성 설비별로 최근 N일
+  (기본 14일, 주말 포함) 행을 만든다. 계획 8시간, 실제 6~8시간을 `(설비, 날짜)` 기준 결정적으로
+  배정하고 이미 있는 행은 덮어쓰지 않는다
+- `GET /quality/operation`: 선택 query `from`·`to`(한국 기준 날짜, 양 끝 포함), `equipment_id`(1 이상).
+  응답은 `equipment_id`, `from_date`, `to_date`, `planned_hours`, `actual_hours`(소수 둘째 자리),
+  `operation_rate`(실제 ÷ 계획 × 100, 계획 합계 0이면 `null`), `includes_demo`다. 양 역할 모두 조회한다
+- AI 도구 `operation_summary`: 기간 1~90일과 선택 설비로 같은 집계를 답한다. 근거 행은 만들지 않고
+  `query_scope`에 기간·대상을 보존하며 시연 여부를 전달한다
+- 검증: pytest 405건(Ruff·mypy 포함), 일회용 PostgreSQL 18 DB에서 `20261124_0020` 적용, 시연 적재
+  (설비·14일), 설비/기간 필터 합산, 계획 0 null, 시연 표시를 확인했다
+- 실제 가동률 데이터 연동은 범위에서 제외한다(DEC-163)
 
 ### 일정 현재 구현 범위 (2026-11-23)
 
