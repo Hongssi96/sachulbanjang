@@ -194,8 +194,10 @@ class ReportJobService:
             attempt_count=original.attempt_count + 1,
         )
 
-    def claim_next_job(self, *, lease_seconds: int) -> GenerationJob | None:
-        job = self._repository.claim_next_accepted()
+    def claim_next_job(
+        self, *, lease_seconds: int, kind: str | None = None
+    ) -> GenerationJob | None:
+        job = self._repository.claim_next_accepted(kind=kind)
         if job is None:
             return None
         now = self._clock()
@@ -241,9 +243,9 @@ class ReportJobService:
         self._session.commit()
         return job
 
-    def mark_stale_jobs_interrupted(self) -> int:
+    def mark_stale_jobs_interrupted(self, *, kind: str | None = None) -> int:
         now = self._clock()
-        jobs = self._repository.find_stale_jobs(now)
+        jobs = self._repository.find_stale_jobs(now, kind=kind)
         for job in jobs:
             job.state = "interrupted"
             job.error_code = "WORKER_INTERRUPTED"

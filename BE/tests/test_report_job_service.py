@@ -275,3 +275,15 @@ def test_fail_and_interrupt_mark_terminal_states() -> None:
     assert stale.error_code == "WORKER_INTERRUPTED"
     assert stale.safe_error_message
     session.commit.assert_called()
+
+
+def test_claim_and_reap_can_filter_job_kind() -> None:
+    service, repository, _ = build_service()
+    repository.claim_next_accepted.return_value = None
+    repository.find_stale_jobs.return_value = []
+
+    service.claim_next_job(kind="chat", lease_seconds=60)
+    service.mark_stale_jobs_interrupted(kind="chat")
+
+    repository.claim_next_accepted.assert_called_once_with(kind="chat")
+    repository.find_stale_jobs.assert_called_once_with(NOW, kind="chat")

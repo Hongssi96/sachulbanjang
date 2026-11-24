@@ -9,6 +9,7 @@ from app.repositories.conversation import ConversationRepository, ConversationSu
 from app.services.conversation import (
     ChatTurnInProgressError,
     ChatTurnNotFoundError,
+    ChatTurnNotRetryableError,
     ConversationNotFoundError,
     ConversationService,
 )
@@ -329,3 +330,100 @@ def test_refresh_turn_requires_existing_turn_in_conversation() -> None:
         service.refresh_turn(make_user(1), 1, 99, client_request_key="key-2")
 
     repository.add_turn.assert_not_called()
+
+
+def test_retry_turn_attaches_new_job_to_same_turn() -> None:
+    service, repository, jobs, session = build_service()
+    conversation = make_conversation()
+    repository.lock_owned_conversation.return_value = conversation
+    turn = make_turn(7)
+    turn.active_job_id = 10
+    turn.answer = "이전 답변"
+    repository.find_turn.return_value = turn
+    repository.find_job.return_value = make_job(job_id=10, state="failed")
+    repository.find_active_job.return_value = None
+    jobs.find_request.return_value = None
+    new_job = make_job(
+        job_id=11,
+        payload={"conversation_id": 1, "question": "질문", "retry_of_turn_id": 7},
+    )
+    jobs.submit_job.return_value = (new_job, True)
+
+    retried, returned = service.retry_turn(make_user(1), 1, 7, client_request_key="key-2")
+
+    assert retried is turn
+    assert returned is new_job
+    assert turn.active_job_id == 11
+    assert turn.answer is None
+    assert turn.answered_at is None
+    assert jobs.submit_job.call_args.kwargs["payload"] == {
+        "conversation_id": 1,
+        "question": "질문",
+        "retry_of_turn_id": 7,
+    }
+    repository.add_turn.assert_not_called()
+    session.commit.assert_called_once_with()
+
+
+def test_retry_turn_requires_failed_or_interrupted_job() -> None:
+    service, repository, jobs, _ = build_service()
+    repository.lock_owned_conversation.return_value = make_conversation()
+    turn = make_turn(7)
+    turn.active_job_id = 10
+    repository.find_turn.return_value = turn
+    repository.find_job.return_value = make_job(job_id=10, state="succeeded")
+    jobs.find_request.return_value = None
+
+    with pytest.raises(ChatTurnNotRetryableError):
+        service.retry_turn(make_user(1), 1, 7, client_request_key="key-2")
+
+    jobs.submit_job.assert_not_called()
+
+    repository.find_job.return_value = None
+    with pytest.raises(ChatTurnNotRetryableError):
+        service.retry_turn(make_user(1), 1, 7, client_request_key="key-3")
+
+
+def test_retry_turn_reuses_same_request_key_idempotently() -> None:
+    service, repository, jobs, _ = build_service()
+    repository.lock_owned_conversation.return_value = make_conversation()
+    turn = make_turn(7)
+    turn.active_job_id = 11
+    repository.find_turn.return_value = turn
+    payload = {"conversation_id": 1, "question": "질문", "retry_of_turn_id": 7}
+    existing = make_job(job_id=11, payload=payload)
+    existing.request_digest = request_digest(payload)
+    jobs.find_request.return_value = existing
+    repository.find_turn_by_active_job.return_value = turn
+
+    reused, returned = service.retry_turn(make_user(1), 1, 7, client_request_key="key-2")
+
+    assert reused is turn
+    assert returned is existing
+    jobs.submit_job.assert_not_called()
+    repository.find_job.assert_not_called()
+
+
+def test_retry_turn_requires_existing_turn_in_conversation() -> None:
+    service, repository, _, _ = build_service()
+    repository.lock_owned_conversation.return_value = make_conversation()
+    repository.find_turn.return_value = None
+
+    with pytest.raises(ChatTurnNotFoundError):
+        service.retry_turn(make_user(1), 1, 99, client_request_key="key-2")
+
+
+def test_retry_turn_rejects_while_another_turn_is_generating() -> None:
+    service, repository, jobs, _ = build_service()
+    repository.lock_owned_conversation.return_value = make_conversation()
+    turn = make_turn(7)
+    turn.active_job_id = 10
+    repository.find_turn.return_value = turn
+    repository.find_job.return_value = make_job(job_id=10, state="failed")
+    repository.find_active_job.return_value = make_job(job_id=12, state="querying")
+    jobs.find_request.return_value = None
+
+    with pytest.raises(ChatTurnInProgressError):
+        service.retry_turn(make_user(1), 1, 7, client_request_key="key-2")
+
+    jobs.submit_job.assert_not_called()
