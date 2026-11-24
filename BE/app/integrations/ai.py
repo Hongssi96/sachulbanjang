@@ -16,6 +16,18 @@ _MARKDOWN_IMAGE = re.compile(r"!\[[^\]]*\]\(")
 _MAX_MARKDOWN_LENGTH = 100_000
 
 
+def validate_generated_markdown(content: str) -> str:
+    """Reject empty, oversized, or unsafe AI output before it is stored."""
+    if not isinstance(content, str) or not content.strip():
+        raise AiGenerationError("AI server returned empty generated content")
+    normalized = content.strip()
+    if len(normalized) > _MAX_MARKDOWN_LENGTH:
+        raise AiGenerationError("AI server returned oversized generated content")
+    if _HTML_TAG.search(normalized) or _MARKDOWN_IMAGE.search(normalized):
+        raise AiGenerationError("AI server returned unsafe generated content")
+    return normalized
+
+
 @dataclass(frozen=True)
 class OpenAiCompatibleClient:
     base_url: str
@@ -62,9 +74,4 @@ class OpenAiCompatibleClient:
             ) from error
         if not isinstance(content, str) or not content.strip():
             raise AiGenerationError("AI server returned empty generated content")
-        normalized = content.strip()
-        if len(normalized) > _MAX_MARKDOWN_LENGTH:
-            raise AiGenerationError("AI server returned oversized generated content")
-        if _HTML_TAG.search(normalized) or _MARKDOWN_IMAGE.search(normalized):
-            raise AiGenerationError("AI server returned unsafe generated content")
-        return normalized
+        return validate_generated_markdown(content)

@@ -148,6 +148,7 @@ FE가 사용 중인 계약의 호환성이 깨지는 변경은 새 규격 추가
 | GET /conversations/{id}, DELETE /conversations/{id} | 본인 조회·soft delete | 관리자도 타인 대화 불가. 진행 중 작업은 취소 |
 | POST /conversations/{id}/turns | question, client_request_key | 202: turn_id, job_id, state. 생성 중 질문이 있으면 409 |
 | POST /conversations/{id}/turns/{turn_id}/refresh | 새 요청 키·기존 조건 기반 최신 재조회 | 새 질문·답변 추가. 실패 재시도와 구분 |
+| POST /conversations/{id}/turns/{turn_id}/retry | 새 요청 키 | failed·interrupted 작업만 같은 질문에 새 작업 연결 |
 | GET /schedules | from·to(한국 기준, 양 끝 포함), page, page_size | 양 역할. 범위와 겹치는 일정을 시작 순 반환 |
 | POST /schedules | title, category, description?, all_day, 종일 또는 시간 지정 필드 | 양 역할, CSRF |
 | GET /schedules/{id} | 없음 | 양 역할 전체 조회 |
@@ -443,9 +444,46 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
   진행 중 질문 차단·요청 키 멱등/충돌·refresh 질문/조건 복사·채팅 작업 접수·API 오류 매핑을 확인했다.
   일회용 PostgreSQL 18 DB에서 Alembic head 적용, `ck_answer_evidence_source` 위반 거부, 인덱스 생성,
   `20261123_0018`↔`20261124_0019` downgrade/upgrade를 확인하고 DB를 삭제했다
-- 미완료: AI 조회·답변 생성 chat worker, 답변 근거 기록, 근거 권한 상실·삭제 시 과거 답변 가림
-  (DEC-099·DEC-100), 실패 재시도 API(DEC-124). 현재 `answer`·`evidence`는 worker가 채우기 전까지
-  비어 있다
+- 미완료: 근거 권한 상실·삭제 시 과거 답변 가림(DEC-099·DEC-100). 답변 생성과 실패 재시도는
+  다음 절에서 구현한다. 현재 `answer`·`evidence`는 worker가 채우기 전까지 비어 있다
+
+### AI 대화 답변 생성과 실패 재시도 현재 구현 범위 (2026-11-24)
+
+채팅 작업은 `python -m app.commands.run_chat_worker`가 처리한다(DEC-216·DEC-217). 답변은 자유 SQL이
+아니라 서버가 정의·검증한 조회 도구만 호출해 만든다.
+
+- 처리 흐름: `accepted`(접수) → `querying`(계획 변환·도구 실행) → `writing`(답변 작성) →
+  `succeeded`. AI·도구 실패는 `failed`와 `safe_error_message`로 남는다(DEC-095)
+- 계획: AI는 JSON 하나(`{"tool": ..., "arguments": {...}}`)만 출력한다. 서버는 도구 이름·인자
+  스키마·범위(기간 1~90일, 목록 1~20건)를 검증하고, 규칙에 맞지 않으면 1회 다시 요청한다.
+  두 번째도 실패하면 `CHAT_PLAN_FAILED`다
+- 도구 4종: `quality_summary`(검사·양품·불량·불량률·불량 유형·생산 기록 건수),
+  `inspection_records`(검사 목록), `process_records`(생산 목록), `report_search`(보고서 검색).
+  그 밖의 도구·SQL·임의 컬럼은 실행하지 않는다
+- 권한: 공정·검사·품질은 양 역할 전체, 보고서는 관리자 전체·고용자 본인으로 기존 조회 권한을
+  그대로 적용한다(DEC-058). 대화는 본인만 조회한다(DEC-032)
+- 제품·설비 이름은 서버가 활성 마스터와 대조해 ID로 바꾼다. 찾지 못하거나 후보가 여러 개면
+  조회하지 않고 `not_found`/`ambiguous`와 후보를 답변에 전달한다
+- 답변에는 조회 기간·대상·데이터 기준 시각과 시연 여부를 포함하고, 근거가 되는 보고서·생산·검사
+  기록을 `answer_evidence`에 저장한다. 집계 답변처럼 특정 기록 근거가 없으면 근거 행을 만들지
+  않고 `query_scope`에 조회 조건을 보존한다
+- 최신 재조회(`refresh`)는 저장된 `query_scope.plan`을 재사용해 같은 조건을 새 기간으로 다시
+  조회하고 답변 작성만 AI에 요청한다. 저장된 계획이 유효하지 않으면 다시 계획한다(DEC-098)
+- 실패 재시도: `POST /conversations/{id}/turns/{turn_id}/retry`에 새 `client_request_key`를 보낸다.
+  최신 작업이 `failed`·`interrupted`일 때만 같은 질문에 새 작업을 연결해 `202`를 반환하고, 그 외는
+  `409 CHAT_TURN_NOT_RETRYABLE`이다(DEC-124)
+- 취소: 작업이 `writing` 전에 `cancelled`가 되면 늦게 도착한 답변·근거를 저장하지 않는다(DEC-125)
+- 작업 큐: 보고서 worker는 `kind=report`, 채팅 worker는 `kind=chat`만 선점한다. 임차 만료 정리는
+  `python -m app.commands.reap_report_jobs`·`reap_chat_jobs`가 각각 담당한다
+- 도구 조회는 화면과 동일하게 현재 데이터를 대상으로 한다. `data_cutoff_at`은 답변에 표시할 기준
+  시각으로 저장하며, replay 기준 시각으로 조회 결과를 자르는 필터는 후속 검토다
+- 검증: pytest 376건(Ruff·mypy 포함)으로 계획 검증·1회 재시도·도구 인자 범위·이름 해석 실패·
+  보고서 권한 전달·답변/근거 저장·취소 시 폐기·재시도 허용/거부·kind별 선점을 확인했다. 일회용
+  PostgreSQL 18 DB에서 로컬 `.env`의 OpenAI 호환 제공자(`gpt-6.2-sol`)로 계획·답변을 실제 호출해
+  worker가 답변·`query_scope`·근거를 저장하고 보고서 작업을 선점하지 않는 것을 확인했다. 실패 작업
+  재시도는 가짜 AI 클라이언트로 확인하고 DB를 삭제했다
+- 미완료: 근거 권한 상실·삭제 시 과거 답변 가림(DEC-099·DEC-100), FE `/chat` 연동. AI에 전달하는
+  상세 필드는 DEC-128에 따라 팀 확인이 필요하다
 
 ### 품질 통계 현재 구현 범위 (2026-11-23)
 

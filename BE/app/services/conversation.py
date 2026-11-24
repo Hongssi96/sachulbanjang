@@ -41,6 +41,10 @@ class ChatTurnInProgressError(ConversationError):
     """Raised when a new question is sent while an answer is still being generated."""
 
 
+class ChatTurnNotRetryableError(ConversationError):
+    """Raised when the latest job for a turn did not fail or get interrupted."""
+
+
 @dataclass(frozen=True)
 class ConversationPage:
     conversations: list[ConversationSummary]
@@ -67,6 +71,14 @@ def _turn_payload(
         "conversation_id": conversation_id,
         "question": question,
         "refresh_of_turn_id": refresh_of_turn_id,
+    }
+
+
+def _retry_payload(conversation_id: int, question: str, turn_id: int) -> dict[str, object]:
+    return {
+        "conversation_id": conversation_id,
+        "question": question,
+        "retry_of_turn_id": turn_id,
     }
 
 
@@ -215,6 +227,41 @@ class ConversationService:
             query_scope=original.query_scope,
         )
         self._repository.add_turn(turn)
+        return self._attach_job(
+            owner,
+            conversation,
+            turn,
+            client_request_key=client_request_key,
+            payload=payload,
+        )
+
+    def retry_turn(
+        self,
+        owner: AppUser,
+        conversation_id: int,
+        turn_id: int,
+        *,
+        client_request_key: str,
+    ) -> tuple[ChatTurn, GenerationJob]:
+        conversation = self._repository.lock_owned_conversation(conversation_id, owner.id)
+        if conversation is None:
+            raise ConversationNotFoundError
+        turn = self._repository.find_turn(conversation_id, turn_id)
+        if turn is None:
+            raise ChatTurnNotFoundError
+        payload = _retry_payload(conversation_id, turn.question, turn_id)
+        existing = self._jobs.find_request(
+            owner, kind="chat", client_request_key=client_request_key
+        )
+        if existing is not None:
+            return self._reuse_turn(conversation_id, existing, payload)
+        current = self._repository.find_job(turn.active_job_id)
+        if current is None or current.state not in ("failed", "interrupted"):
+            raise ChatTurnNotRetryableError
+        if self._repository.find_active_job(conversation_id) is not None:
+            raise ChatTurnInProgressError
+        turn.answer = None
+        turn.answered_at = None
         return self._attach_job(
             owner,
             conversation,

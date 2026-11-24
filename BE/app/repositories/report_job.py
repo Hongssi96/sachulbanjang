@@ -111,24 +111,22 @@ class ReportJobRepository:
             select(ProcessReplay.data_time).order_by(ProcessReplay.id.desc()).limit(1)
         )
 
-    def claim_next_accepted(self) -> GenerationJob | None:
+    def claim_next_accepted(self, *, kind: str | None = None) -> GenerationJob | None:
+        statement = select(GenerationJob).where(GenerationJob.state == "accepted")
+        if kind is not None:
+            statement = statement.where(GenerationJob.kind == kind)
         return self._session.scalar(
-            select(GenerationJob)
-            .where(GenerationJob.state == "accepted")
-            .order_by(GenerationJob.accepted_at.asc(), GenerationJob.id.asc())
+            statement.order_by(GenerationJob.accepted_at.asc(), GenerationJob.id.asc())
             .limit(1)
             .with_for_update(skip_locked=True)
         )
 
-    def find_stale_jobs(self, now: datetime) -> list[GenerationJob]:
-        return list(
-            self._session.scalars(
-                select(GenerationJob)
-                .where(
-                    GenerationJob.state.in_(("querying", "writing")),
-                    GenerationJob.lease_expires_at.is_not(None),
-                    GenerationJob.lease_expires_at < now,
-                )
-                .with_for_update(skip_locked=True)
-            )
+    def find_stale_jobs(self, now: datetime, *, kind: str | None = None) -> list[GenerationJob]:
+        statement = select(GenerationJob).where(
+            GenerationJob.state.in_(("querying", "writing")),
+            GenerationJob.lease_expires_at.is_not(None),
+            GenerationJob.lease_expires_at < now,
         )
+        if kind is not None:
+            statement = statement.where(GenerationJob.kind == kind)
+        return list(self._session.scalars(statement.with_for_update(skip_locked=True)))

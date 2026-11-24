@@ -101,7 +101,7 @@ CSV 공정 재생, 인증 세션, 계정 감사, 검사 기록, 사용자 담당
 
 답변 전체의 근거를 식별해 현재 권한을 검사하며 검증할 수 없는 근거를 가진 과거 답변을 그대로 외부 AI에 전달하지 않는다. 집계 답변도 조회 범위·소스 종류·작성 당시 권한 범위를 별도로 보존한다. 삭제된 근거와 권한 상실은 구분한다. 근거가 없는 일반 설명에는 업무 자료 근거를 조작해 넣지 않는다.
 
-구현 기준(20261124_0019): `conversation`의 삭제는 soft delete이며 하위 `chat_turn`·`answer_evidence`는 보존하되 대화 조회·검색에서 제외한다. 대화 목록의 기간 필터는 마지막 질문 접수 시 갱신한 `updated_at`을 사용한다. 한 대화에 동시에 하나의 비종료 채팅 작업만 허용하는 규칙은 대화 행 잠금을 사용하는 Service에서 검사하며 DB UNIQUE로 강제하지 않는다. `answer`·`answered_at`·`query_scope`·`is_demo`와 `answer_evidence`는 chat worker가 채우는 후속 범위다.
+구현 기준(20261124_0019·DEC-217): `conversation`의 삭제는 soft delete이며 하위 `chat_turn`·`answer_evidence`는 보존하되 대화 조회·검색에서 제외한다. 대화 목록의 기간 필터는 마지막 질문 접수 시 갱신한 `updated_at`을 사용한다. 한 대화에 동시에 하나의 비종료 채팅 작업만 허용하는 규칙은 대화 행 잠금을 사용하는 Service에서 검사하며 DB UNIQUE로 강제하지 않는다. `answer`·`answered_at`·`is_demo`와 `answer_evidence`는 chat worker가 저장한다. `query_scope`에는 검증된 도구 계획(`plan`)과 기간·대상·기준 시각(`scope`)을 보존해 최신 재조회가 같은 조건을 재사용한다. 집계 답변처럼 특정 기록 근거가 없으면 근거 행을 만들지 않는다.
 
 종일 일정은 date 쌍, 시간 지정 일정은 timestamptz 쌍으로 서로 배타적으로 저장한다. 종료 경계는 내부·API에서 exclusive라는 기술 기본안을 사용해 화면의 마지막 날짜와 변환한다. 종료 > 시작을 CHECK로 보장한다. 일정·노트의 version은 일관된 충돌 처리를 위한 기술 기본안이다.
 

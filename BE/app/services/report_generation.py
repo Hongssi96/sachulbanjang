@@ -56,7 +56,7 @@ class ReportGenerationService:
         self._report_repository = ReportRepository(session)
 
     def process_next(self) -> GenerationResult | None:
-        job = self._job_service.claim_next_job(lease_seconds=self._lease_seconds)
+        job = self._job_service.claim_next_job(kind="report", lease_seconds=self._lease_seconds)
         if job is None:
             return None
         try:

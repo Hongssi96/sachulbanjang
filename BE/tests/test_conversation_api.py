@@ -12,6 +12,7 @@ from app.routers.conversation import get_conversation_service
 from app.services.conversation import (
     ChatTurnInProgressError,
     ChatTurnNotFoundError,
+    ChatTurnNotRetryableError,
     ConversationNotFoundError,
     ConversationPage,
     ConversationService,
@@ -342,5 +343,42 @@ def test_refresh_turn_returns_accepted_and_maps_missing_turn() -> None:
     assert response.status_code == 202
     assert response.json()["turn_id"] == 7
     assert service.refresh_turn.call_args_list[0].kwargs["client_request_key"] == "key-2"
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "CHAT_TURN_NOT_FOUND"
+
+
+def test_retry_turn_returns_accepted_and_maps_errors() -> None:
+    service = MagicMock(spec=ConversationService)
+    retried_turn = ChatTurn(id=5, conversation_id=1, question="최근 검사 불량률 알려줘")
+    retried_turn.created_at = NOW
+    retried_turn.updated_at = NOW
+    service.retry_turn.return_value = (retried_turn, make_job(state="accepted"))
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        headers = with_csrf(client)
+        accepted = client.post(
+            "/api/v1/conversations/1/turns/5/retry",
+            json={"client_request_key": "key-4"},
+            headers=headers,
+        )
+        service.retry_turn.side_effect = ChatTurnNotRetryableError
+        rejected = client.post(
+            "/api/v1/conversations/1/turns/5/retry",
+            json={"client_request_key": "key-5"},
+            headers=headers,
+        )
+        service.retry_turn.side_effect = ChatTurnNotFoundError
+        missing = client.post(
+            "/api/v1/conversations/1/turns/99/retry",
+            json={"client_request_key": "key-6"},
+            headers=headers,
+        )
+
+    assert accepted.status_code == 202
+    assert accepted.json()["turn_id"] == 5
+    assert service.retry_turn.call_args_list[0].kwargs["client_request_key"] == "key-4"
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "CHAT_TURN_NOT_RETRYABLE"
     assert missing.status_code == 404
     assert missing.json()["code"] == "CHAT_TURN_NOT_FOUND"

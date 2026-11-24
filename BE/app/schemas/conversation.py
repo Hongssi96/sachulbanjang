@@ -98,6 +98,10 @@ class ChatTurnRefreshRequest(BaseModel):
         return normalized
 
 
+class ChatTurnRetryRequest(ChatTurnRefreshRequest):
+    pass
+
+
 class ChatTurnAcceptedResponse(BaseModel):
     conversation_id: int
     turn_id: int

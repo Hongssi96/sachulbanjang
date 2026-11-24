@@ -22,6 +22,7 @@ from app.schemas.conversation import (
     ChatTurnItem,
     ChatTurnJob,
     ChatTurnRefreshRequest,
+    ChatTurnRetryRequest,
     ConversationCreateRequest,
     ConversationDetail,
     ConversationListItem,
@@ -31,6 +32,7 @@ from app.schemas.report_job import Pagination
 from app.services.conversation import (
     ChatTurnInProgressError,
     ChatTurnNotFoundError,
+    ChatTurnNotRetryableError,
     ConversationNotFoundError,
     ConversationService,
     ConversationView,
@@ -68,6 +70,14 @@ def _handle_error(error: Exception) -> None:
             detail={
                 "code": "CHAT_TURN_IN_PROGRESS",
                 "message": "이전 질문의 답변을 생성 중입니다. 완료·실패·취소 후 전송해 주세요.",
+            },
+        ) from None
+    if isinstance(error, ChatTurnNotRetryableError):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "CHAT_TURN_NOT_RETRYABLE",
+                "message": "실패·중단된 질문만 다시 시도할 수 있습니다.",
             },
         ) from None
     if isinstance(error, RequestKeyConflictError):
@@ -295,6 +305,38 @@ def refresh_turn(
         ConversationNotFoundError,
         ChatTurnNotFoundError,
         ChatTurnInProgressError,
+        RequestKeyConflictError,
+    ) as error:
+        _handle_error(error)
+        raise AssertionError("unreachable") from error
+    return _accepted(conversation_id, turn, job)
+
+
+@router.post(
+    "/{conversation_id}/turns/{turn_id}/retry",
+    response_model=ChatTurnAcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_csrf_token)],
+)
+def retry_turn(
+    conversation_id: Annotated[int, Path(ge=1)],
+    turn_id: Annotated[int, Path(ge=1)],
+    request: ChatTurnRetryRequest,
+    owner: Annotated[AppUser, Depends(get_current_user)],
+    service: Annotated[ConversationService, Depends(get_conversation_service)],
+) -> ChatTurnAcceptedResponse:
+    try:
+        turn, job = service.retry_turn(
+            owner,
+            conversation_id,
+            turn_id,
+            client_request_key=request.client_request_key,
+        )
+    except (
+        ConversationNotFoundError,
+        ChatTurnNotFoundError,
+        ChatTurnInProgressError,
+        ChatTurnNotRetryableError,
         RequestKeyConflictError,
     ) as error:
         _handle_error(error)

@@ -137,7 +137,9 @@ uvicorn app.main:app --reload
   (본인 대화만. 생성·삭제는 `X-CSRF-Token` 헤더, 삭제는 `204`)
 - 대화 질문 접수·최신 재조회: `POST .../conversations/{id}/turns` (`question`, `client_request_key`),
   `POST .../conversations/{id}/turns/{turn_id}/refresh` (`client_request_key`). `202`로 `turn_id`·
-  `job_id`·`state`를 반환하며 답변 생성은 별도 chat worker 후속 범위다
+  `job_id`·`state`를 반환하며 답변 생성은 별도 chat worker가 처리한다
+- 대화 질문 재시도: `POST .../conversations/{id}/turns/{turn_id}/retry` (`client_request_key`).
+  실패·중단된 질문만 같은 질문에 새 작업을 연결하며 그 외는 `409 CHAT_TURN_NOT_RETRYABLE`
 - 모든 응답에는 `X-Request-ID`가 포함된다. 오류 조사 시 같은 ID로 구조화 서버 로그를 찾는다.
 
 ### 초기 계정 준비
@@ -191,6 +193,9 @@ worker 임차가 만료된 `querying`·`writing` 생성 작업을 `interrupted`�
 python -m app.commands.reap_report_jobs
 ```
 
+채팅 작업은 `python -m app.commands.reap_chat_jobs`로 정리한다. 보고서·채팅 worker는 서로의 작업을
+선점하지 않도록 `kind`별로 대기 작업을 조회한다.
+
 ### AI 보고서 생성 worker
 
 `APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`을 설정한 뒤 API 서버와 별도 프로세스로
@@ -207,17 +212,35 @@ python -m app.commands.run_report_worker
 임차 시간은 외부 요청 제한 시간보다 길게 설정한다. AI 설정이 없으면 일반 API는 계속 실행되지만
 worker는 시작하지 않는다.
 
+### AI 채팅 답변 worker
+
+`APP_AI_BASE_URL`, `APP_AI_API_KEY`, `APP_AI_MODEL`을 설정한 뒤 별도 프로세스로 실행한다. worker는
+질문을 검증된 조회 계획(JSON)으로 바꾸고 허용 도구(품질 집계·검사 목록·생산 목록·보고서 검색)만
+실행한 뒤, 조회 결과만 근거로 답변을 작성해 질문에 저장한다. 자유 SQL은 실행하지 않는다.
+AI가 만든 계획이 규칙에 맞지 않으면 1회 다시 요청하고, 재실패하면 `CHAT_PLAN_FAILED`로 남긴다.
+
+```powershell
+python -m app.commands.run_chat_worker
+```
+
+`--once`로 대기 작업 한 건만 처리할 수 있다. 임차가 만료된 채팅 작업은
+`python -m app.commands.reap_chat_jobs`로 `interrupted` 처리한다. 실패·중단된 질문은 화면에서
+재시도 API로 다시 접수한다.
+
 #### 운영 실행 확인
 
 1. 배포 전에 API 프로세스와 분리된 단계에서 `alembic upgrade head`를 한 번 실행한다.
 2. API와 worker는 같은 코드 버전·DB·AI 환경변수를 사용하되 별도 프로세스로 실행한다.
 3. 최초 배포에서는 `python -m app.commands.run_report_worker --once`로 대기 작업 한 건의
    `accepted → querying → writing → succeeded` 전환과 보고서 등록을 확인한다.
-4. 확인 후 장기 실행 worker를 프로세스 관리자나 별도 컨테이너 서비스로 실행한다. API 프로세스에
+4. 채팅은 `python -m app.commands.run_chat_worker --once`로 대화 질문 한 건의 답변·근거 저장을
+   확인한다.
+5. 확인 후 장기 실행 worker를 프로세스 관리자나 별도 컨테이너 서비스로 실행한다. API 프로세스에
    worker를 함께 띄우지 않는다.
-5. worker 중단 또는 서버 재시작 뒤에는 `python -m app.commands.reap_report_jobs`를 실행해 임차가
-   만료된 작업을 `interrupted`로 정리한다. 중단 작업은 자동 재실행하지 않고 요청자가 재시도한다.
-6. 운영 로그에서 작업 ID·요청 ID와 `failed`·`interrupted` 상태를 확인한다. AI 키·프롬프트 원문·
+6. worker 중단 또는 서버 재시작 뒤에는 `python -m app.commands.reap_report_jobs`와
+   `python -m app.commands.reap_chat_jobs`를 실행해 임차가 만료된 작업을 `interrupted`로 정리한다.
+   중단 작업은 자동 재실행하지 않고 요청자가 재시도한다.
+7. 운영 로그에서 작업 ID·요청 ID와 `failed`·`interrupted` 상태를 확인한다. AI 키·프롬프트 원문·
    개인정보는 로그에 기록하지 않는다.
 
 `APP_REPORT_WORKER_LEASE_SECONDS`는 `APP_AI_REQUEST_TIMEOUT_SECONDS`보다 길어야 한다. 배포 시 두 값을

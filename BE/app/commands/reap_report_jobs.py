@@ -25,7 +25,7 @@ def main() -> int:
         factory = create_session_factory(engine)
         with factory() as session:
             service = ReportJobService(session, ReportJobRepository(session))
-            interrupted = service.mark_stale_jobs_interrupted()
+            interrupted = service.mark_stale_jobs_interrupted(kind="report")
     except Exception as error:
         print(f"report job reap failed: {error}", file=sys.stderr)
         return 1

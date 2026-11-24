@@ -36,6 +36,9 @@ class ConversationRepository:
         self._session.add(turn)
         self._session.flush()
 
+    def add_evidence(self, evidence: AnswerEvidence) -> None:
+        self._session.add(evidence)
+
     def find_conversation(self, conversation_id: int) -> Conversation | None:
         return self._session.scalar(
             select(Conversation).where(
@@ -165,6 +168,11 @@ class ConversationRepository:
 
     def find_turn_by_active_job(self, job_id: int) -> ChatTurn | None:
         return self._session.scalar(select(ChatTurn).where(ChatTurn.active_job_id == job_id))
+
+    def find_job(self, job_id: int | None) -> GenerationJob | None:
+        if job_id is None:
+            return None
+        return self._session.get(GenerationJob, job_id)
 
     def find_active_job(self, conversation_id: int) -> GenerationJob | None:
         return self._session.scalar(
