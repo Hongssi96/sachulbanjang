@@ -94,7 +94,9 @@ uvicorn app.main:app --reload
 - 보고서 이력: `GET .../reports/{id}/revisions`, `GET .../reports/{id}/revisions/{version}`,
   `GET .../reports/{id}/status-events`
 - 보고서 PDF: `GET .../reports/{id}/pdf` (현재 버전 Markdown·저장 집계·불량 유형 그래프를
-  Pretendard 한글 글꼴로 즉시 생성하며 다운로드 버전·사용자를 기록)
+  Pretendard 한글 글꼴로 즉시 생성하며 다운로드 버전·사용자를 기록),
+  `GET .../reports/{id}/revisions/{version}/pdf` (선택한 이전 제목·본문과 보고서의 저장 집계로
+  생성하며 선택한 버전의 다운로드 이력을 기록)
 - 품질 통계: `GET http://localhost:8000/api/v1/quality/summary`
   (`from`, `to`, `equipment_id`, `product_id`. 검사·양품·불량 건수, 불량률(null 허용),
   유형 분포(type null=미분류), 생산 기록 건수, 시연 포함 여부)
@@ -195,6 +197,23 @@ python -m app.commands.run_report_worker
 `APP_AI_REQUEST_TIMEOUT_SECONDS`, worker 임차 시간은 `APP_REPORT_WORKER_LEASE_SECONDS`로 조정한다.
 임차 시간은 외부 요청 제한 시간보다 길게 설정한다. AI 설정이 없으면 일반 API는 계속 실행되지만
 worker는 시작하지 않는다.
+
+#### 운영 실행 확인
+
+1. 배포 전에 API 프로세스와 분리된 단계에서 `alembic upgrade head`를 한 번 실행한다.
+2. API와 worker는 같은 코드 버전·DB·AI 환경변수를 사용하되 별도 프로세스로 실행한다.
+3. 최초 배포에서는 `python -m app.commands.run_report_worker --once`로 대기 작업 한 건의
+   `accepted → querying → writing → succeeded` 전환과 보고서 등록을 확인한다.
+4. 확인 후 장기 실행 worker를 프로세스 관리자나 별도 컨테이너 서비스로 실행한다. API 프로세스에
+   worker를 함께 띄우지 않는다.
+5. worker 중단 또는 서버 재시작 뒤에는 `python -m app.commands.reap_report_jobs`를 실행해 임차가
+   만료된 작업을 `interrupted`로 정리한다. 중단 작업은 자동 재실행하지 않고 요청자가 재시도한다.
+6. 운영 로그에서 작업 ID·요청 ID와 `failed`·`interrupted` 상태를 확인한다. AI 키·프롬프트 원문·
+   개인정보는 로그에 기록하지 않는다.
+
+`APP_REPORT_WORKER_LEASE_SECONDS`는 `APP_AI_REQUEST_TIMEOUT_SECONDS`보다 길어야 한다. 배포 시 두 값을
+함께 확인하고, 실제 모델 응답 시간을 측정하기 전에는 임차 시간을 요청 제한 시간 이하로 줄이지 않는다.
+정상 종료 신호를 받으면 진행 중인 한 건의 처리가 끝날 시간을 확보한 뒤 프로세스를 종료한다.
 
 ### 공정 CSV 적재
 
