@@ -8,21 +8,27 @@ from app.integrations.ai import AiGenerationError
 from app.models.master import AppUser, Equipment, Product
 from app.models.process import InspectionRecord, ProcessRecord
 from app.models.report import Report
+from app.models.schedule import Schedule
+from app.models.stock import StockMovement
+from app.repositories.inventory import MovementRow, StockRow
 from app.repositories.record_history import (
     InspectionRecordView,
     ProcessRecordView,
 )
 from app.repositories.report import ReportView
+from app.repositories.schedule import ScheduleView
 from app.services.chat_tools import (
     ChatPlanError,
     ChatQueryPlan,
     ChatToolExecutor,
     parse_query_plan,
 )
+from app.services.inventory import InventoryService
 from app.services.master_data import MasterDataService
 from app.services.quality import QualityService, QualitySummary
 from app.services.record_history import RecordHistoryService
 from app.services.report import ReportPage, ReportService
+from app.services.schedule import ScheduleService
 from sqlalchemy.orm import Session
 
 NOW = datetime(2026, 11, 24, 6, 0, tzinfo=UTC)
@@ -60,11 +66,15 @@ def build_executor() -> tuple[ChatToolExecutor, dict[str, MagicMock]]:
         "records": MagicMock(spec=RecordHistoryService),
         "reports": MagicMock(spec=ReportService),
         "master": MagicMock(spec=MasterDataService),
+        "inventory": MagicMock(spec=InventoryService),
+        "schedules": MagicMock(spec=ScheduleService),
     }
     executor._quality = cast(QualityService, mocks["quality"])
     executor._records = cast(RecordHistoryService, mocks["records"])
     executor._reports = cast(ReportService, mocks["reports"])
     executor._master = cast(MasterDataService, mocks["master"])
+    executor._inventory = cast(InventoryService, mocks["inventory"])
+    executor._schedules = cast(ScheduleService, mocks["schedules"])
     return executor, mocks
 
 
@@ -273,3 +283,144 @@ def test_clarify_is_returned_without_query() -> None:
             actor=make_actor(),
             data_cutoff_at=NOW,
         )
+
+
+def test_parse_query_plan_accepts_extended_tools() -> None:
+    stock = parse_query_plan('{"tool": "stock_status", "arguments": {"low_stock": true}}')
+    assert stock.tool == "stock_status"
+    movements = parse_query_plan('{"tool": "stock_movements", "arguments": {"kind": "receipt"}}')
+    assert movements.tool == "stock_movements"
+    schedules = parse_query_plan('{"tool": "schedule_list", "arguments": {"days": 7}}')
+    assert schedules.tool == "schedule_list"
+
+    with pytest.raises(ChatPlanError):
+        parse_query_plan('{"tool": "stock_movements", "arguments": {"kind": "unknown"}}')
+    with pytest.raises(ChatPlanError):
+        parse_query_plan('{"tool": "schedule_list", "arguments": {"category": "meeting"}}')
+
+
+def test_stock_status_returns_balances_and_evidence() -> None:
+    executor, mocks = build_executor()
+    product = make_product()
+    product.minimum_stock = 5
+    mocks["master"].list_products.return_value = [product]
+    page = MagicMock()
+    page.rows = [StockRow(product=product, quantity=3)]
+    page.total_items = 1
+    mocks["inventory"].list_stocks.return_value = page
+
+    result = executor.execute(
+        ChatQueryPlan(tool="stock_status", arguments={"product": "RG3 RH"}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+
+    items = cast(list[dict[str, object]], result.data["items"])
+    assert items[0]["quantity"] == 3
+    assert items[0]["is_low_stock"] is True
+    assert result.evidence[0].product_id == 1
+    mocks["inventory"].list_stocks.assert_called_once_with(
+        query="RG3 RH",
+        low_stock_only=False,
+        page=1,
+        page_size=10,
+    )
+
+
+def test_stock_status_does_not_query_when_product_is_missing() -> None:
+    executor, mocks = build_executor()
+    mocks["master"].list_products.return_value = []
+
+    result = executor.execute(
+        ChatQueryPlan(tool="stock_status", arguments={"product": "없는 제품"}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+
+    assert result.data["status"] == "not_found"
+    assert result.evidence == []
+    mocks["inventory"].list_stocks.assert_not_called()
+
+
+def test_stock_movements_returns_ledger_items() -> None:
+    executor, mocks = build_executor()
+    product = make_product()
+    mocks["master"].list_products.return_value = [product]
+    movement = StockMovement(
+        id=3,
+        product_id=1,
+        actor_id=1,
+        kind="issue",
+        delta=-2,
+        reason="출고",
+        created_at=NOW,
+    )
+    page = MagicMock()
+    page.rows = [
+        MovementRow(
+            movement=movement,
+            product_code="P-1",
+            product_name="RG3 RH",
+            actor_display_name="사용자",
+        )
+    ]
+    page.total_items = 1
+    mocks["inventory"].list_movements.return_value = page
+
+    result = executor.execute(
+        ChatQueryPlan(
+            tool="stock_movements",
+            arguments={"days": 7, "product": "RG3 RH", "kind": "issue"},
+        ),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+
+    movement_items = cast(list[dict[str, object]], result.data["items"])
+    assert movement_items[0]["delta"] == -2
+    assert movement_items[0]["is_checked"] is False
+    assert result.data["kind"] == "issue"
+    assert result.evidence[0].product_id == 1
+    mocks["inventory"].list_movements.assert_called_once_with(
+        product_id=1,
+        kind="issue",
+        date_from=FROM,
+        date_to=TODAY,
+        page=1,
+        page_size=10,
+    )
+
+
+def test_schedule_list_returns_schedules() -> None:
+    executor, mocks = build_executor()
+    schedule = Schedule(
+        id=4,
+        author_id=1,
+        title="설비 점검",
+        category="inspection",
+        all_day=True,
+        start_date=date(2026, 11, 24),
+        end_date_exclusive=date(2026, 11, 25),
+        version=1,
+    )
+    page = MagicMock()
+    page.schedules = [ScheduleView(schedule=schedule, author_display_name="사용자")]
+    page.total_items = 1
+    mocks["schedules"].list_schedules.return_value = page
+
+    result = executor.execute(
+        ChatQueryPlan(tool="schedule_list", arguments={"days": 7, "limit": 5}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+
+    schedule_items = cast(list[dict[str, object]], result.data["items"])
+    assert schedule_items[0]["title"] == "설비 점검"
+    assert schedule_items[0]["start_date"] == "2026-11-24"
+    assert result.evidence == []
+    mocks["schedules"].list_schedules.assert_called_once_with(
+        date_from=FROM,
+        date_to=TODAY,
+        page=1,
+        page_size=5,
+    )
