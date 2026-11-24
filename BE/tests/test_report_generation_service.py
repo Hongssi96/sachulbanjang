@@ -95,6 +95,7 @@ def test_process_next_publishes_report_and_snapshot_atomically() -> None:
     mocks["job_service"].transition_job.assert_called_once_with(7, "writing")
     created_report = mocks["report_repository"].add_report.call_args.args[0]
     assert created_report.generation_job_id == 7
+    assert created_report.generation_snapshot["data_cutoff_label"] == "2026-11-23 15:00 (KST)"
     assert created_report.generation_snapshot["summary"]["defect_rate_percent"] == "25.00"
     assert created_report.body_markdown == "## 집계 기준\n본문"
     assert job.state == "succeeded"

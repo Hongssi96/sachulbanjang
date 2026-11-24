@@ -375,7 +375,8 @@ CSRF를 요구하고, 조회·수정·삭제 권한은 관리자 전체·고용�
 - `GET /reports`: `q`(제목·본문 부분), `category`, `business_status`, `from`·`to`(한국 기준 작성 기간,
   `from` 포함·`to` 제외), `page`/`page_size`(기본 10·최대 100). `created_at` 내림차순·`id` 내림차순
 - `GET /reports/{id}`: 본문을 포함한 상세. 고용자가 타인 보고를 요청하거나 삭제된 보고서는
-  `404 REPORT_NOT_FOUND`다
+  `404 REPORT_NOT_FOUND`다. AI 생성 보고서는 집계 기준 시각을 `generation_data_cutoff_at`(ISO UTC)과
+  함께 `generation_data_cutoff_label`(한국 기준 `YYYY-MM-DD HH:MM (KST)`)로 제공한다(DEC-225)
 - `PATCH /reports/{id}`: `version`과 `title`·`body_markdown` 중 하나 이상. 고용자는 본인 보고이며
   `completed`가 아닐 때만 수정할 수 있고, 완료 후에는 `403 REPORT_COMPLETED_LOCKED`다. version이
   다르면 `409 VERSION_CONFLICT`, 실제 변경이 없으면 `422 VALIDATION_ERROR`다. 성공 시 version을
@@ -482,6 +483,8 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - 답변에는 조회 기간·대상·데이터 기준 시각과 시연 여부를 포함하고, 근거가 되는 보고서·생산·검사
   기록을 `answer_evidence`에 저장한다. 집계 답변처럼 특정 기록 근거가 없으면 근거 행을 만들지
   않고 `query_scope`에 조회 조건을 보존한다
+- 기준 시각은 `data_cutoff_label`(한국 기준 `YYYY-MM-DD HH:MM (KST)`)로 표기하고 ISO·UTC 원문을
+  본문에 쓰지 않는다. 보고서 본문과 PDF 헤더도 같은 라벨을 사용한다(DEC-225)
 - 답변 조회 시 근거의 현재 권한을 다시 검증한다. 권한이 없으면 `answer`를 `null`로 가리고
   `answer_status="hidden_permission"`으로 표시하며 근거 목록도 숨긴다. 근거가 soft delete된 답변은
   내용을 유지하고 `answer_status="available_with_deleted_evidence"`로 알린다. 가려진 답변 본문은

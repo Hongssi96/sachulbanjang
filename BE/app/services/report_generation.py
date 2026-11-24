@@ -8,6 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
 
+from app.core.datetime_labels import korean_kst_label
 from app.integrations.ai import AiGenerationError, OpenAiCompatibleClient
 from app.models.report import Report, ReportRevision
 from app.models.report_job import GenerationJob
@@ -21,6 +22,7 @@ _SYSTEM_PROMPT = """당신은 사출성형 업무 보고서를 작성하는 도�
 제공된 JSON 집계만 근거로 한국어 Markdown 본문을 작성하세요.
 사실을 추측하거나 원인을 단정하지 마세요. 개인 식별 정보는 작성하지 마세요.
 반드시 '집계 기준', '생산·품질 요약', '주요 확인 사항' 제목을 포함하세요.
+'집계 기준'에는 JSON의 data_cutoff_label을 그대로 쓰고 ISO·UTC 원문을 쓰지 마세요.
 기록이 없으면 미가동으로 단정하지 말고 '조회된 기록 없음'이라고 쓰세요.
 시연 데이터가 포함되면 본문 첫 부분에 명확히 표시하세요.
 제목은 출력하지 말고 Markdown 본문만 출력하세요."""
@@ -140,6 +142,7 @@ class ReportGenerationService:
             "category": payload.get("category"),
             "period": {"from": period.get("from"), "to": period.get("to")},
             "data_cutoff_at": cutoff.astimezone(UTC).isoformat(),
+            "data_cutoff_label": korean_kst_label(cutoff),
             "requested_targets": {
                 "department_ids": department_ids,
                 "production_line_ids": production_line_ids,
