@@ -2033,3 +2033,45 @@
 - 검증: ruff·mypy 통과, pytest 386건 통과. 도구별 인자 검증·제품 해석 실패·재고/입출고/일정 응답 매핑을 단위 테스트로 확인했다.
 - 남은 사항: 가동률(`GET /quality/operation`)은 시연 데이터·집계 설계 후 별도 도구로 추가, FE `/chat` 연동.
 
+## DEC-221 — 보고서 중복 안내 API 구현
+
+- 기록일: 2026-11-24
+- 상태: 확정
+- 배경: 보고서를 생성하기 전에 같은 조건의 완료 보고서를 안내하되 생성을 막지 않는다(DEC-210). API_SPEC에 입력만 있고 응답 계약과 구현이 없었다.
+- 결정: `POST /report-duplicate-checks`가 `report_kind`, `category`, `period`, `targets`를 받아 `has_duplicate`, `reusable_report_id`, `items`를 반환한다. 관리자는 전체 보고서, 고용자는 본인 보고서만 최대 5건 최신순으로 조회하며 각 항목에 제목·분류·업무 상태·작성자·생성 시각을 담는다. `reusable_report_id`는 같은 요청자가 `POST /report-jobs`에서 즉시 재사용할 완료 보고서 ID다.
+- 판정 근거: 접수와 같은 정규화 payload의 SHA-256 digest를 사용하고 `generation_job`과 `report`를 조인해 삭제되지 않은 완료 보고서만 본다.
+- 검증: ruff·mypy 통과, pytest 390건 통과. 관리자 전체·고용자 본인 범위, 재사용 보고서 판정, 조건 불일치 검증을 확인했다.
+- 남은 사항: FE 화면 연동(팀원 진행), 공정·검사 기록 삭제 API, 가동률 API.
+
+## DEC-222 — 공정·검사 기록 삭제 API 계약과 구현
+
+- 기록일: 2026-11-24
+- 상태: 확정
+- 배경: 관리자의 기록 삭제가 요구사항에 포함됐지만(DEC-158·DEC-162) `expected_version`·사유 전달 방식이 미정이었다.
+- 결정: `DELETE /process-records/{id}`·`DELETE /inspection-records/{id}`가 JSON 본문 `version`, `change_reason`을 받는다. 관리자·CSRF가 필요하고 `204`를 반환한다. soft delete(`deleted_at`)와 함께 version을 1 올리고 `record_change`에 operation `delete`, 삭제 전 값, 사유·작업자·시각·결과 version을 같은 트랜잭션으로 남긴다.
+- 범위: 삭제된 기록은 일반 조회·품질 집계·AI 도구·보고서 생성 입력에서 제외하고 관리자는 변경 이력으로 확인한다. 이미 생성된 보고서 스냅샷은 유지한다(DEC-160).
+- 검증: ruff·mypy 통과, pytest 396건 통과. 서비스에서 soft delete·version 증가·감사 기록, API에서 관리자·CSRF·409/404 매핑·사유 검증을 확인했다.
+- 남은 사항: FE 화면 연동(팀원 진행), 가동률 API.
+
+## DEC-223 — 가동률 시연 데이터와 조회 API·AI 도구
+
+- 기록일: 2026-11-24
+- 상태: 확정
+- 배경: 가동률은 시연 데이터로 제공하고 화면·AI 답변에 시연 여부를 표시한다(DEC-163·DEC-164). 저장 구조·적재 수단·조회 API가 없었다.
+- 데이터: `operation_day`(설비·일자별 `planned_seconds`·`actual_seconds`, `is_demo`, `(equipment_id, day)` UNIQUE, 시간 >= 0 CHECK)를 `20261124_0020`으로 추가한다.
+- 시연 적재: `python -m app.commands.seed_operation_days [--days 14]`가 활성 설비별 최근 N일(주말 포함) 계획 8시간·실제 6~8시간을 `(설비, 날짜)` 기준 결정적으로 만들고 기존 행은 유지한다.
+- 조회: `GET /quality/operation`이 기간(양 끝 포함)·설비 범위의 두 시간을 각각 합산해 가동률(실제 ÷ 계획 × 100, 계획 합계 0이면 `null`)을 계산하고 `includes_demo`를 반환한다. 양 역할 모두 조회한다.
+- AI: `operation_summary` 도구가 같은 집계를 답하며 근거 행 없이 기간·대상을 `query_scope`에 보존하고 시연 여부를 전달한다.
+- 검증: ruff·mypy 통과, pytest 405건 통과. 일회용 PostgreSQL 18 DB에서 마이그레이션 적용·시연 적재·설비/기간 필터 합산·계획 0 null·시연 표시를 확인했다.
+- 남은 사항: 실제 가동률 데이터 연동은 범위에서 제외(DEC-163), FE 화면 연동(팀원 진행).
+
+## DEC-224 — 일정 조회 도구의 미래 일정 포함
+
+- 기록일: 2026-11-24
+- 상태: 확정 (DEC-220 후속 수정)
+- 문제: `schedule_list`가 `days`를 오늘까지의 과거 기간으로만 계산해 오늘 이후 예정 일정을 조회하지 못했다.
+- 결정: `window` 인자를 추가한다. `upcoming`(오늘부터 앞으로, 기본), `recent`(오늘까지 과거), `around`(오늘 전후)이며 `days`(1~90)는 한 방향 길이다. `query_scope`에 `window`를 함께 보존한다.
+- 프롬프트: 일정 질문은 앞으로 예정이면 `upcoming`, 지난 일정이면 `recent`, 오늘 전후면 `around`를 쓰도록 안내한다.
+- 검증: ruff·mypy 통과, pytest 407건 통과. 일회용 PostgreSQL 18 DB와 실제 AI로 예정 일정 질문이 `schedule_list`(window `upcoming`)로 미래 일정을 답하는 것을 확인했다.
+- 남은 사항: FE 화면 연동(팀원 진행).
+

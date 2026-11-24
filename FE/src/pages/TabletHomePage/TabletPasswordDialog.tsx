@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Modal from '../../components/Modal';
+import { write, errorMessage } from '../../api/business';
 
 export default function TabletPasswordDialog({
-  password,
   onSave,
   onClose,
 }: {
-  password: string;
-  onSave: (value: string) => void;
+  onSave: () => Promise<void>;
   onClose: () => void;
 }) {
   const [current, setCurrent] = useState('');
@@ -15,41 +14,20 @@ export default function TabletPasswordDialog({
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const form = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    const dialog = form.current?.closest('dialog');
-    const profile = dialog?.parentElement?.closest('dialog');
-    if (!dialog || !profile) return;
-    const position = () => {
-      const rect = profile.getBoundingClientRect();
-      Object.assign(dialog.style, {
-        top: `${rect.top + 180}px`,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-        height: `${Math.max(440, rect.height - 40) - 150}px`,
-      });
-    };
-    position();
-    const observer = new ResizeObserver(position);
-    observer.observe(profile);
-    window.addEventListener('resize', position);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', position);
-    };
-  }, []);
+  const [busy, setBusy] = useState(false);
   return (
-    <Modal title="비밀번호 변경" onClose={onClose}>
+    <Modal
+      title="비밀번호 변경"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+    >
       <form
-        ref={form}
         className="th-form th-account th-profile-password-form"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
           setError('');
-          if (current !== password) {
-            setError('현재 비밀번호가 일치하지 않습니다.');
-            return;
-          }
+          if (busy) return;
           if (next.length < 8 || !/[A-Za-z]/.test(next) || !/[0-9]/.test(next)) {
             setError('새 비밀번호는 영문과 숫자를 포함해 8자 이상 입력해 주세요.');
             return;
@@ -62,11 +40,22 @@ export default function TabletPasswordDialog({
             setError('새 비밀번호 확인이 일치하지 않습니다.');
             return;
           }
-          onSave(next);
-          setCurrent('');
-          setNext('');
-          setConfirmation('');
-          setSaved(true);
+          setBusy(true);
+          try {
+            await write('/auth/password', 'PATCH', {
+              current_password: current,
+              new_password: next,
+            });
+            await onSave();
+            setCurrent('');
+            setNext('');
+            setConfirmation('');
+            setSaved(true);
+          } catch (reason) {
+            setError(errorMessage(reason));
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         {saved ? (
@@ -81,7 +70,7 @@ export default function TabletPasswordDialog({
         ) : (
           <>
             <p className="th-account-demo">
-              현재 태블릿의 시연 계정에 적용되며 새로고침하면 초기화됩니다.
+              새 비밀번호는 서버에 저장됩니다. 현재 비밀번호를 입력해 주세요.
             </p>
             {error && (
               <p className="th-account-error" role="alert">
@@ -121,8 +110,8 @@ export default function TabletPasswordDialog({
                 required
               />
             </label>
-            <button className="button button-primary" type="submit">
-              비밀번호 변경
+            <button className="button button-primary" type="submit" disabled={busy}>
+              {busy ? '변경 중…' : '비밀번호 변경'}
             </button>
           </>
         )}

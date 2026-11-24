@@ -13,12 +13,14 @@ from app.integrations.ai import validate_generated_markdown
 from app.models.master import AppUser, Equipment, Product
 from app.repositories.inventory import InventoryRepository
 from app.repositories.master_data import MasterDataRepository
+from app.repositories.operation import OperationRepository
 from app.repositories.quality import QualityRepository
 from app.repositories.record_history import RecordHistoryRepository
 from app.repositories.report import ReportRepository
 from app.repositories.schedule import ScheduleRepository
 from app.services.inventory import InventoryService
 from app.services.master_data import MasterDataService
+from app.services.operation import OperationService, seconds_to_hours
 from app.services.quality import QualityService
 from app.services.record_history import SEOUL, RecordHistoryService
 from app.services.report import ReportService
@@ -34,6 +36,7 @@ ChatToolName = Literal[
     "stock_status",
     "stock_movements",
     "schedule_list",
+    "operation_summary",
     "clarify",
 ]
 _READ_TOOL_NAMES = (
@@ -44,6 +47,7 @@ _READ_TOOL_NAMES = (
     "stock_status",
     "stock_movements",
     "schedule_list",
+    "operation_summary",
 )
 _MAX_PLAN_LENGTH = 4_000
 
@@ -60,12 +64,15 @@ TOOL_CATALOG = """사용 가능한 조회 도구는 다음과 같습니다.
    arguments: {"product": "제품명 또는 코드(선택)", "low_stock": "부족한 제품만 true(선택)", "limit": 1~20}
 6. stock_movements: 기간 내 입출고·조정 이력(최신순)
    arguments: {"days": 1~90, "product": "선택", "kind": "initial|receipt|issue|adjustment|correction(선택)", "limit": 1~20}
-7. schedule_list: 기간과 겹치는 일정(시작 순)
-   arguments: {"days": 1~90, "limit": 1~20}
+7. schedule_list: 일정 목록(시작 순)
+   arguments: {"days": 1~90, "window": "upcoming|recent|around(선택, 기본 upcoming)", "limit": 1~20}
+8. operation_summary: 기간 내 설비 계획·실제 가동 시간과 가동률(시연 데이터)
+   arguments: {"days": 1~90, "equipment": "설비 코드 또는 이름(선택)"}
 
 질문 예시와 도구 선택: 불량률·검사 집계→quality_summary, 검사 기록→inspection_records,
 생산 기록→process_records, 보고서→report_search, 재고 수량·부족→stock_status,
-입출고·조정 이력→stock_movements, 일정→schedule_list.
+입출고·조정 이력→stock_movements, 일정·예정 일정→schedule_list, 가동률·가동 시간→operation_summary.
+일정 window는 앞으로 예정(upcoming, 기본), 지난 일정(recent), 오늘 전후(around)를 구분합니다.
 
 조회 도구로 답할 수 없거나 대상·기간이 모호하면 clarify를 사용합니다.
 {"tool": "clarify", "question": "사용자에게 되물을 짧은 질문"}
@@ -82,6 +89,15 @@ def _utc_now() -> datetime:
 
 def _period(days: int, today: date) -> tuple[date, date]:
     return today - timedelta(days=days - 1), today
+
+
+def _schedule_period(window: str, days: int, today: date) -> tuple[date, date]:
+    span = days - 1
+    if window == "recent":
+        return today - timedelta(days=span), today
+    if window == "around":
+        return today - timedelta(days=span), today + timedelta(days=span)
+    return today, today + timedelta(days=span)
 
 
 class _ToolArguments(BaseModel):
@@ -172,7 +188,20 @@ class StockMovementsArguments(_ToolArguments):
 
 class ScheduleListArguments(_ToolArguments):
     days: int = Field(default=7, ge=1, le=90)
+    window: Literal["upcoming", "recent", "around"] = "upcoming"
     limit: int = Field(default=10, ge=1, le=20)
+
+
+class OperationSummaryArguments(_ToolArguments):
+    days: int = Field(default=7, ge=1, le=90)
+    equipment: str | None = Field(default=None, max_length=100)
+
+    @field_validator("equipment", mode="before")
+    @classmethod
+    def blank_to_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
 
 _ARGUMENT_MODELS: dict[str, type[_ToolArguments]] = {
@@ -183,6 +212,7 @@ _ARGUMENT_MODELS: dict[str, type[_ToolArguments]] = {
     "stock_status": StockStatusArguments,
     "stock_movements": StockMovementsArguments,
     "schedule_list": ScheduleListArguments,
+    "operation_summary": OperationSummaryArguments,
 }
 
 _ArgumentsT = TypeVar("_ArgumentsT", bound=_ToolArguments)
@@ -256,6 +286,7 @@ class ChatToolExecutor:
         self._master = MasterDataService(MasterDataRepository(session))
         self._inventory = InventoryService(session, InventoryRepository(session))
         self._schedules = ScheduleService(session, ScheduleRepository(session))
+        self._operations = OperationService(OperationRepository(session))
         self._clock = clock
 
     def execute(
@@ -292,8 +323,14 @@ class ChatToolExecutor:
             return self._stock_movements(movement_arguments, date_from, date_to)
         if plan.tool == "schedule_list":
             schedule_arguments = self._arguments(ScheduleListArguments, plan)
-            date_from, date_to = _period(schedule_arguments.days, today)
+            date_from, date_to = _schedule_period(
+                schedule_arguments.window, schedule_arguments.days, today
+            )
             return self._schedule_list(schedule_arguments, date_from, date_to)
+        if plan.tool == "operation_summary":
+            operation_arguments = self._arguments(OperationSummaryArguments, plan)
+            date_from, date_to = _period(operation_arguments.days, today)
+            return self._operation_summary(operation_arguments, date_from, date_to)
         report_arguments = self._arguments(ReportSearchArguments, plan)
         date_from, date_to = _period(report_arguments.days, today)
         return self._report_search(
@@ -705,6 +742,7 @@ class ChatToolExecutor:
         scope: dict[str, object] = {
             "tool": "schedule_list",
             "period": {"from": date_from.isoformat(), "to": date_to.isoformat()},
+            "window": arguments.window,
         }
         page = self._schedules.list_schedules(
             date_from=date_from,
@@ -749,6 +787,41 @@ class ChatToolExecutor:
             "items": items,
         }
         return ChatQueryResult(tool="schedule_list", data=data, scope=scope)
+
+    def _operation_summary(
+        self,
+        arguments: OperationSummaryArguments,
+        date_from: date,
+        date_to: date,
+    ) -> ChatQueryResult:
+        equipment, equipment_note = self._resolve_equipment(arguments.equipment)
+        scope = self._scope("operation_summary", date_from, date_to, None, equipment, None)
+        if equipment_note is not None:
+            return ChatQueryResult(
+                tool="operation_summary",
+                data={"status": equipment_note["status"], **equipment_note},
+                scope=scope,
+            )
+        summary = self._operations.get_summary(
+            equipment_id=equipment.id if equipment else None,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        data: dict[str, object] = {
+            "status": "ok",
+            "period": scope["period"],
+            "target": scope["target"],
+            "planned_hours": str(seconds_to_hours(summary.planned_seconds)),
+            "actual_hours": str(seconds_to_hours(summary.actual_seconds)),
+            "operation_rate_percent": str(summary.rate) if summary.rate is not None else None,
+            "includes_demo": summary.includes_demo,
+        }
+        return ChatQueryResult(
+            tool="operation_summary",
+            data=data,
+            scope=scope,
+            is_demo=summary.includes_demo,
+        )
 
     def _resolve_product(self, term: str | None) -> tuple[Product | None, dict[str, object] | None]:
         if term is None:

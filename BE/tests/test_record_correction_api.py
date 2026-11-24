@@ -348,3 +348,100 @@ def test_record_changes_require_admin_and_existing_record() -> None:
 
     assert missing.status_code == 404
     assert missing.json()["code"] == "RECORD_NOT_FOUND"
+
+
+def test_admin_deletes_process_and_inspection_records() -> None:
+    service = MagicMock(spec=RecordCorrectionService)
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        headers = with_csrf(client)
+        process_deleted = client.request(
+            "DELETE",
+            "/api/v1/process-records/1",
+            json={"version": 1, "change_reason": "원천 데이터 오류 삭제"},
+            headers=headers,
+        )
+        inspection_deleted = client.request(
+            "DELETE",
+            "/api/v1/inspection-records/1",
+            json={"version": 1, "change_reason": "검사 오등록 삭제"},
+            headers=headers,
+        )
+
+    assert process_deleted.status_code == 204
+    assert inspection_deleted.status_code == 204
+    kwargs = service.delete_process_record.call_args.kwargs
+    assert kwargs == {"version": 1, "change_reason": "원천 데이터 오류 삭제"}
+    assert service.delete_inspection_record.call_args.kwargs == {
+        "version": 1,
+        "change_reason": "검사 오등록 삭제",
+    }
+
+
+def test_record_delete_requires_admin_and_csrf() -> None:
+    service = MagicMock(spec=RecordCorrectionService)
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        missing_csrf = client.request(
+            "DELETE",
+            "/api/v1/process-records/1",
+            json={"version": 1, "change_reason": "사유"},
+        )
+
+    assert missing_csrf.status_code == 403
+    service.delete_process_record.assert_not_called()
+
+    worker_application = create_app(
+        settings=make_settings(),
+        migration_checker=lambda engine, path: None,
+    )
+    worker_application.dependency_overrides[get_current_user] = lambda: make_user(role="worker")
+    worker_application.dependency_overrides[get_record_correction_service] = lambda: service
+    with TestClient(worker_application) as client:
+        headers = with_csrf(client)
+        forbidden = client.request(
+            "DELETE",
+            "/api/v1/inspection-records/1",
+            json={"version": 1, "change_reason": "사유"},
+            headers=headers,
+        )
+
+    assert forbidden.status_code == 403
+    assert forbidden.json()["code"] == "FORBIDDEN"
+    service.delete_inspection_record.assert_not_called()
+
+
+def test_record_delete_maps_errors_and_validates_reason() -> None:
+    service = MagicMock(spec=RecordCorrectionService)
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        headers = with_csrf(client)
+        blank_reason = client.request(
+            "DELETE",
+            "/api/v1/process-records/1",
+            json={"version": 1, "change_reason": "   "},
+            headers=headers,
+        )
+        service.delete_process_record.side_effect = RecordVersionConflictError(3)
+        conflict = client.request(
+            "DELETE",
+            "/api/v1/process-records/1",
+            json={"version": 1, "change_reason": "사유"},
+            headers=headers,
+        )
+        service.delete_process_record.side_effect = RecordNotFoundError
+        missing = client.request(
+            "DELETE",
+            "/api/v1/process-records/1",
+            json={"version": 1, "change_reason": "사유"},
+            headers=headers,
+        )
+
+    assert blank_reason.status_code == 422
+    assert conflict.status_code == 409
+    assert conflict.json()["code"] == "VERSION_CONFLICT"
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "RECORD_NOT_FOUND"

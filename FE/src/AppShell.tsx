@@ -10,7 +10,10 @@ import { useApiQuery } from './hooks/useApiQuery';
 import { useWorkSession } from './hooks/useWorkSession';
 import { fetchReports } from './api/reports';
 import { formatDateTime } from './utils/dateFormat';
+import TabletPasswordDialog from './pages/TabletHomePage/TabletPasswordDialog';
 import { markLoggedOut } from './utils/logoutNotice';
+
+const ConnectedTabletApp = lazy(() => import('./pages/Connected/ConnectedTabletApp'));
 
 const RecordsPage = lazy(() => import('./pages/RecordsPage/RecordsPage'));
 const RecordDetailPage = lazy(() =>
@@ -57,7 +60,7 @@ const routeTitles: Record<string, string> = {
 };
 
 export default function AppShell() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const { extend } = useWorkSession();
   const { data: notificationReports } = useApiQuery('shell-reports', () =>
     fetchReports({ pageSize: 3 }),
@@ -173,6 +176,16 @@ export default function AppShell() {
   };
   const askAssistant = () => navigate('/chat?chat=new');
   if (!user) return null;
+  if (user.employee_no === 'IPAD001') {
+    return (
+      <Suspense fallback={<div role="status">아이패드 화면을 여는 중이에요…</div>}>
+        <ConnectedTabletApp />
+      </Suspense>
+    );
+  }
+  if (user.must_change_password) {
+    return <TabletPasswordDialog onSave={() => refreshUser()} onClose={() => undefined} />;
+  }
   return (
     <div
       className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${dark ? 'dark' : ''} ${fitViewport ? 'fit-viewport' : ''} ${chatFocus ? 'chat-focus' : ''}`}

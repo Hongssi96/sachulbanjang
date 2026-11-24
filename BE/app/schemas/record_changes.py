@@ -96,6 +96,19 @@ class InspectionRecordUpdateRequest(BaseModel):
         }
 
 
+class RecordDeleteRequest(BaseModel):
+    version: int = Field(ge=1)
+    change_reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("change_reason")
+    @classmethod
+    def reject_blank_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("변경 사유를 입력해 주세요.")
+        return normalized
+
+
 class ChangeHistoryItem(BaseModel):
     change_id: int
     operation: str

@@ -1,0 +1,74 @@
+import { useCallback, useEffect, useState } from 'react';
+import useRemote from '../../hooks/useRemote';
+import { date, items, list, read, text } from '../../api/business';
+import { RemoteState, Table } from './LiveShared';
+
+export default function LiveEquipment() {
+  const [filter, setFilter] = useState('');
+  const resource = useRemote(
+    useCallback(
+      async () => ({ master: await list('/equipment'), current: await read('/process/current') }),
+      [],
+    ),
+  );
+  useEffect(() => {
+    const timer = window.setInterval(resource.reload, 30000);
+    return () => window.clearInterval(timer);
+  }, [resource.reload]);
+  const current = resource.data ? items(resource.data.current) : [];
+  const rows =
+    resource.data?.master.items.map((equipment) => ({
+      ...equipment,
+      ...current.find((row) => row.equipment_id === equipment.equipment_id),
+    })) ?? [];
+  return (
+    <div className="live-page">
+      <div className="live-toolbar">
+        <h1>설비 현황 · 실시간 공정</h1>
+        <button className="button button-white" onClick={resource.reload}>
+          새로고침
+        </button>
+      </div>
+      <RemoteState {...resource} retry={resource.reload} />
+      {resource.data && (
+        <>
+          <p className="live-muted">
+            조회 {date(resource.data.current.queried_at)} · 데이터 기준{' '}
+            {date(resource.data.current.data_time)} · 30초마다 갱신
+          </p>
+          <p className="live-muted">
+            이 API는 가동 상태·온도·압력·생산 목표를 제공하지 않습니다. 확인되지 않은 수치를 정상
+            상태로 표시하지 않습니다.
+          </p>
+          <label>
+            설비 검색
+            <input value={filter} onChange={(event) => setFilter(event.target.value)} />
+          </label>
+          <section className="live-card">
+            <Table
+              rows={rows.filter((row) =>
+                `${text(row.equipment_code)} ${text(row.name)}`
+                  .toLowerCase()
+                  .includes(filter.toLowerCase()),
+              )}
+              columns={[
+                ['equipment_code', '설비'],
+                ['name', '설비명'],
+                ['product_name', '현재 제품'],
+                ['cycle_time_seconds', '최근 사이클(초)'],
+                ['occurred_at', '기록 시각', (row) => date(row.occurred_at)],
+                ['equipment_status', '가동 상태', () => '미확인'],
+              ]}
+            />
+          </section>
+          {resource.data.current.replay_state && (
+            <p className="live-muted">
+              공정 재생 상태: {text(resource.data.current.replay_state)} ·{' '}
+              {current.some((row) => row.is_demo) ? '시연 데이터 포함' : '서버 기록'}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

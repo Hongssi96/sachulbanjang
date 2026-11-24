@@ -287,3 +287,55 @@ def test_list_process_changes_requires_existing_record() -> None:
 
     service, _, _ = build_service(make_view())
     assert service.list_process_changes(1) == []
+
+
+def test_delete_process_record_soft_deletes_and_records_history() -> None:
+    view = make_view()
+    service, repository, session = build_service(view)
+
+    service.delete_process_record(actor(), 1, version=1, change_reason="원천 데이터 오류 삭제")
+
+    assert view.record.deleted_at == NOW
+    assert view.record.version == 2
+    session.commit.assert_called_once_with()
+    change = repository.changes[0]
+    assert change.process_record_id == 1
+    assert change.operation == "delete"
+    assert change.after_value is None
+    assert change.before_value == {
+        "occurred_at": OCCURRED.isoformat(),
+        "cycle_time_seconds": "12.345",
+        "product_id": 30,
+        "equipment_id": 20,
+        "is_demo": True,
+    }
+    assert change.reason == "원천 데이터 오류 삭제"
+    assert change.occurred_at == NOW
+
+
+def test_delete_process_record_rejects_stale_version_and_missing_record() -> None:
+    service, _, session = build_service(make_view(version=3))
+
+    with pytest.raises(RecordVersionConflictError):
+        service.delete_process_record(actor(), 1, version=1, change_reason="사유")
+    session.commit.assert_not_called()
+
+    service, _, _ = build_service(None)
+    with pytest.raises(RecordNotFoundError):
+        service.delete_process_record(actor(), 1, version=1, change_reason="사유")
+
+
+def test_delete_inspection_record_soft_deletes_and_records_history() -> None:
+    view = make_inspection_view()
+    service, repository, session = build_inspection_service(view)
+
+    service.delete_inspection_record(actor(), 1, version=1, change_reason="검사 오등록 삭제")
+
+    assert view.record.deleted_at == NOW
+    assert view.record.version == 2
+    session.commit.assert_called_once_with()
+    change = repository.changes[0]
+    assert change.inspection_record_id == 1
+    assert change.operation == "delete"
+    assert change.after_value is None
+    assert change.reason == "검사 오등록 삭제"

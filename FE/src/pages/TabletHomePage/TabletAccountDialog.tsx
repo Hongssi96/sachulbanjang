@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { LogIn, LogOut, X } from 'lucide-react';
 import profileAvatar from './profile-avatar.svg';
 import TabletPasswordDialog from './TabletPasswordDialog';
+import { useAuth } from '../../hooks/useAuth';
+import { Link } from 'react-router';
+import { errorMessage } from '../../api/business';
 import './TabletAccountDialog.css';
 
 type Screen = 'profile' | 'login' | 'password' | 'signup';
@@ -20,24 +23,16 @@ const characters = [
 interface AccountProps {
   onClose: () => void;
   onLoginOpen: () => void;
-  password: string;
-  onPasswordChange: (value: string) => void;
+  password?: string;
+  onPasswordChange?: (value: string) => void;
   page?: boolean;
 }
 
-export default function TabletAccountDialog({
-  onClose,
-  onLoginOpen,
-  password,
-  onPasswordChange,
-  page = false,
-}: AccountProps) {
+export default function TabletAccountDialog({ onClose, onLoginOpen, page = false }: AccountProps) {
+  const { user, login, refreshUser } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
   const [screen, setScreen] = useState<Screen>(page ? 'login' : 'profile');
   const [account, setAccount] = useState('');
-  const [signupName, setSignupName] = useState('');
-  const [signupId, setSignupId] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupConfirmation, setSignupConfirmation] = useState('');
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -47,7 +42,7 @@ export default function TabletAccountDialog({
   const [choosingCharacter, setChoosingCharacter] = useState(false);
   const [characterId, setCharacterId] = useState(() => {
     try {
-      const saved = localStorage.getItem('tablet-profile-character');
+      const saved = localStorage.getItem(`tablet-profile-character-${user?.id ?? 'guest'}`);
       return characters.some((character) => character.id === saved) ? saved : 'leader';
     } catch {
       return 'leader';
@@ -105,6 +100,18 @@ export default function TabletAccountDialog({
     setError('');
   };
 
+  if (page && screen === 'password')
+    return (
+      <div className="th-login-page">
+        <TabletPasswordDialog
+          onSave={refreshUser}
+          onClose={() => {
+            if (!user?.must_change_password) onClose();
+          }}
+        />
+      </div>
+    );
+
   const content = (
     <div className="th-account">
       {!page && (
@@ -137,7 +144,10 @@ export default function TabletAccountDialog({
                   onClick={() => {
                     setCharacterId(character.id);
                     try {
-                      localStorage.setItem('tablet-profile-character', character.id);
+                      localStorage.setItem(
+                        `tablet-profile-character-${user?.id ?? 'guest'}`,
+                        character.id,
+                      );
                     } catch {
                       /* 저장이 제한된 환경에서도 현재 선택은 유지한다. */
                     }
@@ -155,15 +165,10 @@ export default function TabletAccountDialog({
             </div>
           )}
           <div>
-            <strong>박민규</strong>
-            <p>현장을 살피는 든든한 반장</p>
+            <strong>{user?.display_name}</strong>
+            <p>{user?.role === 'admin' ? '관리자' : '현장 근무자'}</p>
           </div>
         </div>
-      )}
-      {!page && (
-        <p className="th-account-demo">
-          시연용 화면입니다. 실제 계정과 연결되지 않으며 새로고침하면 변경 내용이 초기화됩니다.
-        </p>
       )}
       {message && (
         <p className="th-account-success" role="status">
@@ -180,15 +185,15 @@ export default function TabletAccountDialog({
           <dl className="th-account-details">
             <div>
               <dt>아이디</dt>
-              <dd>leader</dd>
+              <dd>{user?.employee_no}</dd>
             </div>
             <div>
-              <dt>근무 시간</dt>
-              <dd>08:00–17:00</dd>
+              <dt>계정 권한</dt>
+              <dd>{user?.role === 'admin' ? '관리자' : '현장 근무자'}</dd>
             </div>
             <div>
-              <dt>담당 업무</dt>
-              <dd>현장 관리 · 설비 점검</dd>
+              <dt>근무 종료</dt>
+              <dd>상단의 서버 근무 시각 확인</dd>
             </div>
           </dl>
           <button className="button button-primary" onClick={() => setPasswordOpen(true)}>
@@ -198,152 +203,54 @@ export default function TabletAccountDialog({
             <LogOut size={18} />
             로그아웃
           </button>
+          {user?.role === 'admin' && (
+            <Link className="button button-white" to="/users" onClick={onClose}>
+              사번 계정 발급
+            </Link>
+          )}
         </>
       ) : screen === 'signup' ? (
-        <form
-          className="th-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setError('');
-            setMessage('');
-            if (!signupName.trim() || !/^[A-Za-z0-9_-]{4,20}$/.test(signupId)) {
-              setError(
-                '이름과 아이디를 확인해 주세요. 아이디는 영문·숫자·밑줄·하이픈 4~20자로 입력해 주세요.',
-              );
-              return;
-            }
-            if (
-              signupPassword.length < 8 ||
-              !/[A-Za-z]/.test(signupPassword) ||
-              !/[0-9]/.test(signupPassword)
-            ) {
-              setError('비밀번호는 영문과 숫자를 포함한 8자 이상으로 입력해 주세요.');
-              return;
-            }
-            if (signupPassword !== signupConfirmation) {
-              setError('비밀번호 확인이 일치하지 않습니다.');
-              return;
-            }
-            setSignupPassword('');
-            setSignupConfirmation('');
-            setMessage(
-              '입력 정보를 확인했어요. 아직 서버와 연결되지 않아 계정은 생성되지 않습니다.',
-            );
-          }}
-        >
-          <label>
-            이름
-            <input
-              autoComplete="name"
-              placeholder="이름을 입력해 주세요"
-              maxLength={50}
-              value={signupName}
-              onChange={(event) => setSignupName(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            아이디
-            <input
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              placeholder="영문·숫자 4~20자"
-              minLength={4}
-              maxLength={20}
-              value={signupId}
-              onChange={(event) => setSignupId(event.target.value)}
-              required
-              aria-describedby="th-signup-id-help"
-            />
-          </label>
-          <small id="th-signup-id-help">영문·숫자·밑줄(_)·하이픈(-)을 사용할 수 있어요.</small>
-          <label>
-            비밀번호
-            <input
-              type="password"
-              autoComplete="new-password"
-              placeholder="영문·숫자 포함 8자 이상"
-              minLength={8}
-              value={signupPassword}
-              onChange={(event) => setSignupPassword(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            비밀번호 확인
-            <input
-              type="password"
-              autoComplete="new-password"
-              placeholder="비밀번호를 다시 입력해 주세요"
-              value={signupConfirmation}
-              onChange={(event) => setSignupConfirmation(event.target.value)}
-              required
-            />
-          </label>
-          <button className="button button-primary" type="submit">
-            회원가입
-          </button>
-          <button
-            className="button button-white"
-            type="button"
-            onClick={() => {
-              setSignupPassword('');
-              setSignupConfirmation('');
-              go('login');
-            }}
-          >
+        <div className="live-form">
+          <p>사출반장은 사내에서 발급한 사번 계정으로 이용합니다.</p>
+          <p>
+            공개 회원가입은 제공하지 않습니다. 이름·소속·담당 업무를 사내 계정 관리자에게 전달하고
+            계정을 발급받아 주세요.
+          </p>
+          <button className="button button-primary" onClick={() => go('login')}>
             로그인으로 돌아가기
           </button>
-        </form>
+        </div>
       ) : (
         <form
           className="th-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
+            if (submitting) return;
             setError('');
             setMessage('');
             if (screen === 'login') {
-              if (account !== 'leader' || current !== password) {
-                setError('아이디 또는 비밀번호를 확인해 주세요.');
-                return;
+              setSubmitting(true);
+              try {
+                const loggedIn = await login(account.trim(), current);
+                if (loggedIn.must_change_password) go('password');
+                else onClose();
+              } catch (reason) {
+                setError(errorMessage(reason));
+              } finally {
+                setSubmitting(false);
               }
-              if (page) {
-                onClose();
-                return;
-              }
-              go('profile');
-              setMessage('시연 계정으로 로그인했어요.');
               return;
             }
-            if (current !== password) {
-              setError('현재 비밀번호가 일치하지 않습니다.');
-              return;
-            }
-            if (next.length < 8 || !/[A-Za-z]/.test(next) || !/[0-9]/.test(next)) {
-              setError('새 비밀번호는 영문과 숫자를 포함해 8자 이상 입력해 주세요.');
-              return;
-            }
-            if (next === current) {
-              setError('현재 비밀번호와 다른 비밀번호를 입력해 주세요.');
-              return;
-            }
-            if (next !== confirmation) {
-              setError('새 비밀번호 확인이 일치하지 않습니다.');
-              return;
-            }
-            onPasswordChange(next);
-            go('login');
-            setMessage('비밀번호를 변경했어요. 새 비밀번호로 로그인해 주세요.');
+            setError('로그인 후 프로필에서 비밀번호를 변경해 주세요.');
           }}
         >
           {screen === 'login' && (
             <>
-              <p className="th-account-hint">시연 아이디: leader · 초기 비밀번호: Tablet123!</p>
+              <p className="th-account-hint">발급받은 사번으로 로그인해 주세요.</p>
               <label>
                 아이디
                 <input
-                  placeholder="아이디를 입력해 주세요"
+                  placeholder="사번을 입력해 주세요"
                   autoCapitalize="none"
                   spellCheck={false}
                   autoComplete="username"
@@ -392,16 +299,10 @@ export default function TabletAccountDialog({
               </label>
             </>
           )}
-          <button className="button button-primary" type="submit">
-            {screen === 'login' ? '로그인' : '비밀번호 변경하고 로그인'}
+          <button className="button button-primary" type="submit" disabled={submitting}>
+            {submitting ? '로그인 중…' : screen === 'login' ? '로그인' : '비밀번호 변경하고 로그인'}
           </button>
-          <button
-            className="button button-white"
-            type="button"
-            onClick={() => go(screen === 'login' ? 'password' : 'profile')}
-          >
-            {screen === 'login' ? '비밀번호 변경' : '프로필로 돌아가기'}
-          </button>
+
           {page && screen === 'login' && (
             <button className="button button-white" type="button" onClick={() => go('signup')}>
               회원가입
@@ -417,7 +318,7 @@ export default function TabletAccountDialog({
       : screen === 'login'
         ? '로그인'
         : screen === 'signup'
-          ? '회원가입'
+          ? '계정 발급 안내'
           : '비밀번호 변경';
   return page ? (
     <main className={`th-login-page ${screen === 'login' ? 'th-login-screen' : ''}`}>
@@ -428,7 +329,7 @@ export default function TabletAccountDialog({
         <h1 id="th-login-title">{title}</h1>
         <p className="th-login-description">
           {screen === 'signup'
-            ? '현장 업무에 사용할 계정 정보를 입력해 주세요.'
+            ? '사내 계정 발급 절차를 확인해 주세요.'
             : '현장 업무를 시작하려면 아이디와 비밀번호를 입력해 주세요.'}
         </p>
         {content}
@@ -454,11 +355,7 @@ export default function TabletAccountDialog({
       </div>
       {content}
       {passwordOpen && (
-        <TabletPasswordDialog
-          password={password}
-          onSave={onPasswordChange}
-          onClose={() => setPasswordOpen(false)}
-        />
+        <TabletPasswordDialog onSave={refreshUser} onClose={() => setPasswordOpen(false)} />
       )}
     </dialog>
   );

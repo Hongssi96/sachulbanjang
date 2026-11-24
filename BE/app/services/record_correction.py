@@ -7,7 +7,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.master import AppUser
-from app.models.process import RecordChange
+from app.models.process import InspectionRecord, ProcessRecord, RecordChange
 from app.repositories.record_correction import RecordChangeView, RecordCorrectionRepository
 from app.repositories.record_history import InspectionRecordView, ProcessRecordView
 from app.services.record_history import RecordNotFoundError
@@ -32,6 +32,28 @@ def _serialize(value: object) -> object:
     if isinstance(value, Decimal):
         return str(value)
     return value
+
+
+def _process_snapshot(record: ProcessRecord) -> dict[str, object]:
+    return {
+        "occurred_at": _serialize(record.occurred_at),
+        "cycle_time_seconds": _serialize(record.cycle_time_seconds),
+        "product_id": record.product_id,
+        "equipment_id": record.equipment_id,
+        "is_demo": record.is_demo,
+    }
+
+
+def _inspection_snapshot(record: InspectionRecord) -> dict[str, object]:
+    return {
+        "inspected_at": _serialize(record.inspected_at),
+        "product_id": record.product_id,
+        "process_record_id": record.process_record_id,
+        "verdict": record.verdict,
+        "defect_type": record.defect_type,
+        "reason": record.reason,
+        "is_demo": record.is_demo,
+    }
 
 
 class RecordVersionConflictError(Exception):
@@ -115,6 +137,33 @@ class RecordCorrectionService:
             raise RecordNotFoundError
         return self._repository.list_process_changes(record_id)
 
+    def delete_process_record(
+        self, actor: AppUser, record_id: int, *, version: int, change_reason: str
+    ) -> None:
+        view = self._repository.find_process_record_for_update(record_id)
+        if view is None:
+            raise RecordNotFoundError
+        record = view.record
+        if record.version != version:
+            raise RecordVersionConflictError(record.version)
+        now = self._clock()
+        snapshot = _process_snapshot(record)
+        record.deleted_at = now
+        record.version += 1
+        self._repository.add_change(
+            RecordChange(
+                process_record_id=record.id,
+                actor_id=actor.id,
+                operation="delete",
+                before_value=snapshot,
+                after_value=None,
+                reason=change_reason,
+                version=record.version,
+                occurred_at=now,
+            )
+        )
+        self._session.commit()
+
     def update_inspection_record(
         self,
         actor: AppUser,
@@ -170,3 +219,30 @@ class RecordCorrectionService:
         if self._repository.find_inspection_record(record_id) is None:
             raise RecordNotFoundError
         return self._repository.list_inspection_changes(record_id)
+
+    def delete_inspection_record(
+        self, actor: AppUser, record_id: int, *, version: int, change_reason: str
+    ) -> None:
+        view = self._repository.find_inspection_record_for_update(record_id)
+        if view is None:
+            raise RecordNotFoundError
+        record = view.record
+        if record.version != version:
+            raise RecordVersionConflictError(record.version)
+        now = self._clock()
+        snapshot = _inspection_snapshot(record)
+        record.deleted_at = now
+        record.version += 1
+        self._repository.add_change(
+            RecordChange(
+                inspection_record_id=record.id,
+                actor_id=actor.id,
+                operation="delete",
+                before_value=snapshot,
+                after_value=None,
+                reason=change_reason,
+                version=record.version,
+                occurred_at=now,
+            )
+        )
+        self._session.commit()

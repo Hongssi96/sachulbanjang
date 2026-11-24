@@ -10,6 +10,7 @@ from app.models.master import (
     ProductionLine,
     UserAssignment,
 )
+from app.models.operation import OperationDay
 from app.models.process import (
     InspectionRecord,
     ProcessRecord,
@@ -36,6 +37,7 @@ __all__ = [
     "HandoverRead",
     "HandoverTarget",
     "InspectionRecord",
+    "OperationDay",
     "ProcessRecord",
     "ProcessReplay",
     "Product",

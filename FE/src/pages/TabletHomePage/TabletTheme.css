@@ -152,6 +152,23 @@ body:has(.tablet-home) {
   color: #fff;
   font-size: 12px;
 }
+.th-side-help-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 72px;
+  margin-top: auto;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.th-side-help-button > svg { flex: 0 0 auto; color: var(--mint); }
+.th-side-help-button span { display: grid; gap: 4px; }
+.th-side-help-button strong { color: inherit; white-space: nowrap; line-height: 1.35; }
+.th-side-help-button small { color: #ddd7eb; }
+.th-side-help-button:hover { background: linear-gradient(145deg, #81799e, #5d5479); }
 .th-workspace {
   margin-left: 200px;
   min-height: calc(100dvh - 32px);

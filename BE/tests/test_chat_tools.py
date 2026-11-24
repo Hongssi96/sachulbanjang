@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import cast
 from unittest.mock import MagicMock
@@ -25,6 +25,7 @@ from app.services.chat_tools import (
 )
 from app.services.inventory import InventoryService
 from app.services.master_data import MasterDataService
+from app.services.operation import OperationService, OperationSummary
 from app.services.quality import QualityService, QualitySummary
 from app.services.record_history import RecordHistoryService
 from app.services.report import ReportPage, ReportService
@@ -68,6 +69,7 @@ def build_executor() -> tuple[ChatToolExecutor, dict[str, MagicMock]]:
         "master": MagicMock(spec=MasterDataService),
         "inventory": MagicMock(spec=InventoryService),
         "schedules": MagicMock(spec=ScheduleService),
+        "operations": MagicMock(spec=OperationService),
     }
     executor._quality = cast(QualityService, mocks["quality"])
     executor._records = cast(RecordHistoryService, mocks["records"])
@@ -75,6 +77,7 @@ def build_executor() -> tuple[ChatToolExecutor, dict[str, MagicMock]]:
     executor._master = cast(MasterDataService, mocks["master"])
     executor._inventory = cast(InventoryService, mocks["inventory"])
     executor._schedules = cast(ScheduleService, mocks["schedules"])
+    executor._operations = cast(OperationService, mocks["operations"])
     return executor, mocks
 
 
@@ -292,6 +295,8 @@ def test_parse_query_plan_accepts_extended_tools() -> None:
     assert movements.tool == "stock_movements"
     schedules = parse_query_plan('{"tool": "schedule_list", "arguments": {"days": 7}}')
     assert schedules.tool == "schedule_list"
+    operation = parse_query_plan('{"tool": "operation_summary", "arguments": {"days": 7}}')
+    assert operation.tool == "operation_summary"
 
     with pytest.raises(ChatPlanError):
         parse_query_plan('{"tool": "stock_movements", "arguments": {"kind": "unknown"}}')
@@ -418,9 +423,98 @@ def test_schedule_list_returns_schedules() -> None:
     assert schedule_items[0]["title"] == "설비 점검"
     assert schedule_items[0]["start_date"] == "2026-11-24"
     assert result.evidence == []
+    assert result.scope["window"] == "upcoming"
     mocks["schedules"].list_schedules.assert_called_once_with(
-        date_from=FROM,
-        date_to=TODAY,
+        date_from=TODAY,
+        date_to=TODAY + timedelta(days=6),
         page=1,
         page_size=5,
+    )
+
+
+def test_schedule_list_recent_and_around_windows() -> None:
+    executor, mocks = build_executor()
+    page = MagicMock()
+    page.schedules = []
+    page.total_items = 0
+    mocks["schedules"].list_schedules.return_value = page
+
+    executor.execute(
+        ChatQueryPlan(tool="schedule_list", arguments={"days": 3, "window": "recent"}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+    recent_kwargs = mocks["schedules"].list_schedules.call_args.kwargs
+    assert recent_kwargs["date_from"] == TODAY - timedelta(days=2)
+    assert recent_kwargs["date_to"] == TODAY
+
+    executor.execute(
+        ChatQueryPlan(tool="schedule_list", arguments={"days": 3, "window": "around"}),
+        actor=make_actor(),
+        data_cutoff_at=NOW,
+    )
+    around_kwargs = mocks["schedules"].list_schedules.call_args.kwargs
+    assert around_kwargs["date_from"] == TODAY - timedelta(days=2)
+    assert around_kwargs["date_to"] == TODAY + timedelta(days=2)
+
+
+def test_parse_query_plan_rejects_unknown_schedule_window() -> None:
+    with pytest.raises(ChatPlanError):
+        parse_query_plan('{"tool": "schedule_list", "arguments": {"window": "next"}}')
+
+
+def test_operation_summary_returns_hours_and_rate() -> None:
+    executor, mocks = build_executor()
+    equipment = make_equipment()
+    mocks["master"].list_equipment.return_value = [equipment]
+    mocks["operations"].get_summary.return_value = OperationSummary(
+        planned_seconds=28800,
+        actual_seconds=21600,
+        rate=Decimal("75.00"),
+        includes_demo=True,
+    )
+
+    result = executor.execute(
+        ChatQueryPlan(
+            tool="operation_summary",
+            arguments={"days": 7, "equipment": "EQ-1"},
+        ),
+        actor=make_actor(),
+        data_cutoff_at=None,
+    )
+
+    assert result.data["planned_hours"] == "8.00"
+    assert result.data["actual_hours"] == "6.00"
+    assert result.data["operation_rate_percent"] == "75.00"
+    assert result.data["includes_demo"] is True
+    assert result.is_demo is True
+    assert result.evidence == []
+    mocks["operations"].get_summary.assert_called_once_with(
+        equipment_id=2,
+        date_from=FROM,
+        date_to=TODAY,
+    )
+
+
+def test_operation_summary_without_equipment_filter() -> None:
+    executor, mocks = build_executor()
+    mocks["operations"].get_summary.return_value = OperationSummary(
+        planned_seconds=0,
+        actual_seconds=0,
+        rate=None,
+        includes_demo=False,
+    )
+
+    result = executor.execute(
+        ChatQueryPlan(tool="operation_summary", arguments={"days": 1}),
+        actor=make_actor(),
+        data_cutoff_at=None,
+    )
+
+    assert result.data["operation_rate_percent"] is None
+    assert result.data["planned_hours"] == "0.00"
+    mocks["operations"].get_summary.assert_called_once_with(
+        equipment_id=None,
+        date_from=TODAY,
+        date_to=TODAY,
     )

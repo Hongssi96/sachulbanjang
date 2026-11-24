@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.master import AppUser
+from app.models.report import Report
 from app.models.report_job import TERMINAL_JOB_STATES, GenerationJob
 from app.repositories.report_job import ReportJobRepository
 
@@ -65,6 +66,12 @@ class JobPage:
     total_items: int
 
 
+@dataclass(frozen=True)
+class DuplicateCheckResult:
+    items: list[tuple[GenerationJob, Report, str]]
+    reusable_report_id: int | None
+
+
 class ReportJobService:
     """Accept, inspect, cancel, and retry report generation jobs.
 
@@ -111,6 +118,21 @@ class ReportJobService:
         self, requester: AppUser, *, kind: str, client_request_key: str
     ) -> GenerationJob | None:
         return self._repository.find_by_request_key(requester.id, kind, client_request_key)
+
+    def check_duplicate_reports(
+        self, actor: AppUser, *, payload: dict[str, object]
+    ) -> DuplicateCheckResult:
+        """List visible completed reports generated from the same condition."""
+        digest = request_digest(payload)
+        requester_id = None if actor.role == "admin" else actor.id
+        items = self._repository.find_duplicate_reports(
+            request_digest=digest, requester_id=requester_id, limit=5
+        )
+        reusable = self._repository.find_completed_report_by_digest(actor.id, digest)
+        return DuplicateCheckResult(
+            items=items,
+            reusable_report_id=reusable[1] if reusable is not None else None,
+        )
 
     def submit_job(
         self,

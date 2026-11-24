@@ -1,5 +1,7 @@
 # 사출반장 · 프런트엔드
 
+> 현재 실행 화면은 데스크톱·태블릿 공통 API 연결 버전입니다. 연결 범위와 제한 및 실행 방법은 [INTEGRATION.md](./INTEGRATION.md)를 확인하세요. 업무 라우트는 `src/pages/Connected/LiveRoutes.tsx`가 관리합니다.
+
 사출 공장 관리자를 위한 웹앱입니다. React + TypeScript + Vite, pnpm을 사용하며 react-router로 홈·실시간 공정·일정 관리 화면을 연결합니다.
 
 ## 실행
