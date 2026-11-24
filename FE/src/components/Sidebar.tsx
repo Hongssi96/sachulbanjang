@@ -14,6 +14,7 @@ import {
   FileChartColumn,
   Sparkles,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import logo from '../assets/logo.png';
 
@@ -23,11 +24,13 @@ interface SidebarProps {
   onNavigate: (name: string) => void;
   onAssistant: () => void;
   active: string;
+  /** 미처리(대기) 보고 건수. 0이면 배지를 표시하지 않는다. */
+  reportBadge?: number;
 }
-const menus = [
+const menus: Array<{ label: string; icon: LucideIcon; badge?: string }> = [
   { label: '홈', icon: House },
   { label: '실시간 공정', icon: Factory },
-  { label: '올라온 보고', icon: ClipboardList, badge: '3' },
+  { label: '올라온 보고', icon: ClipboardList },
   { label: '생산·검사 이력', icon: History },
   { label: '재고 관리', icon: Package },
   { label: '품질 리포트', icon: FileChartColumn },
@@ -39,6 +42,7 @@ export default function Sidebar({
   onNavigate,
   onAssistant,
   active,
+  reportBadge = 0,
 }: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`} aria-label="주 메뉴">
@@ -70,7 +74,10 @@ export default function Sidebar({
           >
             <Icon size={21} strokeWidth={1.7} />
             <span>{label}</span>
-            {badge && <b className="nav-badge">{badge}</b>}
+            {(() => {
+              const value = label === '올라온 보고' ? reportBadge : badge;
+              return value ? <b className="nav-badge">{value}</b> : null;
+            })()}
           </button>
         ))}
       </nav>

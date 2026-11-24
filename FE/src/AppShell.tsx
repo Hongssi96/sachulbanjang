@@ -6,6 +6,10 @@ import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import Modal from './components/Modal';
 import { useAuth } from './hooks/useAuth';
+import { useApiQuery } from './hooks/useApiQuery';
+import { useWorkSession } from './hooks/useWorkSession';
+import { fetchReports } from './api/reports';
+import { formatDateTime } from './utils/dateFormat';
 import { markLoggedOut } from './utils/logoutNotice';
 
 const RecordsPage = lazy(() => import('./pages/RecordsPage/RecordsPage'));
@@ -14,8 +18,6 @@ const RecordDetailPage = lazy(() =>
     default: module.RecordDetailPage,
   })),
 );
-
-import { demoAsOf, reports } from './constants/demoData';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const SchedulePage = lazy(() => import('./pages/SchedulePage'));
@@ -56,6 +58,13 @@ const routeTitles: Record<string, string> = {
 
 export default function AppShell() {
   const { user, logout } = useAuth();
+  const { extend } = useWorkSession();
+  const { data: notificationReports } = useApiQuery('shell-reports', () =>
+    fetchReports({ pageSize: 3 }),
+  );
+  const { data: pendingReports } = useApiQuery('shell-pending-reports', () =>
+    fetchReports({ businessStatus: 'pending', pageSize: 1 }),
+  );
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -121,21 +130,22 @@ export default function AppShell() {
     if (dark) setExtended(false);
     setDark(!dark);
   };
-  // 야근을 시작한다. 퇴근 시간 이후 자동 로그아웃된 상태에서도 바로 연장할 수 있다.
-  const startOvertime = () => {
-    setSessionEnded(false);
-    setSessionFired(false);
-    setOffWorkModalOpen(false);
-    setExtended(true);
-    setDark(true);
+  // 야근을 시작한다. 서버 근무 종료 시각을 연장하고 퇴근 알림 상태를 초기화한다.
+  const startOvertime = async () => {
+    try {
+      await extend('manual');
+      setSessionEnded(false);
+      setSessionFired(false);
+      setOffWorkModalOpen(false);
+      setExtended(true);
+      setDark(true);
+      setToast('연장 근무를 시작했어요.');
+    } catch (error: unknown) {
+      setToast(error instanceof Error ? error.message : '연장 근무를 시작하지 못했습니다.');
+    }
   };
   const toggleExtended = () => {
-    if (sessionEnded) {
-      startOvertime();
-      return;
-    }
-    setExtended(!extended);
-    setDark(!extended);
+    void startOvertime();
   };
   const endSession = () => {
     setSessionFired(true);
@@ -206,11 +216,11 @@ export default function AppShell() {
           active={activeMenu}
           onNavigate={handleNavigate}
           onAssistant={askAssistant}
+          reportBadge={pendingReports?.pagination.total_items ?? 0}
         />
       </div>
       <div className="workspace" ref={workspaceRef}>
         <Topbar
-          meta={routePath === '/realtime' ? `마지막 갱신 ${demoAsOf}` : undefined}
           title={pageTitle}
           user={user}
           dark={dark}
@@ -303,23 +313,27 @@ export default function AppShell() {
       )}
       {notificationsOpen && (
         <Modal title="알림" onClose={() => setNotificationsOpen(false)}>
-          {reports.map((report) => (
-            <button
-              className="notification-row"
-              key={report.id}
-              onClick={() => {
-                setNotificationsOpen(false);
-                setToast('보고 상세 화면은 준비 중이에요.');
-              }}
-            >
-              <Bell size={18} />
-              <span>
-                <strong>{report.title}</strong>
-                <small>{report.time} · 알림</small>
-              </span>
-              <ChevronRight size={16} />
-            </button>
-          ))}
+          {notificationReports?.items.length ? (
+            notificationReports.items.map((report) => (
+              <button
+                className="notification-row"
+                key={report.report_id}
+                onClick={() => {
+                  setNotificationsOpen(false);
+                  navigate(`/reports/${report.report_id}`);
+                }}
+              >
+                <Bell size={18} />
+                <span>
+                  <strong>{report.title}</strong>
+                  <small>{formatDateTime(report.created_at)} · 보고</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+            ))
+          ) : (
+            <p className="empty-state">새 알림이 없어요.</p>
+          )}
         </Modal>
       )}
       {offWorkModalOpen && (
@@ -331,7 +345,7 @@ export default function AppShell() {
               <button className="button button-white" onClick={() => setOffWorkModalOpen(false)}>
                 닫기
               </button>
-              <button className="button button-primary" onClick={startOvertime}>
+              <button className="button button-primary" onClick={() => void startOvertime()}>
                 오늘 야근
               </button>
             </div>

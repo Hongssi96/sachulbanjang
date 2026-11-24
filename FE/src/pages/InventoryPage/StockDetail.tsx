@@ -1,16 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, MapPin, Package } from 'lucide-react';
-import { availableStock, stockStatus } from './inventoryModel';
-import type { StockItem, StockMovement } from './inventoryModel';
-import { formatStockDate } from './inventoryModel';
+import type { MovementItem, StockItem } from '../../api/inventory';
+import ApiErrorState from '../../components/ApiErrorState';
+import LoadingState from '../../components/LoadingState';
+import {
+  formatStockDate,
+  movementAmount,
+  movementKindLabel,
+  movementSymbol,
+  NOT_AVAILABLE,
+  stockStatus,
+} from './inventoryModel';
 interface Props {
   item: StockItem;
-  movements: StockMovement[];
+  movements: MovementItem[];
+  movementsLoading: boolean;
+  movementsError: Error | null;
+  onRetryMovements: () => void;
   onMove: () => void;
-  onSafetyChange: (value: number) => void;
+  onSafetyChange: (value: number) => Promise<void>;
 }
-export default function StockDetail({ item, movements, onMove, onSafetyChange }: Props) {
-  const [safety, setSafety] = useState(String(item.safety));
+export default function StockDetail({
+  item,
+  movements,
+  movementsLoading,
+  movementsError,
+  onRetryMovements,
+  onMove,
+  onSafetyChange,
+}: Props) {
+  const [safety, setSafety] = useState(
+    item.minimum_stock === null ? '' : String(item.minimum_stock),
+  );
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  useEffect(() => {
+    setSafety(item.minimum_stock === null ? '' : String(item.minimum_stock));
+  }, [item.minimum_stock]);
   const valid =
     safety.trim() !== '' &&
     Number.isSafeInteger(Number(safety)) &&
@@ -24,44 +50,49 @@ export default function StockDetail({ item, movements, onMove, onSafetyChange }:
         </span>
         <div>
           <h3>{item.name}</h3>
-          <p>{item.id} · 사이드 몰딩 완제품</p>
+          <p>{item.product_code ?? NOT_AVAILABLE} · 사이드 몰딩 완제품</p>
         </div>
-        <span className={`pill ${stockStatus(item) === '정상' ? 'pill-green' : 'pill-amber'}`}>
-          {stockStatus(item)}
+        <span className={`pill ${item.is_low_stock ? 'pill-amber' : 'pill-green'}`}>
+          {stockStatus(item.is_low_stock)}
         </span>
       </div>
       <div className="inv-detail-quantities">
         <div>
           <span>현재고</span>
           <strong>
-            {item.stock.toLocaleString()}
+            {item.quantity.toLocaleString()}
             <small>개</small>
           </strong>
         </div>
         <div>
           <span>출고 예약</span>
-          <strong>
-            {item.reserved.toLocaleString()}
-            <small>개</small>
-          </strong>
+          <strong>{NOT_AVAILABLE}</strong>
         </div>
         <div>
           <span>가용재고</span>
-          <strong>
-            {availableStock(item).toLocaleString()}
-            <small>개</small>
-          </strong>
+          <strong>{NOT_AVAILABLE}</strong>
         </div>
       </div>
       <p className="inv-location">
         <MapPin size={16} />
-        {item.warehouse} · {item.bin}
+        {NOT_AVAILABLE} · {NOT_AVAILABLE}
       </p>
       <form
         className="inv-safety-form"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          if (valid) onSafetyChange(Number(safety));
+          if (!valid || saving) return;
+          setSaving(true);
+          setSaveError('');
+          try {
+            await onSafetyChange(Number(safety));
+          } catch (caught) {
+            setSaveError(
+              caught instanceof Error ? caught.message : '안전재고 기준을 변경하지 못했어요.',
+            );
+          } finally {
+            setSaving(false);
+          }
         }}
       >
         <label htmlFor="safety-stock">
@@ -76,34 +107,47 @@ export default function StockDetail({ item, movements, onMove, onSafetyChange }:
             step="1"
             required
             value={safety}
+            placeholder="미설정"
             onChange={(event) => setSafety(event.target.value)}
           />
           <span>개</span>
           <button
             className="button button-white"
             type="submit"
-            disabled={!valid || Number(safety) === item.safety}
+            disabled={!valid || saving || Number(safety) === item.minimum_stock}
           >
             <Check size={16} />
-            적용
+            {saving ? '저장 중' : '적용'}
           </button>
         </div>
+        {saveError && (
+          <p className="inv-form-error" role="alert">
+            {saveError}
+          </p>
+        )}
       </form>
       <h4>최근 입출고</h4>
       <div className="inv-detail-history">
-        {movements.length ? (
+        {movementsError ? (
+          <ApiErrorState error={movementsError} compact onRetry={onRetryMovements} />
+        ) : movementsLoading ? (
+          <LoadingState compact label="입출고 기록을 불러오는 중이에요" />
+        ) : movements.length ? (
           movements.slice(0, 5).map((movement) => (
-            <div key={movement.id}>
-              <span className={`pill ${movement.kind === 'in' ? 'pill-green' : 'pill-violet'}`}>
-                {movement.kind === 'in' ? '입고' : '출고'}
+            <div key={movement.movement_id}>
+              <span className={`pill ${movement.delta >= 0 ? 'pill-green' : 'pill-violet'}`}>
+                {movementKindLabel(movement.kind)}
               </span>
               <span>
-                {formatStockDate(movement.date)}
-                <small>{movement.note}</small>
+                {formatStockDate(movement.created_at)}
+                <small>
+                  {movement.reason ?? '사유 없음'}
+                  {movement.checked_at ? ' · 확인 완료' : ''}
+                </small>
               </span>
               <strong>
-                {movement.kind === 'in' ? '+' : '−'}
-                {movement.quantity.toLocaleString()}개
+                {movementSymbol(movement.delta)}
+                {movementAmount(movement.delta)}개
               </strong>
             </div>
           ))

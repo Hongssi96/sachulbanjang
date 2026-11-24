@@ -5,29 +5,30 @@ import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
 import FilterSelect from '../components/FilterSelect';
 import Modal from '../components/Modal';
 import SegmentedControl from '../components/SegmentedControl';
-import {
-  addCalendarEvent,
-  removeCalendarEvent,
-  updateCalendarEvent,
-  useCalendarEvents,
-} from '../services/calendarStore';
-import type { CalendarEvent } from '../types';
+import ApiErrorState from '../components/ApiErrorState';
+import LoadingState from '../components/LoadingState';
+import { createSchedule, deleteSchedule, fetchSchedules, updateSchedule } from '../api/schedules';
+import type { ScheduleCategory, ScheduleItem } from '../api/schedules';
+import { useApiQuery } from '../hooks/useApiQuery';
 
 interface SchedulePageProps {
   onToast: (message: string) => void;
 }
 
-const kindPill: Record<CalendarEvent['kind'], string> = {
+/** 화면에 쓰는 일정 종류. 서버 카테고리(production/other)는 '납품'으로 표시한다. */
+type Kind = '점검' | '납품' | '회의';
+
+const kindPill: Record<Kind, string> = {
   점검: 'pill-amber',
   납품: 'pill-green',
   회의: 'pill-violet',
 };
-const kindDot: Record<CalendarEvent['kind'], 'amber' | 'green' | 'violet'> = {
+const kindDot: Record<Kind, 'amber' | 'green' | 'violet'> = {
   점검: 'amber',
   납품: 'green',
   회의: 'violet',
 };
-const kindOptions: CalendarEvent['kind'][] = ['점검', '납품', '회의'];
+const kindOptions: Kind[] = ['점검', '납품', '회의'];
 const kindSelectOptions = kindOptions.map((kind) => ({ value: kind, label: kind }));
 const timePad = (value: number) => String(value).padStart(2, '0');
 // 일정 시간은 시·분을 따로 고르고, 분은 5분 단위로 고른다.
@@ -41,10 +42,115 @@ const minuteOptions = Array.from({ length: 12 }, (_, index) => {
 });
 const DEFAULT_HOUR = '09';
 const DEFAULT_MINUTE = '00';
-const filterOptions: Array<CalendarEvent['kind'] | '전체'> = ['전체', ...kindOptions];
+const filterOptions: Array<Kind | '전체'> = ['전체', ...kindOptions];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 // 달력 칸에는 점을 최대 3개만 그리고 나머지는 +N으로 접는다.
 const MAX_DAY_DOTS = 3;
+
+interface ScheduleView {
+  id: string;
+  scheduleId: number;
+  version: number;
+  title: string;
+  kind: Kind;
+  allDay: boolean;
+  /** 표시용 시각. 종일이면 '종일' */
+  time: string;
+  /** 자정 기준 분. 정렬에 사용하며 종일은 0 */
+  minutes: number;
+  year: number;
+  month: number;
+  day: number;
+}
+
+interface ApiErrorShape {
+  code?: string;
+  message?: string;
+}
+
+function categoryToKind(category: ScheduleCategory): Kind {
+  if (category === 'inspection') return '점검';
+  if (category === 'meeting') return '회의';
+  return '납품';
+}
+
+function kindToCategory(kind: Kind): ScheduleCategory {
+  if (kind === '점검') return 'inspection';
+  if (kind === '회의') return 'meeting';
+  return 'production';
+}
+
+/** ISO 시각을 Asia/Seoul 기준 연·월·일·시·분으로 나눈다. */
+function seoulParts(value: string) {
+  const date = new Date(value);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '0';
+  const hour = Number(part('hour'));
+  const minute = Number(part('minute'));
+  return {
+    year: Number(part('year')),
+    month: Number(part('month')) - 1,
+    day: Number(part('day')),
+    hour,
+    minute,
+    minutes: hour * 60 + minute,
+  };
+}
+
+function dateParts(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return { year, month: month - 1, day };
+}
+
+function toView(item: ScheduleItem): ScheduleView {
+  if (item.all_day && item.start_date) {
+    const { year, month, day } = dateParts(item.start_date);
+    return {
+      id: String(item.schedule_id),
+      scheduleId: item.schedule_id,
+      version: item.version,
+      title: item.title,
+      kind: categoryToKind(item.category),
+      allDay: true,
+      time: '종일',
+      minutes: 0,
+      year,
+      month,
+      day,
+    };
+  }
+  const start = item.starts_at ?? item.created_at;
+  const parts = seoulParts(start);
+  return {
+    id: String(item.schedule_id),
+    scheduleId: item.schedule_id,
+    version: item.version,
+    title: item.title,
+    kind: categoryToKind(item.category),
+    allDay: false,
+    time: `${timePad(parts.hour)}:${timePad(parts.minute)}`,
+    minutes: parts.minutes,
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+  };
+}
+
+/** 기간(양 끝 포함)의 ISO 날짜 문자열을 만든다. */
+function monthRange(year: number, month: number) {
+  const first = `${year}-${timePad(month + 1)}-01`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const last = `${year}-${timePad(month + 1)}-${timePad(lastDay)}`;
+  return { from: first, to: last };
+}
 
 export default function SchedulePage({ onToast }: SchedulePageProps) {
   const today = new Date();
@@ -52,16 +158,24 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [filter, setFilter] = useState('전체');
-  const allEvents = useCalendarEvents();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleView | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newHour, setNewHour] = useState(DEFAULT_HOUR);
   const [newMinute, setNewMinute] = useState(DEFAULT_MINUTE);
-  const [newKind, setNewKind] = useState<CalendarEvent['kind']>('점검');
+  const [newKind, setNewKind] = useState<Kind>('점검');
+  const [submitting, setSubmitting] = useState(false);
 
-  const monthEvents = allEvents.filter((event) => (event.month ?? 10) === month && year === 2026);
+  const range = monthRange(year, month);
+  const scheduleQuery = useApiQuery(
+    `schedule:${range.from}:${range.to}`,
+    () => fetchSchedules({ from: range.from, to: range.to, pageSize: 100 }),
+    { pollMs: 60_000 },
+  );
+  const allEvents = (scheduleQuery.data?.items ?? []).map(toView);
+
+  const monthEvents = allEvents.filter((event) => event.year === year && event.month === month);
   const dayEvents = (day: number) =>
     monthEvents.filter(
       (event) => event.day === day && (filter === '전체' || event.kind === filter),
@@ -69,7 +183,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
   const dayEventList = (day: number) =>
     dayEvents(day)
       .slice()
-      .sort((a, b) => a.time.localeCompare(b.time));
+      .sort((a, b) => a.minutes - b.minutes);
   const selectedEvents = dayEventList(selectedDay);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -105,45 +219,92 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
     resetForm();
     setShowForm(true);
   };
-  const startEdit = (event: CalendarEvent) => {
+  const startEdit = (event: ScheduleView) => {
     setEditingId(event.id);
     setNewTitle(event.title);
-    setNewHour(event.time.slice(0, 2));
-    setNewMinute(event.time.slice(3, 5));
+    if (!event.allDay) {
+      setNewHour(event.time.slice(0, 2));
+      setNewMinute(event.time.slice(3, 5));
+    }
     setNewKind(event.kind);
     setShowForm(true);
   };
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const reportError = (error: unknown) => {
+    const apiError = error as ApiErrorShape;
+    if (apiError.code === 'VERSION_CONFLICT') {
+      scheduleQuery.reload();
+      onToast('다른 변경이 먼저 저장되었습니다. 목록을 새로 불러왔어요.');
+      return;
+    }
+    onToast(typeof apiError.message === 'string' ? apiError.message : '일정을 저장하지 못했어요.');
+  };
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = newTitle.trim();
     if (!title) {
       onToast('일정 제목을 입력해 주세요.');
       return;
     }
-    const time = `${newHour}:${newMinute}`;
-    if (editingId) {
-      const target = allEvents.find((item) => item.id === editingId);
-      if (target) updateCalendarEvent({ ...target, title, time, kind: newKind });
-    } else {
-      addCalendarEvent({
-        day: selectedDay,
-        time,
-        title,
-        kind: newKind,
-        month,
-        description: '이 브라우저 세션에 추가한 일정이에요.',
-      });
-      onToast(
-        `${month + 1}월 ${selectedDay}일에 일정을 추가했어요. 이 브라우저 세션에 유지됩니다.`,
-      );
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        const target = allEvents.find((item) => item.id === editingId);
+        if (target) {
+          const body = { version: target.version, title, category: kindToCategory(newKind) };
+          if (target.allDay) {
+            await updateSchedule(target.scheduleId, body);
+          } else {
+            const start = `${year}-${timePad(month + 1)}-${timePad(target.day)}T${newHour}:${newMinute}:00+09:00`;
+            const endMinutes = Number(newHour) * 60 + Number(newMinute) + 60;
+            const endHour = timePad(Math.min(23, Math.floor(endMinutes / 60)));
+            const endMinute = timePad(endMinutes % 60);
+            const end = `${year}-${timePad(month + 1)}-${timePad(target.day)}T${endHour}:${endMinute}:00+09:00`;
+            await updateSchedule(target.scheduleId, {
+              ...body,
+              allDay: false,
+              startsAt: start,
+              endsAt: end,
+            });
+          }
+          onToast('일정을 수정했어요.');
+        }
+      } else {
+        const startMinutes = Number(newHour) * 60 + Number(newMinute);
+        const endMinutes = startMinutes + 60;
+        const endHour = timePad(Math.min(23, Math.floor(endMinutes / 60)));
+        const endMinute = timePad(endMinutes % 60);
+        const date = `${year}-${timePad(month + 1)}-${timePad(selectedDay)}`;
+        await createSchedule({
+          title,
+          category: kindToCategory(newKind),
+          allDay: false,
+          startsAt: `${date}T${newHour}:${newMinute}:00+09:00`,
+          endsAt: `${date}T${endHour}:${endMinute}:00+09:00`,
+        });
+        onToast(`${month + 1}월 ${selectedDay}일에 일정을 추가했어요.`);
+      }
+      scheduleQuery.reload();
+      resetForm();
+    } catch (error: unknown) {
+      reportError(error);
+    } finally {
+      setSubmitting(false);
     }
-    resetForm();
   };
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-    removeCalendarEvent(deleteTarget.id);
-    if (editingId === deleteTarget.id) resetForm();
-    setDeleteTarget(null);
+    setSubmitting(true);
+    try {
+      await deleteSchedule(deleteTarget.scheduleId, deleteTarget.version);
+      if (editingId === deleteTarget.id) resetForm();
+      onToast('일정을 삭제했어요.');
+      scheduleQuery.reload();
+    } catch (error: unknown) {
+      reportError(error);
+    } finally {
+      setSubmitting(false);
+      setDeleteTarget(null);
+    }
   };
 
   return (
@@ -189,42 +350,48 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
               <span key={weekday}>{weekday}</span>
             ))}
           </div>
-          <div className="sc-days">
-            {Array.from({ length: totalCells }, (_, index) => {
-              const day = index - firstWeekday + 1;
-              if (day < 1 || day > daysInMonth) {
-                const outDay = day < 1 ? prevMonthDays + day : day - daysInMonth;
-                return (
-                  <span key={`out-${index}`} className="sc-day sc-day-out" aria-hidden="true">
-                    {outDay}
-                  </span>
-                );
-              }
-              const eventsOfDay = dayEventList(day);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  className={`sc-day ${day === selectedDay ? 'selected' : ''}`}
-                  aria-label={`${month + 1}월 ${day}일, 일정 ${eventsOfDay.length}건`}
-                  aria-pressed={day === selectedDay}
-                  onClick={() => setSelectedDay(day)}
-                >
-                  {day}
-                  {eventsOfDay.length > 0 && (
-                    <span className="sc-dots">
-                      {eventsOfDay.slice(0, MAX_DAY_DOTS).map((event) => (
-                        <i key={event.id} className={`sc-dot sc-dot-${kindDot[event.kind]}`} />
-                      ))}
-                      {eventsOfDay.length > MAX_DAY_DOTS && (
-                        <span className="sc-dot-more">+{eventsOfDay.length - MAX_DAY_DOTS}</span>
-                      )}
+          {scheduleQuery.loading && !scheduleQuery.data ? (
+            <LoadingState compact label="일정을 불러오는 중이에요" />
+          ) : scheduleQuery.error ? (
+            <ApiErrorState compact error={scheduleQuery.error} onRetry={scheduleQuery.reload} />
+          ) : (
+            <div className="sc-days">
+              {Array.from({ length: totalCells }, (_, index) => {
+                const day = index - firstWeekday + 1;
+                if (day < 1 || day > daysInMonth) {
+                  const outDay = day < 1 ? prevMonthDays + day : day - daysInMonth;
+                  return (
+                    <span key={`out-${index}`} className="sc-day sc-day-out" aria-hidden="true">
+                      {outDay}
                     </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  );
+                }
+                const eventsOfDay = dayEventList(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    className={`sc-day ${day === selectedDay ? 'selected' : ''}`}
+                    aria-label={`${month + 1}월 ${day}일, 일정 ${eventsOfDay.length}건`}
+                    aria-pressed={day === selectedDay}
+                    onClick={() => setSelectedDay(day)}
+                  >
+                    {day}
+                    {eventsOfDay.length > 0 && (
+                      <span className="sc-dots">
+                        {eventsOfDay.slice(0, MAX_DAY_DOTS).map((event) => (
+                          <i key={event.id} className={`sc-dot sc-dot-${kindDot[event.kind]}`} />
+                        ))}
+                        {eventsOfDay.length > MAX_DAY_DOTS && (
+                          <span className="sc-dot-more">+{eventsOfDay.length - MAX_DAY_DOTS}</span>
+                        )}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <aside className="card sc-detail" aria-label={`${month + 1}월 ${selectedDay}일 일정 상세`}>
@@ -305,10 +472,10 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
                   value={newKind}
                   options={kindSelectOptions}
                   label="일정 종류"
-                  onChange={(value) => setNewKind(value as CalendarEvent['kind'])}
+                  onChange={(value) => setNewKind(value as Kind)}
                 />
                 <div className="sc-add-actions">
-                  <button type="submit" className="button button-primary">
+                  <button type="submit" className="button button-primary" disabled={submitting}>
                     {editingId ? '수정' : '추가'}
                   </button>
                   <button type="button" className="button button-white" onClick={resetForm}>
@@ -336,7 +503,11 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
               <button className="button button-white" onClick={() => setDeleteTarget(null)}>
                 취소
               </button>
-              <button className="button button-primary" onClick={confirmDelete}>
+              <button
+                className="button button-primary"
+                onClick={() => void confirmDelete()}
+                disabled={submitting}
+              >
                 삭제
               </button>
             </div>

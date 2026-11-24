@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   Boxes,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   Download,
   FilterX,
@@ -29,40 +31,66 @@ import {
   X,
 } from 'lucide-react';
 import Modal from '../../components/Modal';
-import StockDetail from './StockDetail';
-import StockMovementForm from './StockMovementForm';
+import ApiErrorState from '../../components/ApiErrorState';
+import { useApiQuery } from '../../hooks/useApiQuery';
+import { useAuth } from '../../hooks/useAuth';
 import {
-  applyMovement,
-  availableStock,
+  confirmMovement,
+  createMovement,
+  createMovementCorrection,
+  fetchMovements,
+  fetchStocks,
+  setMinimumStock,
+} from '../../api/inventory';
+import type { MovementItem } from '../../api/inventory';
+import StockDetail from './StockDetail';
+import StockMovementForm, { StockCorrectionForm } from './StockMovementForm';
+import type { MovementFormValues } from './StockMovementForm';
+import {
+  fetchAllStocks,
+  formatMinimumStock,
   formatStockDate,
   inventorySummary,
-  loadInventory,
-  persistInventory,
-  productGroups,
+  movementAmount,
+  movementFilterKind,
+  movementKindLabel,
+  movementSymbol,
+  movementTone,
+  NOT_AVAILABLE,
   stockStatus,
 } from './inventoryModel';
-import type { InventoryState, StockMovement } from './inventoryModel';
+import type { MovementFilter } from './inventoryModel';
 import './InventoryPage.css';
 
+// API가 제품군·창고 값을 제공하지 않아 원본 화면의 필터 선택지만 유지한다.
+const PRODUCT_GROUPS = ['CN7', 'RG3', 'JX1', 'SP2'] as const;
+const WAREHOUSES = ['A창고', 'B창고', 'C창고'] as const;
+const PAGE_SIZE = 10;
+const HISTORY_PAGE_SIZE = 50;
+
 type DialogState =
-  | { kind: 'movement'; itemId?: string }
-  | { kind: 'detail'; itemId: string }
+  | { kind: 'movement'; productId?: number }
+  | { kind: 'detail'; productId: number }
   | { kind: 'history' }
+  | { kind: 'correct'; movement: MovementItem }
   | { kind: 'help' }
   | null;
 export default function InventoryPage() {
-  const [inventory, setInventory] = useState<InventoryState>(loadInventory);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [params, rawSetParams] = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const setParams = (...args: Parameters<typeof rawSetParams>) =>
     startTransition(() => rawSetParams(...args));
   const [dialog, setDialog] = useState<DialogState>(null);
   const [feedback, setFeedback] = useState('');
-  const [historyKind, setHistoryKind] = useState('all');
+  const [historyKind, setHistoryKind] = useState<MovementFilter>('all');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [pendingActionId, setPendingActionId] = useState<number | null>(null);
+  const refresh = () => setRefreshToken((value) => value + 1);
   const query = params.get('q') ?? '';
-  const product = productGroups.find((value) => value === params.get('product')) ?? '';
-  const warehouse =
-    ['A창고', 'B창고', 'C창고'].find((value) => value === params.get('warehouse')) ?? '';
+  const product = PRODUCT_GROUPS.find((value) => value === params.get('product')) ?? '';
+  const warehouse = WAREHOUSES.find((value) => value === params.get('warehouse')) ?? '';
   const onlyLow = params.get('status') === 'low';
   const revealLowStock = useRef(false);
   useEffect(() => {
@@ -82,37 +110,60 @@ export default function InventoryPage() {
       : order === 'available-desc'
         ? ''
         : 'available-asc';
-  const summary = inventorySummary(inventory.items);
-  const rows = inventory.items.filter(
-    (item) =>
-      (!product || item.product === product) &&
-      (!warehouse || item.warehouse === warehouse) &&
-      (!onlyLow || stockStatus(item) !== '정상') &&
-      `${item.name} ${item.id}`.toLowerCase().includes(query.trim().toLowerCase()),
+  const sortActive = order === 'available-asc' || order === 'available-desc';
+  const requested = Number(params.get('page'));
+  const requestedPage = Number.isInteger(requested) && requested >= 1 ? requested : 1;
+  const stocksQuery = useApiQuery(
+    `inventory-stocks:${query}:${onlyLow}:${requestedPage}:${refreshToken}`,
+    () =>
+      fetchStocks({
+        q: query || undefined,
+        lowStock: onlyLow,
+        page: requestedPage,
+        pageSize: PAGE_SIZE,
+      }),
   );
-  if (order === 'available-asc' || order === 'available-desc')
-    rows.sort(
-      (a, b) => (availableStock(a) - availableStock(b)) * (order === 'available-asc' ? 1 : -1),
-    );
-  const lowItems = inventory.items.filter((item) => stockStatus(item) !== '정상');
+  // KPI·부족 알림·품목 선택지는 페이지와 무관한 전체 목록이 필요하다.
+  const allStocksQuery = useApiQuery(`inventory-stocks-all:${refreshToken}`, fetchAllStocks);
+  const recentQuery = useApiQuery(`inventory-movements-recent:${historyKind}:${refreshToken}`, () =>
+    fetchMovements({ kind: movementFilterKind(historyKind), pageSize: 5 }),
+  );
+  const historyQuery = useApiQuery(
+    `inventory-movements-history:${refreshToken}`,
+    () => fetchMovements({ pageSize: HISTORY_PAGE_SIZE }),
+    { enabled: dialog?.kind === 'history' },
+  );
+  const detailProductId = dialog?.kind === 'detail' ? dialog.productId : undefined;
+  const detailMovementsQuery = useApiQuery(
+    `inventory-movements-detail:${detailProductId ?? 'none'}:${refreshToken}`,
+    () =>
+      fetchMovements({
+        productId: detailProductId,
+        pageSize: 5,
+      }),
+    { enabled: detailProductId !== undefined },
+  );
+  const allStocks = allStocksQuery.data;
+  const summary = inventorySummary(allStocks ?? []);
+  const itemCount = allStocks === null ? null : allStocks.length;
+  const lowItems = (allStocks ?? []).filter((item) => item.is_low_stock);
+  const rows = stocksQuery.data?.items ?? [];
+  const totalItems = stocksQuery.data?.pagination.total_items ?? 0;
+  const totalPages = stocksQuery.data?.pagination.total_pages ?? 0;
+  const page = Math.min(requestedPage, Math.max(1, totalPages));
   const detailItem =
-    dialog?.kind === 'detail'
-      ? inventory.items.find((item) => item.id === dialog.itemId)
-      : undefined;
-  const recentMovements = inventory.movements.filter(
-    (movement) => historyKind === 'all' || movement.kind === historyKind,
-  );
-  const groupedStock = productGroups.map((group) => ({
-    group,
-    ...inventorySummary(inventory.items.filter((item) => item.product === group)),
-  }));
-  const maxStock = Math.max(...groupedStock.map((group) => group.stock), 1);
+    detailProductId === undefined
+      ? undefined
+      : allStocks?.find((item) => item.product_id === detailProductId);
+  const groupedStock = PRODUCT_GROUPS.map((group) => ({ group }));
   const setFilter = (key: string, value: string) => {
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
         if (value) next.set(key, value);
         else next.delete(key);
+        // 조건이 바뀌면 첫 페이지로 돌아간다.
+        if (key !== 'page') next.delete('page');
         return next;
       },
       { replace: true },
@@ -127,36 +178,43 @@ export default function InventoryPage() {
     value: query,
     onSearch: (value) => setFilter('q', value),
   });
-  const commitInventory = (next: InventoryState, message: string) => {
-    setInventory(next);
+  const saveMovement = async (values: MovementFormValues) => {
+    const result = await createMovement({
+      productId: values.productId,
+      kind: values.kind,
+      quantity: values.quantity,
+      reason: values.reason,
+    });
+    const target = (allStocks ?? []).find((item) => item.product_id === values.productId);
     setFeedback(
-      persistInventory(next)
-        ? message
-        : `${message} 브라우저 저장에 실패해 새로고침하면 변경이 사라집니다.`,
+      `${target?.name ?? '품목'} ${Math.abs(result.delta).toLocaleString()}개 ${movementKindLabel(result.kind)} 기록을 저장했어요.`,
     );
+    refresh();
+    setDialog(null);
   };
-  const saveMovement = (movement: StockMovement) => {
+  const updateSafety = async (productId: number, value: number) => {
+    await setMinimumStock(productId, value);
+    setFeedback('안전재고 기준을 변경했어요.');
+    refresh();
+  };
+  const confirm = async (movement: MovementItem) => {
+    setPendingActionId(movement.movement_id);
     try {
-      const next = applyMovement(inventory, movement);
-      commitInventory(
-        next,
-        `${inventory.items.find((item) => item.id === movement.itemId)?.name} ${movement.quantity.toLocaleString()}개 ${movement.kind === 'in' ? '입고' : '출고'}를 기록했어요.`,
-      );
-      setDialog(null);
-    } catch (error: unknown) {
-      setFeedback(error instanceof Error ? error.message : '입출고 기록을 저장하지 못했어요.');
+      await confirmMovement(movement.movement_id);
+      setFeedback('입출고 기록을 확인했어요.');
+      refresh();
+    } catch (caught) {
+      setFeedback(caught instanceof Error ? caught.message : '입출고 기록을 확인하지 못했어요.');
+    } finally {
+      setPendingActionId(null);
     }
   };
-  const updateSafety = (itemId: string, safety: number) => {
-    if (!Number.isSafeInteger(safety) || safety < 0 || safety > 9999999) return;
-    commitInventory(
-      {
-        ...inventory,
-        items: inventory.items.map((item) => (item.id === itemId ? { ...item, safety } : item)),
-        updatedAt: new Date().toISOString(),
-      },
-      '안전재고 기준을 변경했어요.',
-    );
+  const submitCorrection = async (delta: number, reason: string) => {
+    if (dialog?.kind !== 'correct') return;
+    await createMovementCorrection(dialog.movement.movement_id, { delta, reason });
+    setFeedback('입출고 기록을 정정했어요.');
+    refresh();
+    setDialog(null);
   };
   const download = () => {
     const cells = [
@@ -172,15 +230,15 @@ export default function InventoryPage() {
         '상태',
       ],
       ...rows.map((item) => [
-        item.id,
+        item.product_code ?? NOT_AVAILABLE,
         item.name,
-        String(item.stock),
-        String(item.reserved),
-        String(availableStock(item)),
-        String(item.safety),
-        item.warehouse,
-        item.bin,
-        stockStatus(item),
+        String(item.quantity),
+        NOT_AVAILABLE,
+        NOT_AVAILABLE,
+        item.minimum_stock === null ? '미설정' : String(item.minimum_stock),
+        NOT_AVAILABLE,
+        NOT_AVAILABLE,
+        stockStatus(item.is_low_stock),
       ]),
     ];
     const csv =
@@ -196,42 +254,84 @@ export default function InventoryPage() {
     URL.revokeObjectURL(url);
     setFeedback(`조회 결과 ${rows.length}개 품목을 CSV로 내려받았어요.`);
   };
-  const movementList = (movements: StockMovement[]) => (
+  const movementList = (movements: MovementItem[], withActions = false) => (
     <div className="inv-movement-list">
       {movements.length ? (
-        movements.map((movement) => (
-          <div className="inv-movement-row" key={movement.id}>
-            <span className={`inv-movement-icon ${movement.kind === 'in' ? 'in' : 'out'}`}>
-              {movement.kind === 'in' ? (
-                <ArrowDownToLine size={18} />
-              ) : (
-                <ArrowUpFromLine size={18} />
+        movements.map((movement) => {
+          const tone = movementTone(movement.delta);
+          const canConfirm = isAdmin && !movement.checked_at;
+          const canCorrect =
+            movement.kind !== 'correction' &&
+            !movement.checked_at &&
+            (isAdmin || movement.actor_id === user?.id);
+          return (
+            <div className="inv-movement-row" key={movement.movement_id}>
+              <span className={`inv-movement-icon ${tone}`}>
+                {tone === 'in' ? <ArrowDownToLine size={18} /> : <ArrowUpFromLine size={18} />}
+              </span>
+              <div>
+                <strong>
+                  {movement.product_name}
+                  <span>{movementKindLabel(movement.kind)}</span>
+                  {movement.checked_at && <span>확인 완료</span>}
+                </strong>
+                <small>
+                  {formatStockDate(movement.created_at)} · {movement.actor_display_name}
+                  {movement.reason ? ` · ${movement.reason}` : ''}
+                </small>
+              </div>
+              <span className={`inv-movement-quantity ${tone === 'in' ? 'in' : ''}`}>
+                {movementSymbol(movement.delta)}
+                {movementAmount(movement.delta)}
+                <small>개</small>
+              </span>
+              {withActions && (canConfirm || canCorrect) && (
+                <div className="inv-movement-actions">
+                  {canConfirm && (
+                    <button
+                      className="text-link"
+                      type="button"
+                      disabled={pendingActionId === movement.movement_id}
+                      onClick={() => void confirm(movement)}
+                    >
+                      확인
+                    </button>
+                  )}
+                  {canCorrect && (
+                    <button
+                      className="text-link"
+                      type="button"
+                      disabled={pendingActionId === movement.movement_id}
+                      onClick={() => setDialog({ kind: 'correct', movement })}
+                    >
+                      정정
+                    </button>
+                  )}
+                </div>
               )}
-            </span>
-            <div>
-              <strong>
-                {inventory.items.find((item) => item.id === movement.itemId)?.name}
-                <span>{movement.kind === 'in' ? '입고' : '출고'}</span>
-              </strong>
-              <small>
-                {formatStockDate(movement.date)} · {movement.author}
-              </small>
             </div>
-            <span className={`inv-movement-quantity ${movement.kind === 'in' ? 'in' : ''}`}>
-              {movement.kind === 'in' ? '+' : '−'}
-              {movement.quantity.toLocaleString()}
-              <small>개</small>
-            </span>
-          </div>
-        ))
+          );
+        })
       ) : (
         <p className="empty-text">해당하는 입출고 기록이 없어요.</p>
       )}
     </div>
   );
+  const dialogTitle =
+    dialog?.kind === 'movement'
+      ? '완제품 입출고 등록'
+      : dialog?.kind === 'detail'
+        ? '품목 재고 상세'
+        : dialog?.kind === 'history'
+          ? '입출고 이력'
+          : dialog?.kind === 'correct'
+            ? '입출고 기록 정정'
+            : '재고 기준 안내';
   return (
     <div className="inventory-page">
-      {isPending && <LoadingState compact label="재고 데이터를 조회하는 중이에요" />}
+      {(isPending || stocksQuery.loading) && (
+        <LoadingState compact label="재고 데이터를 조회하는 중이에요" />
+      )}
       <h1 className="sr-only">재고 관리</h1>
       {feedback && (
         <div className="inv-feedback" role="status">
@@ -246,33 +346,39 @@ export default function InventoryPage() {
           </button>
         </div>
       )}
-      <div className={`inv-stock-alert ${lowItems.length ? '' : 'inv-stock-safe'}`}>
-        <span className="inv-alert-tag">
-          {lowItems.length ? <TriangleAlert size={16} /> : <ShieldCheck size={16} />}
-          {lowItems.length ? '재고 부족' : '재고 정상'}
-        </span>
-        <p>
-          {lowItems.length ? (
-            <>
-              <strong>{lowItems.map((item) => item.name).join(', ')}</strong>의 가용재고가 안전재고
-              기준에 미달합니다.
-            </>
-          ) : (
-            <strong>모든 품목의 가용재고가 안전재고 기준을 충족하고 있어요.</strong>
+      {allStocksQuery.error ? (
+        <ApiErrorState compact error={allStocksQuery.error} onRetry={allStocksQuery.reload} />
+      ) : allStocks === null ? (
+        <LoadingState compact label="재고 현황을 불러오는 중이에요" />
+      ) : (
+        <div className={`inv-stock-alert ${lowItems.length ? '' : 'inv-stock-safe'}`}>
+          <span className="inv-alert-tag">
+            {lowItems.length ? <TriangleAlert size={16} /> : <ShieldCheck size={16} />}
+            {lowItems.length ? '재고 부족' : '재고 정상'}
+          </span>
+          <p>
+            {lowItems.length ? (
+              <>
+                <strong>{lowItems.map((item) => item.name).join(', ')}</strong>의 가용재고가
+                안전재고 기준에 미달합니다.
+              </>
+            ) : (
+              <strong>모든 품목의 가용재고가 안전재고 기준을 충족하고 있어요.</strong>
+            )}
+          </p>
+          {lowItems.length > 0 && (
+            <button
+              onClick={() => {
+                revealLowStock.current = true;
+                setParams({ status: 'low' });
+              }}
+            >
+              부족 재고 확인
+              <ArrowRight size={16} />
+            </button>
           )}
-        </p>
-        {lowItems.length > 0 && (
-          <button
-            onClick={() => {
-              revealLowStock.current = true;
-              setParams({ status: 'low' });
-            }}
-          >
-            부족 재고 확인
-            <ArrowRight size={16} />
-          </button>
-        )}
-      </div>
+        </div>
+      )}
       <section aria-labelledby="inventory-summary-title">
         <div className="kpi-grid">
           <article className="kpi">
@@ -281,12 +387,14 @@ export default function InventoryPage() {
               <Boxes size={19} />
             </div>
             <div className="kpi-value">
-              {summary.stock.toLocaleString()}
-              <span>개</span>
+              {allStocks === null ? NOT_AVAILABLE : summary.stock.toLocaleString()}
+              {allStocks !== null && <span>개</span>}
             </div>
             <div className="kpi-bottom">
               <span>보관 중인 전체 완제품</span>
-              <span className="positive">{inventory.items.length}개 품목</span>
+              <span className="positive">
+                {itemCount === null ? NOT_AVAILABLE : `${itemCount}개 품목`}
+              </span>
             </div>
             <div className="mini-progress">
               <span style={{ width: '100%' }} />
@@ -297,20 +405,13 @@ export default function InventoryPage() {
               가용재고
               <PackageCheck size={19} />
             </div>
-            <div className="kpi-value">
-              {summary.available.toLocaleString()}
-              <span>개</span>
-            </div>
+            <div className="kpi-value">{NOT_AVAILABLE}</div>
             <div className="kpi-bottom">
               <span>현재고 − 출고 예약</span>
               <span className="positive">즉시 출고 가능</span>
             </div>
             <div className="mini-progress">
-              <span
-                style={{
-                  width: `${summary.stock ? (summary.available / summary.stock) * 100 : 0}%`,
-                }}
-              />
+              <span style={{ width: '0%' }} />
             </div>
           </article>
           <article className="kpi">
@@ -318,20 +419,13 @@ export default function InventoryPage() {
               출고 예약
               <Truck size={19} />
             </div>
-            <div className="kpi-value">
-              {summary.reserved.toLocaleString()}
-              <span>개</span>
-            </div>
+            <div className="kpi-value">{NOT_AVAILABLE}</div>
             <div className="kpi-bottom">
               <span>납품을 위해 확보한 수량</span>
               <span>예약 제외 후 출고</span>
             </div>
             <div className="mini-progress inv-reserved-progress">
-              <span
-                style={{
-                  width: `${summary.stock ? (summary.reserved / summary.stock) * 100 : 0}%`,
-                }}
-              />
+              <span style={{ width: '0%' }} />
             </div>
           </article>
           <article className="kpi">
@@ -340,11 +434,15 @@ export default function InventoryPage() {
               <TriangleAlert size={19} />
             </div>
             <div className="kpi-value">
-              {summary.low}
-              <span>개 품목</span>
-              <span className={`pill ${summary.low ? 'pill-amber' : 'pill-green'}`}>
-                {summary.low ? '확인 필요' : '재고 정상'}
-              </span>
+              {allStocks === null ? NOT_AVAILABLE : summary.low}
+              {allStocks !== null && (
+                <>
+                  <span>개 품목</span>
+                  <span className={`pill ${summary.low ? 'pill-amber' : 'pill-green'}`}>
+                    {summary.low ? '확인 필요' : '재고 정상'}
+                  </span>
+                </>
+              )}
             </div>
             <div className="kpi-bottom">
               <span>가용재고와 안전재고 비교</span>
@@ -364,7 +462,9 @@ export default function InventoryPage() {
         <div className="inv-stock-header">
           <div className="heading-inline">
             <h2 id="inventory-table-heading">품목별 재고 현황</h2>
-            <span className="pill pill-neutral">{inventory.items.length}품목</span>
+            <span className="pill pill-neutral">
+              {itemCount === null ? NOT_AVAILABLE : `${itemCount}품목`}
+            </span>
           </div>
           <div className="inv-intro-actions">
             <button className="text-link" onClick={() => setDialog({ kind: 'help' })}>
@@ -391,14 +491,12 @@ export default function InventoryPage() {
         <div className="inv-category-bar">
           <div className="inv-category">
             <Package size={18} />
-            완제품<span>{inventory.items.length}</span>
+            완제품<span>{itemCount === null ? NOT_AVAILABLE : itemCount}</span>
           </div>
           <span className="inv-category-future">
             원자재 <small>추후 지원</small>
           </span>
-          <span className="inv-last-update">
-            마지막 갱신 {formatStockDate(inventory.updatedAt)}
-          </span>
+          <span className="inv-last-update">마지막 갱신 {NOT_AVAILABLE}</span>
         </div>
         <div className="inv-filter-bar">
           <label className="inv-search">
@@ -423,7 +521,7 @@ export default function InventoryPage() {
               onChange={(value) => setFilter('product', value)}
               options={[
                 { value: '', label: '전체 제품' },
-                ...productGroups.map((value) => ({ value, label: value })),
+                ...PRODUCT_GROUPS.map((value) => ({ value, label: value })),
               ]}
             />
           </div>
@@ -434,7 +532,7 @@ export default function InventoryPage() {
               onChange={(value) => setFilter('warehouse', value)}
               options={[
                 { value: '', label: '전체 창고' },
-                ...['A창고', 'B창고', 'C창고'].map((value) => ({ value, label: value })),
+                ...WAREHOUSES.map((value) => ({ value, label: value })),
               ]}
             />
           </div>
@@ -445,152 +543,187 @@ export default function InventoryPage() {
             value={onlyLow ? 'low' : 'all'}
             options={[
               { value: 'all', label: '전체' },
-              { value: 'low', label: '부족·품절', count: summary.low, countTone: 'warning' },
+              {
+                value: 'low',
+                label: '부족·품절',
+                count: allStocks === null ? undefined : summary.low,
+                countTone: 'warning',
+              },
             ]}
             onChange={(value) => setFilter('status', value === 'low' ? 'low' : '')}
           />
         </div>
+        {(product || warehouse) && (
+          <p className="inv-api-note" role="status">
+            제품군·창고 정보는 API에서 제공되지 않아 선택한 조건은 조회 결과에 적용되지 않아요. 해당
+            조건의 품목이 없을 수 있어요.
+          </p>
+        )}
+        {sortActive && (
+          <p className="inv-api-note" role="status">
+            가용재고 값이 API에 없어 정렬은 표시 순서에 반영되지 않아요.
+          </p>
+        )}
         {onlyLow && (
           <div className="inv-shortage-summary" role="status">
             <strong>부족·품절 품목 {rows.length}개 표시 중</strong>
             {rows.map((item) => (
-              <span key={item.id}>
-                {item.name} · 가용 {availableStock(item).toLocaleString()}개 / 안전{' '}
-                {item.safety.toLocaleString()}개 · 부족{' '}
-                {Math.max(0, item.safety - availableStock(item)).toLocaleString()}개
+              <span key={item.product_id}>
+                {item.name} · 가용 {NOT_AVAILABLE} / 안전 {formatMinimumStock(item.minimum_stock)} ·
+                부족 {NOT_AVAILABLE}
               </span>
             ))}
           </div>
         )}
-        <div
-          className="inv-table-scroll"
-          // 필터 결과 수가 달라져도 표 영역 높이는 유지한다(행 64px + 구분선 1px).
-          style={{ minHeight: `${56 + inventory.items.length * 65}px` }}
-          tabIndex={0}
-          role="region"
-          aria-label="품목별 재고 표"
-        >
-          <table className="inv-stock-table">
-            <caption className="sr-only">
-              완제품 재고 현황. 가용재고는 현재고에서 출고 예약을 뺀 수량입니다.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">제품 / 품목 코드</th>
-                <th scope="col" className="inv-number">
-                  현재고
-                </th>
-                <th scope="col" className="inv-number">
-                  출고 예약
-                </th>
-                <th
-                  scope="col"
-                  className="inv-number"
-                  aria-sort={
-                    order === 'available-asc'
-                      ? 'ascending'
-                      : order === 'available-desc'
-                        ? 'descending'
-                        : 'none'
-                  }
-                >
-                  <button
-                    aria-label={`가용재고 정렬: ${sortLabel}`}
-                    onClick={() => setFilter('sort', nextOrder)}
+        {stocksQuery.error ? (
+          <ApiErrorState error={stocksQuery.error} onRetry={stocksQuery.reload} />
+        ) : (
+          <div
+            className="inv-table-scroll"
+            // 필터 결과 수가 달라져도 표 영역 높이는 유지한다(행 64px + 구분선 1px).
+            style={{ minHeight: `${56 + Math.max(rows.length, 1) * 65}px` }}
+            tabIndex={0}
+            role="region"
+            aria-label="품목별 재고 표"
+          >
+            <table className="inv-stock-table">
+              <caption className="sr-only">
+                완제품 재고 현황. 가용재고는 현재고에서 출고 예약을 뺀 수량입니다.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">제품 / 품목 코드</th>
+                  <th scope="col" className="inv-number">
+                    현재고
+                  </th>
+                  <th scope="col" className="inv-number">
+                    출고 예약
+                  </th>
+                  <th
+                    scope="col"
+                    className="inv-number"
+                    aria-sort={
+                      order === 'available-asc'
+                        ? 'ascending'
+                        : order === 'available-desc'
+                          ? 'descending'
+                          : 'none'
+                    }
                   >
-                    가용재고
-                    {order === 'available-asc' ? (
-                      <ArrowUp size={14} />
-                    ) : order === 'available-desc' ? (
-                      <ArrowDown size={14} />
-                    ) : (
-                      <ArrowDownUp size={14} />
-                    )}
-                  </button>
-                </th>
-                <th scope="col" className="inv-number">
-                  안전재고
-                </th>
-                <th scope="col">보관 위치</th>
-                <th scope="col">상태</th>
-                <th scope="col">상세</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr key={item.id}>
-                  <td>
                     <button
-                      className="inv-product-cell"
-                      onClick={() => setDialog({ kind: 'detail', itemId: item.id })}
+                      aria-label={`가용재고 정렬: ${sortLabel}`}
+                      onClick={() => setFilter('sort', nextOrder)}
                     >
-                      <span
-                        className={`inv-product-icon ${stockStatus(item) !== '정상' ? 'warning' : ''}`}
-                      >
-                        <Package size={18} />
-                      </span>
-                      <span>
-                        <strong>{item.name}</strong>
-                        <small>{item.id}</small>
-                      </span>
-                    </button>
-                  </td>
-                  <td className="inv-number">{item.stock.toLocaleString()}</td>
-                  <td className="inv-number inv-muted-number">{item.reserved.toLocaleString()}</td>
-                  <td
-                    className={`inv-number inv-available ${stockStatus(item) !== '정상' ? 'warning' : ''}`}
-                  >
-                    {availableStock(item).toLocaleString()}
-                  </td>
-                  <td className="inv-number inv-muted-number">{item.safety.toLocaleString()}</td>
-                  <td>
-                    <span className="inv-warehouse">
-                      <MapPin size={13} />
-                      {item.warehouse}
-                      <small>{item.bin}</small>
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className={`pill ${stockStatus(item) === '정상' ? 'pill-green' : 'pill-amber'}`}
-                    >
-                      {stockStatus(item) === '정상' ? (
-                        <Check size={12} />
+                      가용재고
+                      {order === 'available-asc' ? (
+                        <ArrowUp size={14} />
+                      ) : order === 'available-desc' ? (
+                        <ArrowDown size={14} />
                       ) : (
-                        <TriangleAlert size={12} />
+                        <ArrowDownUp size={14} />
                       )}
-                      {stockStatus(item)}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="inv-detail-link"
-                      aria-label={`${item.name} 상세 보기`}
-                      onClick={() => setDialog({ kind: 'detail', itemId: item.id })}
-                    >
-                      상세 보기 <ArrowUpRight size={15} />
                     </button>
-                  </td>
+                  </th>
+                  <th scope="col" className="inv-number">
+                    안전재고
+                  </th>
+                  <th scope="col">보관 위치</th>
+                  <th scope="col">상태</th>
+                  <th scope="col">상세</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {!rows.length && (
-            <div className="inv-empty">
-              <PackageSearch size={36} />
-              <h3>조건에 맞는 재고가 없어요</h3>
-              <p>검색어나 조회 조건을 바꿔 다시 확인해 주세요.</p>
-              <button className="button button-white" onClick={() => setParams({})}>
-                <FilterX size={16} />
-                필터 초기화
-              </button>
-            </div>
-          )}
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((item) => (
+                  <tr key={item.product_id}>
+                    <td>
+                      <button
+                        className="inv-product-cell"
+                        onClick={() => setDialog({ kind: 'detail', productId: item.product_id })}
+                      >
+                        <span className={`inv-product-icon ${item.is_low_stock ? 'warning' : ''}`}>
+                          <Package size={18} />
+                        </span>
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>{item.product_code ?? NOT_AVAILABLE}</small>
+                        </span>
+                      </button>
+                    </td>
+                    <td className="inv-number">{item.quantity.toLocaleString()}</td>
+                    <td className="inv-number inv-muted-number">{NOT_AVAILABLE}</td>
+                    <td
+                      className={`inv-number inv-available ${item.is_low_stock ? 'warning' : ''}`}
+                    >
+                      {NOT_AVAILABLE}
+                    </td>
+                    <td className="inv-number inv-muted-number">
+                      {formatMinimumStock(item.minimum_stock)}
+                    </td>
+                    <td>
+                      <span className="inv-warehouse">
+                        <MapPin size={13} />
+                        {NOT_AVAILABLE}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`pill ${item.is_low_stock ? 'pill-amber' : 'pill-green'}`}>
+                        {item.is_low_stock ? <TriangleAlert size={12} /> : <Check size={12} />}
+                        {stockStatus(item.is_low_stock)}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="inv-detail-link"
+                        aria-label={`${item.name} 상세 보기`}
+                        onClick={() => setDialog({ kind: 'detail', productId: item.product_id })}
+                      >
+                        상세 보기 <ArrowUpRight size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!rows.length && (
+              <div className="inv-empty">
+                <PackageSearch size={36} />
+                <h3>조건에 맞는 재고가 없어요</h3>
+                <p>검색어나 조회 조건을 바꿔 다시 확인해 주세요.</p>
+                <button className="button button-white" onClick={() => setParams({})}>
+                  <FilterX size={16} />
+                  필터 초기화
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="inv-table-footer">
           <span>
-            전체 {inventory.items.length}개 중 <strong>{rows.length}개</strong> 품목
+            전체 {totalItems}개 중 <strong>{rows.length}개</strong> 품목
           </span>
+          {totalPages > 1 && (
+            <nav className="inv-pager" aria-label="페이지 이동">
+              <button
+                type="button"
+                aria-label="이전 페이지"
+                disabled={page === 1}
+                onClick={() => setFilter('page', String(page - 1))}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span>
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="다음 페이지"
+                disabled={page === totalPages}
+                onClick={() => setFilter('page', String(page + 1))}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </nav>
+          )}
           <button
             className="text-link"
             style={{ visibility: params.size > 0 ? 'visible' : 'hidden' }}
@@ -606,7 +739,11 @@ export default function InventoryPage() {
           <div className="card-heading">
             <div className="heading-inline">
               <h2>최근 입출고</h2>
-              <span className="pill pill-neutral">{inventory.movements.length}</span>
+              <span className="pill pill-neutral">
+                {recentQuery.data === null
+                  ? NOT_AVAILABLE
+                  : recentQuery.data.pagination.total_items}
+              </span>
             </div>
             <button className="text-link" onClick={() => setDialog({ kind: 'history' })}>
               전체 이력
@@ -623,13 +760,19 @@ export default function InventoryPage() {
                 key={filter.value}
                 aria-pressed={historyKind === filter.value}
                 className={historyKind === filter.value ? 'selected' : ''}
-                onClick={() => setHistoryKind(filter.value)}
+                onClick={() => setHistoryKind(filter.value as MovementFilter)}
               >
                 {filter.label}
               </button>
             ))}
           </div>
-          {movementList(recentMovements.slice(0, 5))}
+          {recentQuery.error ? (
+            <ApiErrorState compact error={recentQuery.error} onRetry={recentQuery.reload} />
+          ) : recentQuery.loading ? (
+            <LoadingState compact label="입출고 기록을 불러오는 중이에요" />
+          ) : (
+            movementList(recentQuery.data?.items ?? [])
+          )}
         </section>
         <section className="card inv-product-summary">
           <div className="card-heading">
@@ -658,25 +801,16 @@ export default function InventoryPage() {
                     .getElementById('inventory-table-heading')
                     ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }}
-                aria-label={`${group.group} 재고 ${group.stock.toLocaleString()}개 조회`}
+                aria-label={`${group.group} 제품군 재고 조회`}
                 aria-describedby={`stock-tooltip-${group.group}`}
               >
                 <span className="inv-bar-head">
                   <strong>{group.group}</strong>
-                  <b>
-                    {group.stock.toLocaleString()}
-                    <small>개</small>
-                  </b>
+                  <b>{NOT_AVAILABLE}</b>
                 </span>
                 <span className="inv-bar-track">
-                  <span
-                    className="inv-bar-available"
-                    style={{ width: `${(group.available / maxStock) * 100}%` }}
-                  />
-                  <span
-                    className="inv-bar-reserved"
-                    style={{ width: `${(group.reserved / maxStock) * 100}%` }}
-                  />
+                  <span className="inv-bar-available" style={{ width: '0%' }} />
+                  <span className="inv-bar-reserved" style={{ width: '0%' }} />
                 </span>
                 <span
                   className="inv-stock-tooltip"
@@ -685,13 +819,13 @@ export default function InventoryPage() {
                 >
                   <strong>{group.group} 재고 상세</strong>
                   <span>
-                    현재고 <b>{group.stock.toLocaleString()}개</b>
+                    현재고 <b>{NOT_AVAILABLE}</b>
                   </span>
                   <span>
-                    출고 예약 <b>{group.reserved.toLocaleString()}개</b>
+                    출고 예약 <b>{NOT_AVAILABLE}</b>
                   </span>
                   <span>
-                    가용재고 <b>{group.available.toLocaleString()}개</b>
+                    가용재고 <b>{NOT_AVAILABLE}</b>
                   </span>
                 </span>
               </button>
@@ -703,40 +837,50 @@ export default function InventoryPage() {
         <span>가용재고 = 현재고 − 출고 예약 · 부족 기준 = 가용재고 &lt; 안전재고</span>
       </footer>
       {dialog && (
-        <Modal
-          title={
-            dialog.kind === 'movement'
-              ? '완제품 입출고 등록'
-              : dialog.kind === 'detail'
-                ? '품목 재고 상세'
-                : dialog.kind === 'history'
-                  ? '입출고 이력'
-                  : '재고 기준 안내'
-          }
-          onClose={() => setDialog(null)}
-        >
+        <Modal title={dialogTitle} onClose={() => setDialog(null)}>
           {dialog.kind === 'movement' && (
             <StockMovementForm
-              items={inventory.items}
-              initialItemId={dialog.itemId}
+              items={allStocks ?? []}
+              initialItemId={dialog.productId}
+              isAdmin={isAdmin}
               onSave={saveMovement}
             />
           )}
-          {dialog.kind === 'detail' && detailItem && (
-            <StockDetail
-              item={detailItem}
-              movements={inventory.movements.filter(
-                (movement) => movement.itemId === detailItem.id,
-              )}
-              onMove={() => setDialog({ kind: 'movement', itemId: detailItem.id })}
-              onSafetyChange={(value) => updateSafety(detailItem.id, value)}
-            />
-          )}
+          {dialog.kind === 'detail' &&
+            (detailItem ? (
+              <StockDetail
+                item={detailItem}
+                movements={detailMovementsQuery.data?.items ?? []}
+                movementsLoading={detailMovementsQuery.loading}
+                movementsError={detailMovementsQuery.error}
+                onRetryMovements={detailMovementsQuery.reload}
+                onMove={() => setDialog({ kind: 'movement', productId: detailItem.product_id })}
+                onSafetyChange={(value) => updateSafety(detailItem.product_id, value)}
+              />
+            ) : allStocksQuery.error ? (
+              <ApiErrorState error={allStocksQuery.error} onRetry={allStocksQuery.reload} />
+            ) : allStocks === null ? (
+              <LoadingState label="품목 정보를 불러오는 중이에요" />
+            ) : (
+              <p className="empty-text">품목 정보를 찾을 수 없어요.</p>
+            ))}
           {dialog.kind === 'history' && (
             <>
-              <p className="muted">최근 50건까지 표시합니다. 전체 {inventory.movements.length}건</p>
-              {movementList(inventory.movements)}
+              <p className="muted">
+                최근 {HISTORY_PAGE_SIZE}건까지 표시합니다. 전체{' '}
+                {historyQuery.data?.pagination.total_items ?? NOT_AVAILABLE}건
+              </p>
+              {historyQuery.error ? (
+                <ApiErrorState error={historyQuery.error} onRetry={historyQuery.reload} />
+              ) : historyQuery.loading ? (
+                <LoadingState compact label="입출고 이력을 불러오는 중이에요" />
+              ) : (
+                movementList(historyQuery.data?.items ?? [], true)
+              )}
             </>
+          )}
+          {dialog.kind === 'correct' && (
+            <StockCorrectionForm movement={dialog.movement} onSave={submitCorrection} />
           )}
           {dialog.kind === 'help' && (
             <div className="inv-help">

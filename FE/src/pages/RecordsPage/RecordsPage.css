@@ -827,3 +827,130 @@
     font-size: var(--fs-sm);
   }
 }
+
+/* API 연동: 제공되지 않는 값과 정정 UI */
+.rd-na {
+  color: var(--rd-muted);
+}
+.rd-pill.neutral {
+  color: var(--rd-muted);
+  background: var(--soft);
+}
+.rd-table-caption {
+  margin: 0;
+  padding: 0 24px 14px;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  color: var(--rd-muted);
+}
+.rd-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--rd-border);
+  border-radius: var(--radius-control);
+  background: var(--rd-surface);
+  color: #237957;
+  font-size: var(--fs-sm);
+  line-height: 24px;
+}
+.rd-feedback > span {
+  flex: 1;
+}
+.rd-feedback > .icon-button {
+  width: 28px;
+  height: 28px;
+}
+.rd-api-note {
+  font-size: var(--fs-xs);
+  color: var(--rd-muted);
+  white-space: nowrap;
+}
+.rd-correct-form {
+  display: grid;
+  gap: 16px;
+}
+.rd-correct-form label {
+  display: grid;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.rd-correct-form textarea {
+  min-height: 84px;
+  border: 1px solid var(--rd-border);
+  border-radius: var(--radius-control);
+  background: var(--rd-surface);
+  color: var(--rd-ink);
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+.rd-correct-form textarea:focus-visible {
+  outline: 2px solid #635b85;
+  outline-offset: 3px;
+}
+.rd-form-error {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+}
+.rd-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+.rd-change-list {
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+}
+.rd-change-list li {
+  border-top: 1px solid var(--rd-border);
+  padding-top: 12px;
+}
+.rd-change-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.rd-change-list > li > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-xs);
+}
+.rd-change-list p {
+  margin: 6px 0;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+}
+.rd-change-list small {
+  display: block;
+  color: var(--rd-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.pi-check-unknown {
+  display: flex;
+  padding: 9px;
+  border-radius: var(--radius-small);
+  background: var(--soft);
+  color: var(--rd-muted);
+}
+.dark .rd-api-note,
+.dark .rd-na {
+  color: var(--rd-muted);
+}
+.dark .rd-pill.neutral,
+.dark .pi-check-unknown {
+  background: #373142;
+}
+.dark .rd-feedback {
+  color: #86e0b8;
+}
