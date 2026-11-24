@@ -64,14 +64,15 @@ TOOL_CATALOG = """사용 가능한 조회 도구는 다음과 같습니다.
    arguments: {"product": "제품명 또는 코드(선택)", "low_stock": "부족한 제품만 true(선택)", "limit": 1~20}
 6. stock_movements: 기간 내 입출고·조정 이력(최신순)
    arguments: {"days": 1~90, "product": "선택", "kind": "initial|receipt|issue|adjustment|correction(선택)", "limit": 1~20}
-7. schedule_list: 기간과 겹치는 일정(시작 순)
-   arguments: {"days": 1~90, "limit": 1~20}
+7. schedule_list: 일정 목록(시작 순)
+   arguments: {"days": 1~90, "window": "upcoming|recent|around(선택, 기본 upcoming)", "limit": 1~20}
 8. operation_summary: 기간 내 설비 계획·실제 가동 시간과 가동률(시연 데이터)
    arguments: {"days": 1~90, "equipment": "설비 코드 또는 이름(선택)"}
 
 질문 예시와 도구 선택: 불량률·검사 집계→quality_summary, 검사 기록→inspection_records,
 생산 기록→process_records, 보고서→report_search, 재고 수량·부족→stock_status,
-입출고·조정 이력→stock_movements, 일정→schedule_list, 가동률·가동 시간→operation_summary.
+입출고·조정 이력→stock_movements, 일정·예정 일정→schedule_list, 가동률·가동 시간→operation_summary.
+일정 window는 앞으로 예정(upcoming, 기본), 지난 일정(recent), 오늘 전후(around)를 구분합니다.
 
 조회 도구로 답할 수 없거나 대상·기간이 모호하면 clarify를 사용합니다.
 {"tool": "clarify", "question": "사용자에게 되물을 짧은 질문"}
@@ -88,6 +89,15 @@ def _utc_now() -> datetime:
 
 def _period(days: int, today: date) -> tuple[date, date]:
     return today - timedelta(days=days - 1), today
+
+
+def _schedule_period(window: str, days: int, today: date) -> tuple[date, date]:
+    span = days - 1
+    if window == "recent":
+        return today - timedelta(days=span), today
+    if window == "around":
+        return today - timedelta(days=span), today + timedelta(days=span)
+    return today, today + timedelta(days=span)
 
 
 class _ToolArguments(BaseModel):
@@ -178,6 +188,7 @@ class StockMovementsArguments(_ToolArguments):
 
 class ScheduleListArguments(_ToolArguments):
     days: int = Field(default=7, ge=1, le=90)
+    window: Literal["upcoming", "recent", "around"] = "upcoming"
     limit: int = Field(default=10, ge=1, le=20)
 
 
@@ -312,7 +323,9 @@ class ChatToolExecutor:
             return self._stock_movements(movement_arguments, date_from, date_to)
         if plan.tool == "schedule_list":
             schedule_arguments = self._arguments(ScheduleListArguments, plan)
-            date_from, date_to = _period(schedule_arguments.days, today)
+            date_from, date_to = _schedule_period(
+                schedule_arguments.window, schedule_arguments.days, today
+            )
             return self._schedule_list(schedule_arguments, date_from, date_to)
         if plan.tool == "operation_summary":
             operation_arguments = self._arguments(OperationSummaryArguments, plan)
@@ -729,6 +742,7 @@ class ChatToolExecutor:
         scope: dict[str, object] = {
             "tool": "schedule_list",
             "period": {"from": date_from.isoformat(), "to": date_to.isoformat()},
+            "window": arguments.window,
         }
         page = self._schedules.list_schedules(
             date_from=date_from,
