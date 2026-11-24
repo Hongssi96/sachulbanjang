@@ -6,7 +6,7 @@ from app.integrations.ai import AiGenerationError, OpenAiCompatibleClient
 from app.models.conversation import AnswerEvidence, ChatTurn, Conversation
 from app.models.master import AppUser
 from app.models.report_job import GenerationJob
-from app.repositories.conversation import ConversationRepository
+from app.repositories.conversation import ConversationRepository, ReportAccess
 from app.repositories.report_job import ReportJobRepository
 from app.services.chat_generation import ChatGenerationService
 from app.services.chat_tools import (
@@ -99,6 +99,7 @@ def prepare_success(
     mocks["job_service"].claim_next_job.return_value = job
     mocks["conversation_repository"].find_turn_by_active_job.return_value = turn
     mocks["conversation_repository"].find_conversation.return_value = make_conversation()
+    mocks["conversation_repository"].find_previous_answered_turns.return_value = []
     session.get.return_value = make_actor()
     mocks["tools"].execute.return_value = ChatQueryResult(
         tool="quality_summary",
@@ -262,6 +263,49 @@ def test_process_next_fails_when_turn_is_missing() -> None:
     assert result.turn_id is None
     mocks["job_service"].fail_job.assert_called_once()
     assert mocks["job_service"].fail_job.call_args.kwargs["error_code"] == "CHAT_TURN_MISSING"
+
+
+def test_process_next_sends_only_visible_history_to_ai() -> None:
+    service, ai_client, mocks, session = build_service()
+    prepare_success(service, ai_client, mocks, session)
+    hidden = ChatTurn(id=3, conversation_id=1, question="숨김 질문", answer="HIDDEN-HISTORY-TOKEN")
+    deleted = ChatTurn(
+        id=4,
+        conversation_id=1,
+        question="삭제 근거 질문",
+        answer="DELETED-HISTORY-TOKEN",
+    )
+    for prior in (hidden, deleted):
+        prior.answered_at = NOW
+        prior.data_cutoff_at = NOW
+        prior.is_demo = True
+    mocks["conversation_repository"].find_previous_answered_turns.return_value = [deleted, hidden]
+    mocks["conversation_repository"].list_evidence.return_value = [
+        AnswerEvidence(chat_turn_id=3, report_id=99),
+        AnswerEvidence(chat_turn_id=4, report_id=2),
+    ]
+    mocks["conversation_repository"].find_report_access.return_value = {
+        99: ReportAccess(author_id=99, deleted=False),
+        2: ReportAccess(author_id=1, deleted=True),
+    }
+    mocks["conversation_repository"].find_deleted_source_ids.return_value = (set(), set(), set())
+    ai_client.generate_markdown.side_effect = lambda *, system_prompt, user_prompt: (
+        '{"tool": "quality_summary", "arguments": {"days": 7}}'
+        if "조회 계획" in system_prompt
+        else "답변"
+    )
+
+    result = service.process_next()
+
+    assert result is not None
+    assert result.state == "succeeded"
+    planner_prompt = ai_client.generate_markdown.call_args_list[0].kwargs["user_prompt"]
+    answer_prompt = ai_client.generate_markdown.call_args_list[1].kwargs["user_prompt"]
+    for prompt in (planner_prompt, answer_prompt):
+        assert "DELETED-HISTORY-TOKEN" in prompt
+        assert "HIDDEN-HISTORY-TOKEN" not in prompt
+        assert '"evidence_deleted": true' in prompt
+    mocks["conversation_repository"].find_previous_answered_turns.assert_called_once_with(1, 5, 5)
 
 
 def test_process_next_returns_none_when_queue_is_empty() -> None:

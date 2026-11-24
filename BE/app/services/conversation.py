@@ -9,11 +9,8 @@ from sqlalchemy.orm import Session
 from app.models.conversation import AnswerEvidence, ChatTurn, Conversation
 from app.models.master import AppUser
 from app.models.report_job import GenerationJob
-from app.repositories.conversation import (
-    ConversationRepository,
-    ConversationSummary,
-    ReportAccess,
-)
+from app.repositories.conversation import ConversationRepository, ConversationSummary
+from app.services.answer_visibility import compute_answer_visibility
 from app.services.record_history import period_bounds
 from app.services.report_job import (
     JobNotCancellableError,
@@ -175,50 +172,18 @@ class ConversationService:
         turns: list[TurnView] = []
         for row in rows:
             turn_evidence = grouped.get(row.turn.id, [])
-            status, visible_evidence = self._answer_visibility(
+            visibility = compute_answer_visibility(
                 owner, turn_evidence, report_access, deleted_sources
             )
             turns.append(
                 TurnView(
                     turn=row.turn,
                     job=row.job,
-                    evidence=visible_evidence,
-                    answer_status=status,
+                    evidence=visibility.evidence,
+                    answer_status=visibility.status,
                 )
             )
         return ConversationView(conversation=conversation, turns=turns)
-
-    def _answer_visibility(
-        self,
-        owner: AppUser,
-        evidence: list[AnswerEvidence],
-        report_access: dict[int, ReportAccess],
-        deleted_sources: tuple[set[int], set[int], set[int]],
-    ) -> tuple[str, list[AnswerEvidence]]:
-        deleted_process, deleted_inspection, deleted_product = deleted_sources
-        hidden = False
-        deleted = False
-        for item in evidence:
-            if item.report_id is not None:
-                access = report_access.get(item.report_id)
-                if access is None:
-                    deleted = True
-                else:
-                    if owner.role != "admin" and access.author_id != owner.id:
-                        hidden = True
-                    if access.deleted:
-                        deleted = True
-            if item.process_record_id in deleted_process:
-                deleted = True
-            if item.inspection_record_id in deleted_inspection:
-                deleted = True
-            if item.product_id in deleted_product:
-                deleted = True
-        if hidden:
-            return "hidden_permission", []
-        if deleted:
-            return "available_with_deleted_evidence", evidence
-        return "available", evidence
 
     def delete_conversation(self, owner: AppUser, conversation_id: int) -> None:
         conversation = self._repository.lock_owned_conversation(conversation_id, owner.id)
