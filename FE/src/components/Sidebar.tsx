@@ -27,7 +27,7 @@ interface SidebarProps {
 const menus = [
   { label: '홈', icon: House },
   { label: '실시간 공정', icon: Factory },
-  { label: '올라온 보고', icon: ClipboardList, badge: '3' },
+  { label: '올라온 보고', icon: ClipboardList },
   { label: '생산·검사 이력', icon: History },
   { label: '재고 관리', icon: Package },
   { label: '품질 리포트', icon: FileChartColumn },
@@ -59,7 +59,7 @@ export default function Sidebar({
       </button>
       <div className="nav-label">WORKSPACE</div>
       <nav>
-        {menus.map(({ label, icon: Icon, badge }) => (
+        {menus.map(({ label, icon: Icon }) => (
           <button
             key={label}
             className={`nav-item ${label === active ? 'active' : ''}`}
@@ -70,7 +70,6 @@ export default function Sidebar({
           >
             <Icon size={21} strokeWidth={1.7} />
             <span>{label}</span>
-            {badge && <b className="nav-badge">{badge}</b>}
           </button>
         ))}
       </nav>

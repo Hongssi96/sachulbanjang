@@ -3,7 +3,7 @@ const CSRF_COOKIE_NAME = 'imleader_csrf_token';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   csrf?: boolean;
 }
@@ -76,7 +76,12 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+let refreshInFlight: Promise<unknown> | null = null;
+export async function apiRequest<T>(
+  path: string,
+  options: RequestOptions = {},
+  retry = true,
+): Promise<T> {
   const headers = new Headers({ Accept: 'application/json' });
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.csrf) {
@@ -100,6 +105,25 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     });
   }
 
+  if (
+    response.status === 401 &&
+    retry &&
+    (!path.startsWith('/auth/') || path === '/auth/password')
+  ) {
+    try {
+      refreshInFlight ??= apiRequest(
+        '/auth/refresh',
+        { method: 'POST', csrf: true },
+        false,
+      ).finally(() => {
+        refreshInFlight = null;
+      });
+      await refreshInFlight;
+      return apiRequest<T>(path, options, false);
+    } catch {
+      window.dispatchEvent(new Event('imleader-session-expired'));
+    }
+  }
   if (!response.ok) {
     const detail = parseErrorDetail(await readJson(response));
     throw new ApiError(detail.message, {

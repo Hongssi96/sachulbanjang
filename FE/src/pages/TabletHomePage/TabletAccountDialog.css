@@ -486,9 +486,13 @@
 }
 .modal:has(.th-profile-password-form) {
   position: fixed;
+  inset: 50% auto auto 50%;
   margin: 0;
-  max-height: none;
-  max-width: none;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  height: min(520px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  max-width: calc(100vw - 32px);
   box-sizing: border-box;
   border-radius: 24px;
   scrollbar-width: none;
