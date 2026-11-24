@@ -21,16 +21,16 @@ import {
   confirmHandoverNote,
   createHandoverNote,
   deleteHandoverNote,
-  getHandoverNote,
-  getMyHandoverTargets,
-  listHandoverNotes,
+  fetchHandoverNote,
+  fetchHandoverNotes,
   updateHandoverNote,
-  type HandoverDetail,
   type HandoverNote,
+  type HandoverNoteDetail,
   type HandoverTarget,
   type HandoverTargetInput,
   type HandoverTargetKind,
 } from '../../api/handover';
+import { fetchMyAssignments } from '../../api/masterData';
 
 const targetKindOrder: HandoverTargetKind[] = ['department', 'production_line', 'equipment'];
 const targetKindLabels: Record<HandoverTargetKind, string> = {
@@ -77,18 +77,45 @@ export default function LiveHandover() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const notes = useRemote(useCallback(() => listHandoverNotes({ page, query }), [page, query]));
+  const notes = useRemote(
+    useCallback(() => fetchHandoverNotes({ page, q: query, pageSize: 10 }), [page, query]),
+  );
   const detail = useRemote(
     useCallback(
-      () => (selectedId === null ? Promise.resolve(null) : getHandoverNote(selectedId)),
+      () => (selectedId === null ? Promise.resolve(null) : fetchHandoverNote(selectedId)),
       [selectedId],
     ),
   );
-  const assignments = useRemote(useCallback(() => getMyHandoverTargets(), []));
+  const assignments = useRemote(useCallback(() => fetchMyAssignments(), []));
+
+  const assignmentTargets = useMemo<HandoverTarget[]>(() => {
+    const data = assignments.data;
+    if (!data) return [];
+    return [
+      ...data.departments.map((item): HandoverTarget => ({
+        kind: 'department',
+        target_id: item.department_id,
+        code: item.code,
+        name: item.name,
+      })),
+      ...data.production_lines.map((item): HandoverTarget => ({
+        kind: 'production_line',
+        target_id: item.production_line_id,
+        code: item.code,
+        name: item.name,
+      })),
+      ...data.equipment.map((item): HandoverTarget => ({
+        kind: 'equipment',
+        target_id: item.equipment_id,
+        code: item.equipment_code,
+        name: item.name,
+      })),
+    ];
+  }, [assignments.data]);
 
   const targetOptions = useMemo(() => {
     const options = new Map<string, HandoverTarget>();
-    (assignments.data ?? []).forEach((target) => {
+    assignmentTargets.forEach((target) => {
       options.set(targetKey(target.kind, target.target_id), target);
     });
     if (editor && editor !== 'new') {
@@ -97,13 +124,13 @@ export default function LiveHandover() {
       });
     }
     return [...options.values()];
-  }, [assignments.data, editor]);
+  }, [assignmentTargets, editor]);
 
   const items = notes.data?.items ?? [];
   const totalItems = notes.data?.pagination.total_items ?? 0;
   const totalPages = notes.data?.pagination.total_pages ?? 0;
   const unconfirmed = items.filter((item) => !item.my_confirmed_at).length;
-  const selectedNote: HandoverDetail | null =
+  const selectedNote: HandoverNoteDetail | null =
     detail.data && detail.data.note_id === selectedId ? detail.data : null;
   const canEdit = Boolean(selectedNote && user && selectedNote.author_id === user.id);
   const canDelete = Boolean(selectedNote && (canEdit || user?.role === 'admin'));
@@ -149,14 +176,21 @@ export default function LiveHandover() {
     setFormError('');
     try {
       if (editor === 'new') {
-        const created = await createHandoverNote(body, targets.length ? targets : undefined);
+        const created = await createHandoverNote({
+          body,
+          targets: targets.length ? targets : undefined,
+        });
         setEditor(null);
         setSelectedId(created.note_id);
         setNotice('인수인계를 등록했습니다.');
         if (page === 1) notes.reload();
         else setPage(1);
       } else if (editor) {
-        const updated = await updateHandoverNote(editor.note_id, editor.version, body, targets);
+        const updated = await updateHandoverNote(editor.note_id, {
+          version: editor.version,
+          body,
+          targets,
+        });
         setEditor(null);
         setSelectedId(updated.note_id);
         setNotice('인수인계를 수정했습니다.');

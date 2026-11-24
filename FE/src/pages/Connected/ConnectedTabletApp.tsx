@@ -85,7 +85,14 @@ export default function ConnectedTabletApp() {
         </NavLink>
       </aside>
       <div className="th-workspace">
-        <LiveHeader title={names[location.pathname] ?? '현장 정보'} tablet />
+        <LiveHeader
+          title={
+            location.pathname.startsWith('/reports/')
+              ? '이상 보고'
+              : (names[location.pathname] ?? '현장 정보')
+          }
+          tablet
+        />
         <section className="th-content">
           <LiveRoutes tablet />
         </section>

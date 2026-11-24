@@ -17,16 +17,16 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   createConversation,
   deleteConversation,
-  getConversation,
-  listConversations,
-  refreshChatTurn,
-  retryChatTurn,
-  submitChatTurn,
-  type ChatJobState,
+  fetchConversation,
+  fetchConversations,
+  refreshTurn,
+  retryTurn,
+  submitTurn,
   type ChatTurn,
   type ConversationDetail,
-  type ConversationSummary,
+  type ConversationListItem,
 } from '../../api/conversations';
+import type { JobState } from '../../api/reportJobs';
 import { date, errorMessage } from '../../api/business';
 
 const suggestions = [
@@ -34,8 +34,8 @@ const suggestions = [
   '불량 검사 기록을 찾아줘',
   '최근 생산 이력을 확인해줘',
 ];
-const activeStates: ChatJobState[] = ['accepted', 'querying', 'writing'];
-const stateLabels: Record<ChatJobState, string> = {
+const activeStates: JobState[] = ['accepted', 'querying', 'writing'];
+const stateLabels: Record<JobState, string> = {
   accepted: '답변 대기 중',
   querying: '관련 자료 확인 중',
   writing: '답변 작성 중',
@@ -44,6 +44,12 @@ const stateLabels: Record<ChatJobState, string> = {
   interrupted: '작업 중단',
   cancelled: '작업 취소',
 };
+
+function requestKey() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function evidenceDescription(item: ChatTurn['evidence'][number]) {
   const sources = [
@@ -59,7 +65,7 @@ function evidenceDescription(item: ChatTurn['evidence'][number]) {
 
 export default function LiveChat() {
   const { user } = useAuth();
-  const [items, setItems] = useState<ConversationSummary[]>([]);
+  const [items, setItems] = useState<ConversationListItem[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [conversation, setConversation] = useState<ConversationDetail | null>(null);
   const [search, setSearch] = useState('');
@@ -81,7 +87,7 @@ export default function LiveChat() {
     const request = ++listRequest.current;
     setLoadingList(true);
     try {
-      const response = await listConversations(query);
+      const response = await fetchConversations({ q: query, page: 1, pageSize: 100 });
       if (request === listRequest.current) setItems(response.items);
     } catch (cause) {
       if (request === listRequest.current) setError(errorMessage(cause));
@@ -94,7 +100,7 @@ export default function LiveChat() {
     const request = ++threadRequest.current;
     if (!quiet) setLoadingThread(true);
     try {
-      const response = await getConversation(id);
+      const response = await fetchConversation(id);
       if (request !== threadRequest.current) return;
       setConversation(response);
       setError('');
@@ -151,7 +157,10 @@ export default function LiveChat() {
         setSelectedId(activeConversation.conversation_id);
         setConversation(activeConversation);
       }
-      await submitChatTurn(activeConversation.conversation_id, question);
+      await submitTurn(activeConversation.conversation_id, {
+        question,
+        clientRequestKey: requestKey(),
+      });
       await loadThread(activeConversation.conversation_id);
       await loadList(search);
       inputRef.current?.focus();
@@ -173,7 +182,7 @@ export default function LiveChat() {
     inputRef.current?.focus();
   }
 
-  async function removeConversation(item: ConversationSummary) {
+  async function removeConversation(item: ConversationListItem) {
     if (!window.confirm(`“${item.title}” 대화를 삭제할까요?`)) return;
     try {
       await deleteConversation(item.conversation_id);
@@ -188,8 +197,8 @@ export default function LiveChat() {
     if (!selectedId || busy) return;
     setError('');
     try {
-      if (action === 'retry') await retryChatTurn(selectedId, turn.turn_id);
-      else await refreshChatTurn(selectedId, turn.turn_id);
+      if (action === 'retry') await retryTurn(selectedId, turn.turn_id, requestKey());
+      else await refreshTurn(selectedId, turn.turn_id, requestKey());
       await loadThread(selectedId);
     } catch (cause) {
       setError(errorMessage(cause));

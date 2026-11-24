@@ -1,6 +1,6 @@
 import { formText, localDateTime } from '../../api/business';
-import { useCallback, useState } from 'react';
-import { useParams } from 'react-router';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
 import useRemote from '../../hooks/useRemote';
 import {
@@ -15,6 +15,8 @@ import {
   errorMessage,
 } from '../../api/business';
 import type { Row } from '../../api/business';
+import { fetchReportJob, submitReportJob } from '../../api/reportJobs';
+import type { ReportCategory } from '../../api/reports';
 import { Field, MutationDialog, Pager, RemoteState, Select, Table } from './LiveShared';
 import Modal from '../../components/Modal';
 
@@ -29,10 +31,35 @@ const reportCategories: [string, string][] = [
   ['inspection_done', '검사 완료'],
   ['other', '기타'],
 ];
+const reportJobCategories: [ReportCategory, string][] = [
+  ['equipment_issue', '설비 이상'],
+  ['quality_report', '품질 보고'],
+  ['inspection_done', '검사 완료'],
+  ['other', '기타'],
+];
 type Kind = 'reports' | 'schedules' | 'handover-notes';
+
+function requestKey() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function daysAgo(days: number) {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  kst.setUTCDate(kst.getUTCDate() - days);
+  return kst.toISOString().slice(0, 10);
+}
+
+function asReportCategory(value: string): ReportCategory {
+  const found = reportJobCategories.find(([key]) => key === value);
+  if (!found) throw new Error('보고서 종류를 선택해 주세요.');
+  return found[0];
+}
 
 export default function LiveCollection({ kind, tablet = false }: { kind: Kind; tablet?: boolean }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { reportId } = useParams();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -43,6 +70,9 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
   );
   const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reportJobOpen, setReportJobOpen] = useState(false);
+  const [pendingReportJob, setPendingReportJob] = useState<number | null>(null);
+  const [notice, setNotice] = useState('');
   const title =
     kind === 'reports'
       ? tablet
@@ -68,6 +98,7 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
     [kind, page, search, status, tablet],
   );
   const resource = useRemote(load);
+  const reloadList = resource.reload;
   const loadDetail = useCallback(
     () => (selected ? read(`/${kind}/${selected}`) : Promise.resolve<Record<string, unknown>>({})),
     [kind, selected],
@@ -98,18 +129,66 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
       setBusy(false);
     }
   }
+  useEffect(() => {
+    if (pendingReportJob === null) return;
+    let cancelled = false;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const job = await fetchReportJob(pendingReportJob);
+        if (cancelled) return;
+        if (job.state === 'succeeded') {
+          setNotice(
+            job.report_id
+              ? `자동 보고서가 생성되었습니다. 보고 #${job.report_id}`
+              : '자동 보고서가 생성되었습니다.',
+          );
+          setPendingReportJob(null);
+          reloadList();
+          return;
+        }
+        if (job.state === 'failed' || job.state === 'interrupted' || job.state === 'cancelled') {
+          setNotice(job.safe_error_message || '보고서 생성에 실패했습니다.');
+          setPendingReportJob(null);
+          reloadList();
+          return;
+        }
+      } catch {
+        // The worker may still be starting; keep polling.
+      }
+      if (!cancelled) timer = window.setTimeout(() => void poll(), 2500);
+    };
+    timer = window.setTimeout(() => void poll(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [pendingReportJob, reloadList]);
+
   return (
     <div className="live-page">
       <div className="live-toolbar">
         <h1>{title}</h1>
-        <button className="button button-primary" onClick={() => setEditing('new')}>
-          {kind === 'reports'
-            ? '이상 보고 작성'
-            : kind === 'schedules'
-              ? '일정 등록'
-              : '노트 남기기'}
-        </button>
+        {kind === 'reports' ? (
+          <div className="live-toolbar-actions">
+            <button className="button button-white" onClick={() => setReportJobOpen(true)}>
+              자동 보고서 생성
+            </button>
+            <button className="button button-primary" onClick={() => setEditing('new')}>
+              이상 보고 작성
+            </button>
+          </div>
+        ) : (
+          <button className="button button-primary" onClick={() => setEditing('new')}>
+            {kind === 'schedules' ? '일정 등록' : '노트 남기기'}
+          </button>
+        )}
       </div>
+      {notice ? (
+        <p className="live-badge" role="status">
+          {notice}
+        </p>
+      ) : null}
       {kind === 'schedules' && tablet && (
         <p className="live-muted">
           서버에 등록된 작업·점검 일정입니다. 작업 시작·완료 상태를 저장하는 API는 아직 제공되지
@@ -196,17 +275,26 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
                         ['author_display_name', '작성자'],
                       ]
               }
-              action={(item) => (
-                <button
-                  className="button button-white"
-                  onClick={() => {
-                    setSelected(number(item[idKey]));
-                    setActionError('');
-                  }}
-                >
-                  상세 보기
-                </button>
-              )}
+              action={(item) =>
+                kind === 'reports' ? (
+                  <button
+                    className="button button-white"
+                    onClick={() => navigate(`/reports/${number(item.report_id)}`)}
+                  >
+                    상세 보기
+                  </button>
+                ) : (
+                  <button
+                    className="button button-white"
+                    onClick={() => {
+                      setSelected(number(item[idKey]));
+                      setActionError('');
+                    }}
+                  >
+                    상세 보기
+                  </button>
+                )
+              }
             />
           </section>
           <Pager data={resource.data} page={page} setPage={setPage} />
@@ -405,6 +493,31 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
               }
             />
           </label>
+        </MutationDialog>
+      )}
+      {kind === 'reports' && reportJobOpen && (
+        <MutationDialog
+          title="자동 보고서 생성"
+          close={() => setReportJobOpen(false)}
+          label="생성 요청"
+          submit={async (form) => {
+            const result = await submitReportJob({
+              clientRequestKey: requestKey(),
+              category: asReportCategory(formText(form, 'category')),
+              reportKind: 'general',
+              from: formText(form, 'from') || undefined,
+              to: formText(form, 'to') || undefined,
+            });
+            setNotice(
+              `자동 보고서 생성을 요청했습니다. 작업 #${result.job_id} 완료 후 목록에 자동으로 표시됩니다.`,
+            );
+            setPendingReportJob(result.job_id);
+            resource.reload();
+          }}
+        >
+          <Select name="category" label="보고서 종류" options={reportJobCategories} />
+          <Field name="from" label="시작일" type="date" value={daysAgo(6)} />
+          <Field name="to" label="종료일" type="date" value={today()} />
         </MutationDialog>
       )}
     </div>
