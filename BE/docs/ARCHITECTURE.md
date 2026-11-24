@@ -13,7 +13,7 @@
 | ProcessService / InspectionService | 조회·관리자 정정·감사 이력·버전 충돌. 기록 Repository 의존 |
 | ProcessReplayService / Replay Worker | CSV 다음 레코드의 5초 간격 공개와 정상 종료. replay 행 잠금으로 동시 진행을 직렬화 |
 | CurrentProcessService | 최신 replay의 공개 레코드를 설비별 최신 1건으로 조회하고 15초 지연 상태를 계산. ProcessReplayRepository 의존 |
-| QualityService | 필터 범위 전체의 품질·가동률 집계. 공통 집계는 보고서도 사용 |
+| QualityService / OperationService | 필터 범위 전체의 품질 집계 / 설비·일자 가동 시간 합산과 가동률. 공통 집계는 보고서도 사용 |
 | ReportService | 중복 안내·권한·본문 버전·상태 변경·PDF 제공. 보고 Repository·작업 Repository·Renderer 의존 |
 | GenerationWorker | DB 작업 선점·현재 권한 확인·고정 집계로 AI 호출·원자적 결과 등록. AI 클라이언트·Repository 의존 |
 | ChatGenerationService / ChatToolExecutor | 질문·작업 상태·답변 저장 / AI 계획 검증과 화이트리스트 조회 도구 실행. 자유 SQL 없음 |

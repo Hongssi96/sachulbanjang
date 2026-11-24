@@ -5,9 +5,11 @@ from app.core.config import Settings
 from app.dependencies.auth import get_current_user
 from app.main import create_app
 from app.models.master import AppUser
+from app.models.report import Report
 from app.models.report_job import GenerationJob
 from app.routers.report_jobs import get_report_job_service
 from app.services.report_job import (
+    DuplicateCheckResult,
     JobNotCancellableError,
     JobNotRetryableError,
     JobPage,
@@ -254,3 +256,74 @@ def test_cancel_and_retry_return_job() -> None:
         )
     assert retried.status_code == 202
     assert retried.json()["job_id"] == 1
+
+
+def make_duplicate_report(report_id: int = 9) -> Report:
+    report = Report(
+        id=report_id,
+        author_id=1,
+        title="주간 품질 보고",
+        body_markdown="본문",
+        category="periodic_weekly",
+        report_kind="weekly",
+        business_status="completed",
+        version=1,
+    )
+    report.created_at = NOW
+    report.updated_at = NOW
+    return report
+
+
+def test_duplicate_check_returns_visible_reports() -> None:
+    service = MagicMock(spec=ReportJobService)
+    service.check_duplicate_reports.return_value = DuplicateCheckResult(
+        items=[(make_job(state="succeeded"), make_duplicate_report(), "관리자")],
+        reusable_report_id=9,
+    )
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.post(
+            "/api/v1/report-duplicate-checks",
+            json={"category": "periodic_weekly", "report_kind": "weekly"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_duplicate"] is True
+    assert body["reusable_report_id"] == 9
+    assert body["items"] == [
+        {
+            "report_id": 9,
+            "title": "주간 품질 보고",
+            "category": "periodic_weekly",
+            "report_kind": "weekly",
+            "business_status": "completed",
+            "author_id": 1,
+            "author_display_name": "관리자",
+            "created_at": "2026-11-23T06:00:00Z",
+        }
+    ]
+    assert service.check_duplicate_reports.call_args.kwargs["payload"] == PAYLOAD
+
+
+def test_duplicate_check_validates_request_and_requires_auth() -> None:
+    service = MagicMock(spec=ReportJobService)
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        mismatch = client.post(
+            "/api/v1/report-duplicate-checks",
+            json={"category": "periodic_weekly", "report_kind": "general"},
+        )
+
+    assert mismatch.status_code == 422
+    service.check_duplicate_reports.assert_not_called()
+
+    anonymous = create_app(settings=make_settings(), migration_checker=lambda engine, path: None)
+    with TestClient(anonymous) as client:
+        unauthenticated = client.post(
+            "/api/v1/report-duplicate-checks",
+            json={"category": "other"},
+        )
+    assert unauthenticated.status_code == 401

@@ -19,6 +19,7 @@ from app.schemas.record_changes import (
     ChangeHistoryResponse,
     InspectionRecordUpdateRequest,
     ProcessRecordUpdateRequest,
+    RecordDeleteRequest,
 )
 from app.schemas.records import (
     InspectionRecordItem,
@@ -170,6 +171,39 @@ def update_process_record(
     return _process_detail(view)
 
 
+@router.delete(
+    "/process-records/{record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf_token)],
+)
+def delete_process_record(
+    record_id: Annotated[int, Path(ge=1)],
+    request: RecordDeleteRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[RecordCorrectionService, Depends(get_record_correction_service)],
+) -> None:
+    try:
+        service.delete_process_record(
+            actor,
+            record_id,
+            version=request.version,
+            change_reason=request.change_reason,
+        )
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
+    except RecordVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
+
+
 @router.get("/process-records/{record_id}/changes", response_model=ChangeHistoryResponse)
 def read_process_record_changes(
     record_id: Annotated[int, Path(ge=1)],
@@ -278,6 +312,39 @@ def update_inspection_record(
 
     response.headers["Cache-Control"] = "no-store"
     return _inspection_item(view)
+
+
+@router.delete(
+    "/inspection-records/{record_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf_token)],
+)
+def delete_inspection_record(
+    record_id: Annotated[int, Path(ge=1)],
+    request: RecordDeleteRequest,
+    actor: Annotated[AppUser, Depends(require_admin)],
+    service: Annotated[RecordCorrectionService, Depends(get_record_correction_service)],
+) -> None:
+    try:
+        service.delete_inspection_record(
+            actor,
+            record_id,
+            version=request.version,
+            change_reason=request.change_reason,
+        )
+    except RecordNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RECORD_NOT_FOUND", "message": "기록을 찾을 수 없습니다."},
+        ) from None
+    except RecordVersionConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "VERSION_CONFLICT",
+                "message": "다른 변경이 먼저 저장되었습니다. 최신 정보를 다시 조회해 주세요.",
+            },
+        ) from None
 
 
 @router.get("/inspection-records/{record_id}/changes", response_model=ChangeHistoryResponse)
