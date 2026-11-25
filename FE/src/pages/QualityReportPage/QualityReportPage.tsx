@@ -18,6 +18,7 @@ import {
   Download,
   FileChartColumn,
   FilterX,
+  LoaderCircle,
   PackageSearch,
   Search,
   ShieldCheck,
@@ -354,9 +355,6 @@ export default function QualityReportPage() {
 
   return (
     <div className="quality-report-page" aria-busy={isPending}>
-      {(isPending || (summaryQuery.loading && !summaryQuery.data)) && (
-        <LoadingState compact label="품질 데이터를 조회하는 중이에요" />
-      )}
       <h1 className="sr-only">품질 리포트</h1>
 
       {feedback && (
@@ -437,7 +435,7 @@ export default function QualityReportPage() {
           />
         </div>
       </QueryFilterCard>
-      {masterError ? (
+      {masterError && (
         <ApiErrorState
           compact
           error={masterError}
@@ -446,10 +444,6 @@ export default function QualityReportPage() {
             equipmentQuery.reload();
           }}
         />
-      ) : (
-        (productsQuery.loading || equipmentQuery.loading) &&
-        !productsQuery.data &&
-        !equipmentQuery.data && <LoadingState compact label="제품·설비 목록을 불러오는 중이에요" />
       )}
       <section aria-labelledby="quality-summary-heading">
         <div className="section-top">
@@ -607,7 +601,9 @@ export default function QualityReportPage() {
           {sampleQuery.error ? (
             <ApiErrorState compact error={sampleQuery.error} onRetry={sampleQuery.reload} />
           ) : sampleQuery.loading && !sampleQuery.data ? (
-            <LoadingState compact label="품질 추이를 조회하는 중이에요" />
+            <div className="qr-card-loading">
+              <LoadingState compact label="품질 추이를 조회하는 중이에요" />
+            </div>
           ) : trend.length ? (
             <>
               <div className="qr-chart-summary">
@@ -646,7 +642,9 @@ export default function QualityReportPage() {
           {summaryQuery.error ? (
             <ApiErrorState compact error={summaryQuery.error} onRetry={summaryQuery.reload} />
           ) : summaryQuery.loading && !summaryQuery.data ? (
-            <LoadingState compact label="불량 유형을 조회하는 중이에요" />
+            <div className="qr-card-loading">
+              <LoadingState compact label="불량 유형을 조회하는 중이에요" />
+            </div>
           ) : distribution.length ? (
             <DefectBreakdown items={distribution} />
           ) : (
@@ -720,9 +718,6 @@ export default function QualityReportPage() {
         {recordsQuery.error && !rangeError && (
           <ApiErrorState compact error={recordsQuery.error} onRetry={recordsQuery.reload} />
         )}
-        {recordsQuery.loading && !recordsQuery.data && (
-          <LoadingState compact label="검사 이력을 조회하는 중이에요" />
-        )}
         <div className="qr-table-scroll" role="region" tabIndex={0} aria-label="최근 검사 이력 표">
           <table className="qr-history-table">
             <caption className="sr-only">
@@ -748,6 +743,16 @@ export default function QualityReportPage() {
               </tr>
             </thead>
             <tbody>
+              {recordsQuery.loading && !recordsQuery.data && (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="qr-table-loading" role="status" aria-live="polite">
+                      <LoaderCircle size={22} />
+                      <span>검사 이력을 조회하는 중이에요</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {rows.map((record) => {
                 const { date, time } = seoulDateTime(record.inspected_at);
                 const good = record.verdict === 'good';
@@ -813,7 +818,7 @@ export default function QualityReportPage() {
                     ? '현재 페이지에 검색 결과가 없어요.'
                     : '조회 조건이나 검색어를 바꿔 다시 확인해 주세요.')}
               </p>
-              <button className="button button-white" onClick={() => setParams({})}>
+              <button className="button button-white button-sm" onClick={() => setParams({})}>
                 <FilterX size={16} />
                 조회 조건 초기화
               </button>

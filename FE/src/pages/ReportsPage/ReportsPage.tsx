@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ClipboardList, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ClipboardList, LoaderCircle, Search, X } from 'lucide-react';
 import {
   fetchReports,
   type ReportCategory,
@@ -10,7 +10,6 @@ import {
 } from '../../api/reports';
 import ApiErrorState from '../../components/ApiErrorState';
 import FilterSelect from '../../components/FilterSelect';
-import LoadingState from '../../components/LoadingState';
 import SegmentedControl from '../../components/SegmentedControl';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
@@ -239,7 +238,10 @@ export default function ReportsPage() {
           <span>상태</span>
         </div>
         {listQuery.loading && !listQuery.data ? (
-          <LoadingState compact label="보고를 불러오는 중이에요" />
+          <div className="rp-loading" role="status" aria-live="polite">
+            <LoaderCircle size={24} />
+            <span>보고를 불러오는 중이에요</span>
+          </div>
         ) : listQuery.error ? (
           <ApiErrorState compact error={listQuery.error} onRetry={listQuery.reload} />
         ) : hasPosts ? (

@@ -330,9 +330,6 @@ export default function InventoryPage() {
             : '재고 기준 안내';
   return (
     <div className="inventory-page">
-      {(isPending || stocksQuery.loading) && (
-        <LoadingState compact label="재고 데이터를 조회하는 중이에요" />
-      )}
       <h1 className="sr-only">재고 관리</h1>
       {feedback && (
         <div className="inv-feedback" role="status">
@@ -349,9 +346,7 @@ export default function InventoryPage() {
       )}
       {allStocksQuery.error ? (
         <ApiErrorState compact error={allStocksQuery.error} onRetry={allStocksQuery.reload} />
-      ) : allStocks === null ? (
-        <LoadingState compact label="재고 현황을 불러오는 중이에요" />
-      ) : (
+      ) : allStocks === null ? null : (
         <div className={`inv-stock-alert ${lowItems.length ? '' : 'inv-stock-safe'}`}>
           <span className="inv-alert-tag">
             {lowItems.length ? <TriangleAlert size={16} /> : <ShieldCheck size={16} />}
@@ -693,12 +688,12 @@ export default function InventoryPage() {
                 ))}
               </tbody>
             </table>
-            {!rows.length && (
+            {!stocksQuery.loading && !rows.length && (
               <div className="inv-empty">
                 <PackageSearch size={36} />
                 <h3>조건에 맞는 재고가 없어요</h3>
                 <p>검색어나 조회 조건을 바꿔 다시 확인해 주세요.</p>
-                <button className="button button-white" onClick={() => setParams({})}>
+                <button className="button button-white button-sm" onClick={() => setParams({})}>
                   <FilterX size={16} />
                   필터 초기화
                 </button>
@@ -777,7 +772,7 @@ export default function InventoryPage() {
           </div>
           {recentQuery.error ? (
             <ApiErrorState compact error={recentQuery.error} onRetry={recentQuery.reload} />
-          ) : recentQuery.loading ? (
+          ) : recentQuery.loading && !recentQuery.data ? (
             <LoadingState compact label="입출고 기록을 불러오는 중이에요" />
           ) : (
             movementList(recentQuery.data?.items ?? [])
@@ -881,7 +876,7 @@ export default function InventoryPage() {
               </p>
               {historyQuery.error ? (
                 <ApiErrorState error={historyQuery.error} onRetry={historyQuery.reload} />
-              ) : historyQuery.loading ? (
+              ) : historyQuery.loading && !historyQuery.data ? (
                 <LoadingState compact label="입출고 이력을 불러오는 중이에요" />
               ) : (
                 movementList(historyQuery.data?.items ?? [], true)

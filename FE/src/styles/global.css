@@ -3367,6 +3367,43 @@ textarea {
 
 /* ===== 일정 관리 페이지 (/schedule) ===== */
 /* 일정 탭은 스크롤 없이 화면 한 화면에 들어간다(200px = 탑바 + 필터 행 + 패딩) */
+/* 일정관리 청크 로딩: 카드 두 개 위치만 잡는 스켈레톤 */
+.sc-skeleton-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.sc-skeleton-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, var(--soft) 50%, transparent 70%);
+  animation: sc-skeleton-shimmer 1.3s ease-in-out infinite;
+}
+.sc-skeleton-calendar {
+  width: min(calc(100vh - 200px), calc(100vw - 704px), 960px);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  align-self: start;
+}
+.sc-skeleton-detail {
+  min-height: 0;
+}
+@keyframes sc-skeleton-shimmer {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(60%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-skeleton-card::after {
+    animation: none;
+  }
+}
 .sc-grid {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -3445,8 +3482,11 @@ textarea {
 .sc-day-out {
   color: var(--muted);
   opacity: 0.5;
-  cursor: default;
-  pointer-events: none;
+  cursor: pointer;
+}
+.sc-day-out:hover {
+  background: var(--soft);
+  opacity: 0.85;
 }
 /* 선택일은 채우지 않고 테두리로만 표시해 일정 점·보라색과 구분한다. */
 .sc-day.selected {
@@ -3486,6 +3526,16 @@ textarea {
 }
 .sc-dot-violet {
   background: #8b5cf6;
+}
+/* 카드 안 추가 로딩은 카드 가운데에 둔다. */
+.sc-card-loading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+}
+.sc-card-loading .loading-state.is-compact {
+  justify-content: center;
 }
 .sc-detail {
   display: flex;
@@ -4469,6 +4519,43 @@ textarea {
 }
 .report-markdown strong {
   font-weight: 700;
+}
+.report-markdown-table {
+  margin: 4px 0 18px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.report-markdown-table table {
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  line-height: 22px;
+}
+.report-markdown-table th,
+.report-markdown-table td {
+  padding: 7px 24px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  word-break: keep-all;
+}
+.report-markdown-table th {
+  background: var(--soft);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.report-markdown-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.report-markdown-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--soft) 55%, transparent);
 }
 .report-markdown p {
   margin: 0 0 14px;

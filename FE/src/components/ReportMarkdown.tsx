@@ -1,17 +1,34 @@
 import type { ReactNode } from 'react';
 
-// 보고 본문(body_markdown)은 제목·목록·굵게만 쓰는 좁은 마크다운이다.
+// 보고 본문(body_markdown)은 제목·목록·표·굵게를 쓰는 좁은 마크다운이다.
 // 전체 마크다운 라이브러리를 들이지 않고, 화면에 그대로 노출되던 기호만 해석한다.
 type Block =
   | { kind: 'heading'; level: number; text: string }
   | { kind: 'paragraph'; text: string }
-  | { kind: 'list'; ordered: boolean; items: string[] };
+  | { kind: 'list'; ordered: boolean; items: string[] }
+  | { kind: 'table'; headers: string[]; rows: string[][] };
 
 const headingPattern = /^(#{1,6})\s+(.*)$/;
 const bulletPattern = /^[-*]\s+(.*)$/;
 const orderedPattern = /^\d+[.)]\s+(.*)$/;
+const tableRowPattern = /^\|.*\|$/;
+const tableDividerCellPattern = /^:?-{3,}:?$/;
+
+function splitTableRow(line: string): string[] {
+  return line
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function isTableDivider(line: string): boolean {
+  const cells = splitTableRow(line);
+  return cells.length > 0 && cells.every((cell) => tableDividerCellPattern.test(cell));
+}
 
 function parseBlocks(markdown: string): Block[] {
+  const lines = markdown.split('\n');
   const blocks: Block[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
   const flushList = () => {
@@ -19,11 +36,31 @@ function parseBlocks(markdown: string): Block[] {
     list = null;
   };
 
-  for (const raw of markdown.split('\n')) {
-    const line = raw.trim();
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
     if (!line) {
       flushList();
       continue;
+    }
+
+    // 표: 헤더 줄과 구분 줄(| --- |)이 연속으로 나오면 표로 본다.
+    if (tableRowPattern.test(line) && index + 1 < lines.length) {
+      if (isTableDivider(lines[index + 1].trim())) {
+        flushList();
+        const headers = splitTableRow(line);
+        const rows: string[][] = [];
+        index += 2;
+        while (index < lines.length) {
+          const rowLine = lines[index].trim();
+          if (!tableRowPattern.test(rowLine)) break;
+          rows.push(splitTableRow(rowLine));
+          index += 1;
+        }
+        // while 문이 마지막에 증가시킨 index를 되돌려 바깥 for 문의 증가와 맞춘다.
+        index -= 1;
+        blocks.push({ kind: 'table', headers, rows });
+        continue;
+      }
     }
 
     const heading = headingPattern.exec(line);
@@ -93,6 +130,30 @@ export default function ReportMarkdown({ markdown }: { markdown: string }) {
             <li key={itemIndex}>{renderInline(item)}</li>
           ));
           return block.ordered ? <ol key={index}>{items}</ol> : <ul key={index}>{items}</ul>;
+        }
+        if (block.kind === 'table') {
+          return (
+            <div className="report-markdown-table" key={index}>
+              <table>
+                <thead>
+                  <tr>
+                    {block.headers.map((header, cellIndex) => (
+                      <th key={cellIndex}>{renderInline(header)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {block.headers.map((_, cellIndex) => (
+                        <td key={cellIndex}>{renderInline(row[cellIndex] ?? '')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
         }
         return <p key={index}>{renderInline(block.text)}</p>;
       })}

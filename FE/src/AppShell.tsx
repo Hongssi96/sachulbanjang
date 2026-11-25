@@ -255,7 +255,7 @@ export default function AppShell() {
           loggingOut={loggingOut}
         />
         <main id="main-content">
-          <Suspense fallback={<LoadingState />}>
+          <Suspense fallback={<LoadingState skeleton={false} />}>
             <Routes>
               <Route
                 path="/"
@@ -269,7 +269,21 @@ export default function AppShell() {
                 }
               />
               <Route path="/realtime" element={<RealtimePage />} />
-              <Route path="/schedule" element={<SchedulePage onToast={setToast} />} />
+              <Route
+                path="/schedule"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="sc-grid sc-grid-skeleton" aria-hidden="true">
+                        <div className="sc-skeleton-card sc-skeleton-calendar" />
+                        <div className="sc-skeleton-card sc-skeleton-detail" />
+                      </div>
+                    }
+                  >
+                    <SchedulePage onToast={setToast} />
+                  </Suspense>
+                }
+              />
               <Route path="/records" element={<RecordsPage />} />
               <Route path="/records/:recordId" element={<RecordDetailPage />} />
               <Route
@@ -284,13 +298,16 @@ export default function AppShell() {
               <Route
                 path="/mypage"
                 element={
-                  <MyPage
-                    onToast={setToast}
-                    onLogout={handleLogout}
-                    loggingOut={loggingOut}
-                    dark={dark}
-                    onToggleDark={toggleDark}
-                  />
+                  /* 관리 화면은 자체 중앙 로더를 쓰므로, 청크 로딩 때 공통 폴백이 겹쳐 보이지 않게 한다. */
+                  <Suspense fallback={null}>
+                    <MyPage
+                      onToast={setToast}
+                      onLogout={handleLogout}
+                      loggingOut={loggingOut}
+                      dark={dark}
+                      onToggleDark={toggleDark}
+                    />
+                  </Suspense>
                 }
               />
               <Route path="*" element={<NotFoundPage />} />

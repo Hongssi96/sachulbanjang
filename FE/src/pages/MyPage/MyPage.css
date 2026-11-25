@@ -1,6 +1,12 @@
 .my-page {
   min-width: 0;
 }
+/* 첫 로딩은 화면 가운데 스피너 하나만 보여준다. */
+.my-page.is-loading {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 220px);
+}
 /* 좌: 개인정보(고정) · 우: 직원 관리(가변) */
 .my-layout {
   display: grid;

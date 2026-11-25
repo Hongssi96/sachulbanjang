@@ -73,6 +73,30 @@
   font-weight: 600;
   color: var(--muted);
 }
+/* 표 안쪽 로딩: 머리글 아래 영역 가운데에 스피너를 둔다. */
+.rp-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 320px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.rp-loading > svg {
+  animation: rp-loading-spin 1s linear infinite;
+}
+@keyframes rp-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-loading > svg {
+    animation: none;
+  }
+}
 .rp-list {
   list-style: none;
   margin: 0;
