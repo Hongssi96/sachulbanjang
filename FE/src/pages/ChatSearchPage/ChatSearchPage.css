@@ -168,7 +168,7 @@
   margin-left: auto;
 }
 .cs-messages {
-  padding: 28px 26px;
+  padding: 28px 26px 36px;
   max-height: 520px;
   overflow: auto;
   min-height: 320px;
@@ -369,6 +369,30 @@
   font-size: var(--fs-sm);
   color: #635b85;
   cursor: pointer;
+}
+/* 검색 중 로딩은 카드 폭 가운데에 둔다. */
+.cs-search-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 240px;
+  color: var(--rd-muted);
+  font-size: var(--fs-sm);
+}
+.cs-search-loading > svg {
+  animation: cs-search-spin 1s linear infinite;
+}
+@keyframes cs-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-search-loading > svg {
+    animation: none;
+  }
 }
 .cs-results-title {
   display: flex;
@@ -684,6 +708,7 @@
 .chat-focus .chat-page .cs-messages {
   min-height: 0;
   padding-block: 18px;
+  padding-bottom: 32px;
 }
 .chat-focus .chat-page > .rd-heading {
   margin-bottom: 10px;

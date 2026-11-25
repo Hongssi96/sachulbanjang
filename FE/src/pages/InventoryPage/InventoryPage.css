@@ -1407,10 +1407,17 @@
 .inventory-page .inv-stock-table .inv-number {
   text-align: right;
 }
+/* 머리글은 가운데 정렬을 유지하고, 품목명·품목 코드 셀 내용만 왼쪽에 붙인다.
+   목록이 표 가장자리에 붙어 보이지 않도록 왼쪽 여백을 조금 더 둔다. */
+.inventory-page .inv-stock-table td:first-child {
+  text-align: left;
+}
+/* 품목명·품목 코드는 아이콘부터 왼쪽에 붙여 여러 행이 같은 선상에 서게 한다. */
 .inv-stock-table .inv-product-cell {
-  margin-inline: auto;
-  justify-content: center;
-  text-align: center;
+  position: relative;
+  left: 64px;
+  justify-content: flex-start;
+  text-align: left;
 }
 .inv-stock-table .inv-warehouse {
   display: inline-grid;

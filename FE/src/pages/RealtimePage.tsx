@@ -10,7 +10,7 @@ import MetricTrendChart from '../components/MetricTrendChart';
 import SegmentedControl from '../components/SegmentedControl';
 import { fetchEquipment, fetchProducts } from '../api/masterData';
 import { fetchCurrentProcess } from '../api/process';
-import type { CurrentProcessItem, ReplayState } from '../api/process';
+import type { CurrentProcessItem } from '../api/process';
 import { fetchQualitySummary } from '../api/quality';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../hooks/useAuth';
@@ -35,15 +35,6 @@ const stateColor: Record<EquipmentState, string> = {
   주의: '#F2BB69',
   고장: '#D95F70',
   휴식: '#A9AAB5',
-};
-
-const replayNotices: Record<ReplayState | 'none', string> = {
-  none: '공정 데이터 재생 정보가 없어요.',
-  ready: '공정 데이터 재생이 준비되어 있어요.',
-  running: '공정 데이터를 실시간으로 재생하고 있어요.',
-  delayed: '데이터 반영이 지연되고 있어요. 마지막 반영 시각 기준으로 표시합니다.',
-  completed: '재생이 종료되어 마지막 반영 데이터를 표시하고 있어요.',
-  failed: '데이터 재생에 실패했어요. 마지막 반영 데이터 기준으로 표시합니다.',
 };
 
 // 설비 상태·진행률·생산량은 현재 공정 API가 제공하지 않는다. 값이 없는 항목은
@@ -582,16 +573,6 @@ export default function RealtimePage() {
   return (
     <>
       <h1 className="sr-only">실시간 공정</h1>
-      <p className="rt-note">
-        {currentQuery.error
-          ? '공정 데이터를 불러오지 못했어요.'
-          : currentQuery.loading && !currentData
-            ? '공정 데이터를 불러오는 중이에요.'
-            : `데이터 기준 ${formatDateTime(currentData?.data_time ?? '')} · 마지막 갱신 ${formatDateTime(
-                currentData?.queried_at ?? '',
-              )}`}
-        <span>{replayNotices[currentData?.replay_state ?? 'none']}</span>
-      </p>
 
       <div className="rt-summary">
         <article
@@ -707,7 +688,9 @@ export default function RealtimePage() {
                     />
                   </svg>
                   <div className="rt-donut-center">
-                    <strong>{operatingRate === null ? NA : `${operatingRate}%`}</strong>
+                    <strong>
+                      {operatingRate === null ? <MissingValue size="lg" /> : `${operatingRate}%`}
+                    </strong>
                     <span>가동률</span>
                   </div>
                 </div>

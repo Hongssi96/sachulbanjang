@@ -21,6 +21,7 @@ import {
   RotateCcw,
   Search,
   ChevronsUp,
+  LoaderCircle,
   Trash2,
   UserRound,
   X,
@@ -201,8 +202,10 @@ export default function ChatSearchPage() {
   useEffect(() => {
     const list = messageList.current;
     // 질문·답변 수가 바뀔 때만 마지막 말풍선으로 이동한다.
-    if (list && turnCount > 0)
-      list.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (list && turnCount > 0) {
+      // 마지막 말풍선 아래 여백까지 보이도록 컨테이너 끝으로 스크롤한다.
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }
   }, [turnCount, activeId, searching]);
 
   // 기록 통합 검색도 각 API가 제공하는 조회 결과만 사용한다.
@@ -348,9 +351,10 @@ export default function ChatSearchPage() {
 
   return (
     <section className="records-page chat-page">
-      {isPending && <LoadingState compact label="기록을 검색하는 중이에요" />}
       <h1 className="sr-only">대화·검색</h1>
-      <div className="cs-layout">
+      {/* 탭·검색어 전환 중에는 로더를 끼워 넣지 않는다(높이가 바뀌며 화면이 덜컹거림).
+          진행 상태는 aria-busy로만 알린다. */}
+      <div className="cs-layout" aria-busy={isPending}>
         <aside className="rd-panel cs-history">
           <div className="cs-history-heading">
             <strong>
@@ -466,7 +470,12 @@ export default function ChatSearchPage() {
                       {searchLoading || searchError ? NA : `${totalResults}건`} · “{query}”
                     </span>
                   </div>
-                  {searchLoading && <LoadingState compact label="기록을 검색하는 중이에요" />}
+                  {searchLoading && (
+                    <div className="cs-search-loading" role="status" aria-live="polite">
+                      <LoaderCircle size={22} />
+                      <span>기록을 검색하는 중이에요</span>
+                    </div>
+                  )}
                   {!searchLoading && searchError && (
                     <ApiErrorState compact error={searchError} onRetry={reloadSearch} />
                   )}

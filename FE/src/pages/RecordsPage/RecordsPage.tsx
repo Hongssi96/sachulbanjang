@@ -399,9 +399,6 @@ export default function RecordsPage() {
 
   return (
     <section className="records-page" aria-busy={isPending}>
-      {(isPending || (activeLoading && !activeData)) && (
-        <LoadingState compact label="검사 데이터를 조회하는 중이에요" />
-      )}
       <h1 className="sr-only">생산·검사 이력</h1>
       <QueryFilterCard
         presets={
@@ -676,7 +673,7 @@ export default function RecordsPage() {
                       : '조건에 맞는 이력이 없어요'}
                 </h3>
                 <p>조회 기간이나 검색 조건을 변경해 보세요.</p>
-                <button className="rd-button" onClick={() => setParams({})}>
+                <button className="rd-button button-sm" onClick={() => setParams({})}>
                   조회 조건 초기화
                 </button>
               </div>

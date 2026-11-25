@@ -670,6 +670,20 @@ export default function MyPage({ onToast, onLogout, loggingOut, dark, onToggleDa
   const weekLabel = `${weekStart.getFullYear()}년 ${weekStart.getMonth() + 1}월`;
   const weekRange = `${weekStart.getMonth() + 1}.${weekStart.getDate()} – ${weekEnd.getMonth() + 1}.${weekEnd.getDate()}`;
 
+  // 첫 진입에는 카드마다 로더를 따로 띄우지 않고 화면 가운데 로더 하나만 보여준다.
+  const initialLoading =
+    (selfQuery.loading && !selfQuery.data && !selfQuery.error) ||
+    (isAdmin && employeeQuery.loading && !employeeQuery.data && !employeeQuery.error) ||
+    (isAdmin && workerQuery.loading && !workerQuery.data && !workerQuery.error);
+  if (initialLoading) {
+    return (
+      <div className="my-page is-loading">
+        <h1 className="sr-only">관리</h1>
+        <LoadingState label="관리 정보를 불러오는 중이에요" skeleton={false} />
+      </div>
+    );
+  }
+
   return (
     <div className="my-page">
       <h1 className="sr-only">관리</h1>

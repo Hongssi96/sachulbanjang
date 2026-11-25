@@ -207,6 +207,12 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
     if (selectedDay > maxDay) setSelectedDay(maxDay);
   };
 
+  // 달력에 함께 보이는 이전·다음 달 날짜를 누르면 그 달로 이동하고 해당 날짜를 선택한다.
+  const goToAdjacentDay = (delta: number, targetDay: number) => {
+    changeMonth(delta);
+    setSelectedDay(targetDay);
+  };
+
   const resetForm = () => {
     setNewTitle('');
     setNewHour(DEFAULT_HOUR);
@@ -351,7 +357,9 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
             ))}
           </div>
           {scheduleQuery.loading && !scheduleQuery.data ? (
-            <LoadingState compact label="일정을 불러오는 중이에요" />
+            <div className="sc-card-loading">
+              <LoadingState compact label="일정을 불러오는 중이에요" />
+            </div>
           ) : scheduleQuery.error ? (
             <ApiErrorState compact error={scheduleQuery.error} onRetry={scheduleQuery.reload} />
           ) : (
@@ -359,11 +367,19 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
               {Array.from({ length: totalCells }, (_, index) => {
                 const day = index - firstWeekday + 1;
                 if (day < 1 || day > daysInMonth) {
-                  const outDay = day < 1 ? prevMonthDays + day : day - daysInMonth;
+                  const isPrevious = day < 1;
+                  const outDay = isPrevious ? prevMonthDays + day : day - daysInMonth;
+                  const target = new Date(year, month + (isPrevious ? -1 : 1), 1);
                   return (
-                    <span key={`out-${index}`} className="sc-day sc-day-out" aria-hidden="true">
+                    <button
+                      key={`out-${index}`}
+                      type="button"
+                      className="sc-day sc-day-out"
+                      aria-label={`${target.getMonth() + 1}월 ${outDay}일로 이동`}
+                      onClick={() => goToAdjacentDay(isPrevious ? -1 : 1, outDay)}
+                    >
                       {outDay}
-                    </span>
+                    </button>
                   );
                 }
                 const eventsOfDay = dayEventList(day);
@@ -407,7 +423,11 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
             </div>
             <span className="pill pill-neutral">{filter}</span>
           </div>
-          {selectedEvents.length === 0 ? (
+          {scheduleQuery.loading && !scheduleQuery.data ? (
+            <div className="sc-card-loading">
+              <LoadingState compact label="일정을 불러오는 중이에요" />
+            </div>
+          ) : selectedEvents.length === 0 ? (
             <p className="rt-empty">이 날은 예정된 일정이 없어요.</p>
           ) : (
             <ul className="sc-list">
