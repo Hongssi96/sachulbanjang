@@ -117,6 +117,8 @@ APP_AI_REQUEST_TIMEOUT_SECONDS=120
 POSTGRES_DB=imleader
 POSTGRES_USER=imleader
 POSTGRES_PASSWORD=<DB_PASSWORD>   # APP_DATABASE_URL과 동일
+# REGISTRY_IMAGE는 CI 배포 시 파이프라인이 자동으로 전달한다.
+# 수동 배포에서만 아래 값을 채운다.
 REGISTRY_IMAGE=<CI_REGISTRY_IMAGE와 동일한 경로>
 IMAGE_TAG=<배포 스크립트가 export>
 ```

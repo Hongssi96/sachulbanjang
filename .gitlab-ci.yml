@@ -84,4 +84,4 @@ deploy:prod:
     - printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
     - chmod 600 ~/.ssh/known_hosts
   script:
-    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && git fetch --quiet origin && git checkout --quiet prod && git pull --quiet --ff-only origin prod && ./deploy/deploy.sh $CI_COMMIT_SHA"
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && git fetch --quiet origin && git checkout --quiet prod && git pull --quiet --ff-only origin prod && REGISTRY_IMAGE=$CI_REGISTRY_IMAGE ./deploy/deploy.sh $CI_COMMIT_SHA"
