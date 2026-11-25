@@ -5,11 +5,9 @@ import {
   Check,
   Clock3,
   LoaderCircle,
-  MessageSquarePlus,
   RefreshCw,
   Search,
   Send,
-  Sparkles,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -209,15 +207,9 @@ export default function LiveChat() {
     <div className="live-page live-chat-page">
       <div className="live-toolbar live-chat-toolbar">
         <div>
-          <span className="live-chat-eyebrow">
-            <Sparkles size={14} /> 현장 질문
-          </span>
           <h1>든든한 현장 파트너</h1>
           <p className="live-muted">검사·생산 이력과 현장 보고를 근거로 답변합니다.</p>
         </div>
-        <button className="button button-white live-chat-new" type="button" onClick={startNewChat}>
-          <MessageSquarePlus size={17} /> 새 대화
-        </button>
       </div>
 
       <section className="live-chat-shell" aria-label="현장 파트너 대화">

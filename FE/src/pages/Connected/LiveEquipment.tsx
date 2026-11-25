@@ -5,6 +5,11 @@ import { RemoteState, Table } from './LiveShared';
 
 export default function LiveEquipment() {
   const [filter, setFilter] = useState('');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(filter), 300);
+    return () => window.clearTimeout(timer);
+  }, [filter]);
   const resource = useRemote(
     useCallback(
       async () => ({ master: await list('/equipment'), current: await read('/process/current') }),
@@ -25,7 +30,7 @@ export default function LiveEquipment() {
     <div className="live-page">
       <div className="live-toolbar">
         <h1>설비 현황 · 실시간 공정</h1>
-        <button className="button button-white" onClick={resource.reload}>
+        <button className="button button-white live-refresh-button" onClick={resource.reload}>
           새로고침
         </button>
       </div>
@@ -42,14 +47,18 @@ export default function LiveEquipment() {
           </p>
           <label>
             설비 검색
-            <input value={filter} onChange={(event) => setFilter(event.target.value)} />
+            <input
+              value={filter}
+              placeholder="설비명 또는 설비 코드 검색"
+              onChange={(event) => setFilter(event.target.value)}
+            />
           </label>
           <section className="live-card">
             <Table
               rows={rows.filter((row) =>
                 `${text(row.equipment_code)} ${text(row.name)}`
                   .toLowerCase()
-                  .includes(filter.toLowerCase()),
+                  .includes(query.toLowerCase()),
               )}
               columns={[
                 ['equipment_code', '설비'],

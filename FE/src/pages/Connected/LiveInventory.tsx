@@ -65,7 +65,7 @@ export default function LiveInventory() {
             </button>
           ))}
         </div>
-        <button className="button button-white" onClick={resource.reload}>
+        <button className="button button-white live-refresh-button" onClick={resource.reload}>
           새로고침
         </button>
       </div>

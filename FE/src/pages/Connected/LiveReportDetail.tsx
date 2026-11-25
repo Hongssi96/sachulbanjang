@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, Check, Download, FileText, LoaderCircle } from 'lucide-react';
 import { apiRequestBlob } from '../../api/client';
@@ -28,6 +29,159 @@ const statusLabels: Record<ReportStatus, string> = {
   completed: '처리 완료',
 };
 const statusOptions: ReportStatus[] = ['pending', 'in_progress', 'completed'];
+
+function inlineParts(value: string): ReactNode[] {
+  return value
+    .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+    .filter(Boolean)
+    .map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={index}>{part.slice(1, -1)}</code>;
+      }
+      return <Fragment key={index}>{part}</Fragment>;
+    });
+}
+
+function isTableSeparator(line: string) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(line);
+}
+
+function tableCells(line: string) {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function Markdown({ body }: { body: string }) {
+  const lines = body.replace(/\r\n/g, '\n').split('\n');
+  const blocks: ReactNode[] = [];
+  let index = 0;
+  let key = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+    const heading = /^(#{1,4})\s+(.*)$/.exec(line);
+    if (heading) {
+      const content = inlineParts(heading[2]);
+      const level = heading[1].length;
+      blocks.push(
+        level === 1 ? (
+          <h1 key={key++}>{content}</h1>
+        ) : level === 2 ? (
+          <h2 key={key++}>{content}</h2>
+        ) : level === 3 ? (
+          <h3 key={key++}>{content}</h3>
+        ) : (
+          <h4 key={key++}>{content}</h4>
+        ),
+      );
+      index += 1;
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+        items.push(lines[index].replace(/^\s*[-*]\s+/, ''));
+        index += 1;
+      }
+      blocks.push(
+        <ul key={key++}>
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>{inlineParts(item)}</li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
+        items.push(lines[index].replace(/^\s*\d+\.\s+/, ''));
+        index += 1;
+      }
+      blocks.push(
+        <ol key={key++}>
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>{inlineParts(item)}</li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+    if (
+      line.trim().startsWith('|') &&
+      index + 1 < lines.length &&
+      isTableSeparator(lines[index + 1])
+    ) {
+      const header = tableCells(line);
+      index += 2;
+      const rows: string[][] = [];
+      while (index < lines.length && lines[index].trim().startsWith('|')) {
+        rows.push(tableCells(lines[index]));
+        index += 1;
+      }
+      blocks.push(
+        <div className="live-report-table-wrap" key={key++}>
+          <table>
+            <thead>
+              <tr>
+                {header.map((cell, cellIndex) => (
+                  <th key={cellIndex}>{inlineParts(cell)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex}>{inlineParts(cell)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+    if (/^\s*---+\s*$/.test(line)) {
+      blocks.push(<hr key={key++} />);
+      index += 1;
+      continue;
+    }
+    const paragraph: string[] = [];
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !/^(#{1,4})\s+/.test(lines[index]) &&
+      !/^\s*[-*]\s+/.test(lines[index]) &&
+      !/^\s*\d+\.\s+/.test(lines[index]) &&
+      !lines[index].trim().startsWith('|') &&
+      !/^\s*---+\s*$/.test(lines[index])
+    ) {
+      paragraph.push(lines[index].trim());
+      index += 1;
+    }
+    if (paragraph.length) {
+      blocks.push(<p key={key++}>{inlineParts(paragraph.join(' '))}</p>);
+    } else {
+      blocks.push(<p key={key++}>{inlineParts(line.trim())}</p>);
+      index += 1;
+    }
+  }
+
+  return <div className="live-report-markdown">{blocks}</div>;
+}
 
 function checklistOf(body: string) {
   return body
@@ -140,7 +294,7 @@ export default function LiveReportDetail() {
             {report.version}
           </p>
 
-          <p className="live-body live-report-body">{report.body_markdown}</p>
+          <Markdown body={report.body_markdown} />
 
           <section className="live-report-checklist-section" aria-label="요청 사항">
             <div className="live-report-section-head">

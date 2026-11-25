@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { LogIn, LogOut, X } from 'lucide-react';
+import { LogIn, LogOut } from 'lucide-react';
 import profileAvatar from './profile-avatar.svg';
 import TabletPasswordDialog from './TabletPasswordDialog';
 import { useAuth } from '../../hooks/useAuth';
 import { Link } from 'react-router';
-import { errorMessage } from '../../api/business';
+import { date, errorMessage } from '../../api/business';
 import './TabletAccountDialog.css';
 
 type Screen = 'profile' | 'login' | 'password' | 'signup';
@@ -26,9 +26,17 @@ interface AccountProps {
   password?: string;
   onPasswordChange?: (value: string) => void;
   page?: boolean;
+  remainingMinutes?: number | null;
+  endsAt?: string | null;
 }
 
-export default function TabletAccountDialog({ onClose, onLoginOpen, page = false }: AccountProps) {
+export default function TabletAccountDialog({
+  onClose,
+  onLoginOpen,
+  page = false,
+  remainingMinutes = null,
+  endsAt = null,
+}: AccountProps) {
   const { user, login, refreshUser } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [screen, setScreen] = useState<Screen>(page ? 'login' : 'profile');
@@ -159,7 +167,6 @@ export default function TabletAccountDialog({ onClose, onLoginOpen, page = false
                   ) : (
                     <img src={profileAvatar} alt="" />
                   )}
-                  <small>{character.name}</small>
                 </button>
               ))}
             </div>
@@ -193,7 +200,11 @@ export default function TabletAccountDialog({ onClose, onLoginOpen, page = false
             </div>
             <div>
               <dt>근무 종료</dt>
-              <dd>상단의 서버 근무 시각 확인</dd>
+              <dd>
+                {remainingMinutes === null
+                  ? '근무 시간 조회 중'
+                  : `퇴근까지 ${remainingMinutes}분${endsAt ? ` · ${date(endsAt)}` : ''}`}
+              </dd>
             </div>
           </dl>
           <button className="button button-primary" onClick={() => setPasswordOpen(true)}>
@@ -349,9 +360,6 @@ export default function TabletAccountDialog({ onClose, onLoginOpen, page = false
     >
       <div className="th-profile-heading">
         <h2 id="th-profile-title">{title}</h2>
-        <button className="icon-button" aria-label="프로필 닫기" onClick={onClose}>
-          <X size={18} />
-        </button>
       </div>
       {content}
       {passwordOpen && (
