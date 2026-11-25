@@ -396,6 +396,16 @@
 .rpd-body p:last-child {
   margin-bottom: 0;
 }
+.rpd-request-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  color: #9a6a1f;
+}
+.dark .rpd-request-hint {
+  color: #d8b57a;
+}
+
 .rpd-request {
   display: flex;
   flex-direction: column;

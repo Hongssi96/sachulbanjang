@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import ApiErrorState from '../../components/ApiErrorState';
+import MissingValue from '../../components/MissingValue';
 import Modal from '../../components/Modal';
 import QualityTrendChart from './QualityTrendChart';
 import DefectBreakdown from './DefectBreakdown';
@@ -489,8 +490,12 @@ export default function QualityReportPage() {
               <ClipboardCheck size={19} />
             </div>
             <div className="kpi-value">
-              {metric(summary?.inspected_count)}
-              <span>건</span>
+              {summary?.inspected_count === null || summary?.inspected_count === undefined ? (
+                <MissingValue size="lg" />
+              ) : (
+                metric(summary.inspected_count)
+              )}
+              <span className="unit-lift">건</span>
             </div>
             <div className="kpi-bottom">
               <span>생산 기록 {metric(summary?.production_record_count)}건</span>
@@ -506,12 +511,12 @@ export default function QualityReportPage() {
               <ShieldCheck size={19} />
             </div>
             <div className="kpi-value">
-              {summary?.defect_rate === null || summary?.defect_rate === undefined
-                ? NA
-                : summary.defect_rate.toFixed(2)}
-              {summary?.defect_rate !== null && summary?.defect_rate !== undefined && (
-                <span>%</span>
+              {summary?.defect_rate === null || summary?.defect_rate === undefined ? (
+                <MissingValue size="lg" />
+              ) : (
+                summary.defect_rate.toFixed(2)
               )}
+              <span>%</span>
             </div>
             <div className="kpi-bottom">
               {difference === null ? (
@@ -547,8 +552,12 @@ export default function QualityReportPage() {
               <TriangleAlert size={19} />
             </div>
             <div className="kpi-value qr-defective-value">
-              {metric(summary?.defect_count)}
-              <span>건</span>
+              {summary?.defect_count === null || summary?.defect_count === undefined ? (
+                <MissingValue size="lg" />
+              ) : (
+                metric(summary.defect_count)
+              )}
+              <span className="unit-lift">건</span>
             </div>
             <div className="kpi-bottom">
               <span>양품 {metric(summary?.good_count)}건</span>
@@ -760,16 +769,24 @@ export default function QualityReportPage() {
                       </button>
                     </td>
                     <td className="qr-equipment-cell">{recordEquipmentLabel(record)}</td>
-                    <td className="qr-number qr-muted-number">{NA}</td>
-                    <td className="qr-number qr-muted-number">{NA}</td>
-                    <td className="qr-number qr-muted-number">{NA}</td>
+                    <td className="qr-number">
+                      <MissingValue />
+                    </td>
+                    <td className="qr-number">
+                      <MissingValue />
+                    </td>
+                    <td className="qr-number">
+                      <MissingValue />
+                    </td>
                     <td>
                       <span className={`pill ${good ? 'pill-green' : 'qr-pill-danger'}`}>
                         {good ? <Check size={12} /> : <TriangleAlert size={12} />}
                         {qualityVerdict(record)}
                       </span>
                     </td>
-                    <td className="qr-inspector">{NA}</td>
+                    <td className="qr-inspector">
+                      <MissingValue />
+                    </td>
                     <td>
                       <button
                         className="qr-detail-link"

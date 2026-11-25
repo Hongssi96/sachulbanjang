@@ -12,8 +12,11 @@ import { apiRequestBlob } from '../../api/client';
 import ApiErrorState from '../../components/ApiErrorState';
 import LoadingState from '../../components/LoadingState';
 import { setReportChecklist, useReportChecklist } from '../../services/reportChecklist';
+import { notifyReportsChanged } from '../../services/reportSignals';
+import { reportTasks } from '../../services/reportTasks';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { formatDateTime } from '../../utils/dateFormat';
+import ReportMarkdown from '../../components/ReportMarkdown';
 import './ReportsPage.css';
 
 type StatusLabel = '대기' | '진행 중' | '완료';
@@ -68,14 +71,11 @@ export default function ReportDetailPage() {
   const index = items.findIndex((item) => item.report_id === id);
   const newer = index > 0 ? items[index - 1] : null;
   const older = index >= 0 && index < items.length - 1 ? items[index + 1] : null;
-  const checklist = useMemo(
-    () =>
-      (post?.body_markdown ?? '')
-        .split('\n')
-        .filter((line) => /^\s*[-*]\s+/.test(line))
-        .map((line) => line.replace(/^\s*[-*]\s+/, '')),
+  const tasks = useMemo(
+    () => reportTasks(post ?? { category: 'other', generation_snapshot: null }),
     [post],
   );
+  const checklist = tasks.items;
   const currentStatus = post ? statusToLabel[post.business_status] : '대기';
   const checked =
     storedChecklist?.length === checklist.length
@@ -83,23 +83,48 @@ export default function ReportDetailPage() {
       : defaultChecklist(currentStatus, checklist.length);
   const completedCount = checked.filter(Boolean).length;
 
-  const toggleItem = (target: number) => {
-    if (!post) return;
-    const next = checked.map((value, itemIndex) => (itemIndex === target ? !value : value));
-    setReportChecklist(String(post.report_id), next);
+  // 체크 상태가 처리 상태를 정한다. 하나도 없으면 대기, 모두 체크면 완료, 그 사이는 진행 중.
+  const statusForChecklist = (values: boolean[]): StatusLabel => {
+    const done = values.filter(Boolean).length;
+    if (done === 0) return '대기';
+    if (done === values.length) return '완료';
+    return '진행 중';
   };
-  const changeStatus = async (option: StatusLabel) => {
-    if (!post) return;
+  const saveStatus = async (id: number, version: number, option: StatusLabel): Promise<boolean> => {
     setSaving(true);
     setStatusError('');
     try {
-      await changeReportStatus(post.report_id, post.version, labelToStatus[option]);
+      await changeReportStatus(id, version, labelToStatus[option]);
       detailQuery.reload();
+      // 사이드바 배지가 새 처리 상태를 바로 반영하도록 셸에 알린다.
+      notifyReportsChanged();
+      return true;
     } catch (error: unknown) {
       setStatusError(error instanceof Error ? error.message : '상태를 변경하지 못했어요.');
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleItem = (target: number) => {
+    if (!post || saving || !checklist.length) return;
+    const previous = checked;
+    const next = checked.map((value, itemIndex) => (itemIndex === target ? !value : value));
+    setReportChecklist(String(post.report_id), next);
+
+    const nextStatus = statusForChecklist(next);
+    if (nextStatus === currentStatus) return;
+    void saveStatus(post.report_id, post.version, nextStatus).then((ok) => {
+      // 서버 반영에 실패하면 체크 상태를 이전으로 되돌려 화면과 처리 상태를 맞춘다.
+      if (!ok) setReportChecklist(String(post.report_id), previous);
+    });
+  };
+  const changeStatus = async (option: StatusLabel) => {
+    if (!post) return;
+    const ok = await saveStatus(post.report_id, post.version, option);
+    // 처리 상태를 직접 바꾸면 체크 상태도 그에 맞춘다.
+    if (ok) setReportChecklist(String(post.report_id), defaultChecklist(option, checklist.length));
   };
 
   const downloadPdf = async () => {
@@ -176,41 +201,44 @@ export default function ReportDetailPage() {
         </header>
         <div className="rpd-layout">
           <div className="rpd-primary">
-            <div className="rpd-body">
-              {post.body_markdown.split('\n').map((paragraph, i) => (
-                <p key={i}>{paragraph}</p>
-              ))}
+            <div className="rpd-body report-markdown">
+              <ReportMarkdown markdown={post.body_markdown} />
             </div>
-            <section className="rpd-request" aria-label="요청 사항">
+            <section className="rpd-request" aria-label="요청 및 확인 사항">
               <div className="rpd-request-head">
                 <h2>
                   <ClipboardList size={16} />
-                  요청 사항
+                  요청 및 확인 사항
                 </h2>
                 <span className="rpd-request-count">
                   {completedCount}/{checklist.length} 완료
                 </span>
               </div>
               {checklist.length ? (
-                <ul className="rpd-checklist">
-                  {checklist.map((item, itemIndex) => (
-                    <li key={`${item}-${itemIndex}`}>
-                      <label className={checked[itemIndex] ? 'is-done' : undefined}>
-                        <input
-                          type="checkbox"
-                          checked={checked[itemIndex]}
-                          onChange={() => toggleItem(itemIndex)}
-                        />
-                        <span>{item}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {!tasks.fromSnapshot && (
+                    <p className="rpd-request-hint">
+                      집계 정보가 없어 {categoryLabels[post.category]} 기본 점검 항목을 표시해요.
+                    </p>
+                  )}
+                  <ul className="rpd-checklist">
+                    {checklist.map((item, itemIndex) => (
+                      <li key={`${item}-${itemIndex}`}>
+                        <label className={checked[itemIndex] ? 'is-done' : undefined}>
+                          <input
+                            type="checkbox"
+                            checked={checked[itemIndex]}
+                            disabled={saving}
+                            onChange={() => toggleItem(itemIndex)}
+                          />
+                          <span>{item}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               ) : (
-                <p className="rt-empty">
-                  요청 사항은 서버에서 제공하지 않아요. 본문에 ‘- 항목’ 형식으로 적으면 이곳에서
-                  확인할 수 있어요.
-                </p>
+                <p className="rt-empty">보고에 확인 사항이 없어요.</p>
               )}
             </section>
           </div>

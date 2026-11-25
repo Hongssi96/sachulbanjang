@@ -35,6 +35,8 @@ import type { ScheduleCategory, ScheduleItem } from '../api/schedules';
 import ApiErrorState from '../components/ApiErrorState';
 import LoadingState from '../components/LoadingState';
 import Modal from '../components/Modal';
+import MissingValue from '../components/MissingValue';
+import ReportMarkdown from '../components/ReportMarkdown';
 import SegmentedControl from '../components/SegmentedControl';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../hooks/useAuth';
@@ -606,7 +608,8 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <Layers3 size={19} />
             </div>
             <div className="kpi-value">
-              —<span>개</span>
+              <MissingValue size="lg" />
+              <span>개</span>
             </div>
             <div className="kpi-bottom">
               <span>생산 기록 {todayTotal ?? '—'}건</span>
@@ -622,7 +625,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <ShieldCheck size={19} />
             </div>
             <div className="kpi-value">
-              {todayDefectRate === null ? '—' : todayDefectRate.toFixed(2)}
+              {todayDefectRate === null ? <MissingValue size="lg" /> : todayDefectRate.toFixed(2)}
               <span>%</span>
             </div>
             <div className="kpi-bottom">
@@ -639,7 +642,8 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <Gauge size={19} />
             </div>
             <div className="kpi-value">
-              —<span>%</span>
+              <MissingValue size="lg" />
+              <span>%</span>
               <span className="kpi-secondary">
                 {equipmentCount ?? '—'} <small>/ —대</small>
               </span>
@@ -659,8 +663,8 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <ClipboardIcon />
             </div>
             <div className="kpi-value">
-              {pendingCount ?? '—'}
-              <span>건</span>
+              {pendingCount === null ? <MissingValue size="lg" /> : pendingCount}
+              <span className="unit-lift">건</span>
               <span className="pill pill-amber">확인 필요</span>
             </div>
             <div className="kpi-bottom">
@@ -903,15 +907,16 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <div>
                 <small>검사 기록 중 불량 비율</small>
                 <strong>
-                  {defectRate === null ? '—' : defectRate.toFixed(2)}
+                  {defectRate === null ? <MissingValue /> : defectRate.toFixed(2)}
                   <span>%</span>
                 </strong>
               </div>
               <div>
                 <small>검사 / 생산 기록</small>
                 <strong>
-                  {quality ? quality.inspected_count : '—'}
-                  <span>/ {quality ? quality.production_record_count : '—'}건</span>
+                  {quality ? quality.inspected_count : <MissingValue />}
+                  <span>/ </span>
+                  {quality ? `${quality.production_record_count}건` : <MissingValue />}
                 </strong>
               </div>
             </div>
@@ -1084,7 +1089,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                     {reportDetail.report_id} · {reportDetail.author_display_name} ·{' '}
                     {formatDateTime(reportDetail.created_at)}
                   </p>
-                  <p>{reportDetail.body_markdown || '—'}</p>
+                  <div className="report-markdown">
+                    <ReportMarkdown markdown={reportDetail.body_markdown || '—'} />
+                  </div>
                   <div className="modal-callout">
                     <strong>다음 확인 사항</strong>
                     <p>

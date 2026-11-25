@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleHelp, ClipboardCheck, Cpu, Download, TriangleAlert } from 'lucide-react';
 import ApiErrorState from '../../components/ApiErrorState';
+import MissingValue from '../../components/MissingValue';
 import LoadingState from '../../components/LoadingState';
 import { ApiError } from '../../api/client';
 import { fetchInspectionRecord, fetchProcessRecord } from '../../api/records';
@@ -230,7 +231,7 @@ export default function PrecisionInspectionPage() {
                         {item.min}–{item.max} {item.unit}
                       </td>
                       <td>
-                        <span className="rd-na">{NA}</span> {item.unit}
+                        <MissingValue />
                       </td>
                       <td>
                         <span className="rd-pill neutral">{NA}</span>

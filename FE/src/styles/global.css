@@ -734,6 +734,8 @@ main {
 .kpi-value {
   display: flex;
   align-items: baseline;
+  /* 값이 대시 컴포넌트뿐이면 flex 높이가 줄어들어 카드 간 줄이 어긋난다. 글자 줄 높이를 확보한다. */
+  min-height: 1.22em;
   font-size: var(--fs-5xl);
   font-weight: 700;
   line-height: 44px;
@@ -745,6 +747,7 @@ main {
 .kpi-value > span {
   font-size: var(--fs-md);
   font-weight: 500;
+  line-height: 1.2;
   letter-spacing: 0;
   color: var(--muted);
 }
@@ -2892,8 +2895,13 @@ textarea {
   gap: 16px;
   margin-bottom: 20px;
 }
-.rt-kpi .kpi-value {
+.rt-kpi .kpi-value,
+.rt-defect-card .kpi-value {
   margin: 6px 0 10px;
+}
+/* 생산 카드에만 기간 전환 컨트롤이 있어 제목 높이가 달라진다. 카드 간 내용 줄을 맞춘다. */
+.rt-summary .card-heading {
+  min-height: 38px;
 }
 /* 목표 진행바를 위쪽 비교 막대(rt-bar, 10px)와 두께를 맞춘다 */
 .rt-kpi .mini-progress {
@@ -4421,4 +4429,84 @@ textarea {
   .fit-viewport main:has(> .sc-grid) {
     flex: none;
   }
+}
+
+/* 보고 본문(body_markdown) 렌더링. 보고 상세와 홈 보고 모달이 같은 스타일을 쓴다. */
+.report-markdown h2,
+.report-markdown h3,
+.report-markdown h4 {
+  margin: 18px 0 8px;
+  font-size: var(--fs-lg);
+  line-height: 26px;
+  color: var(--ink);
+}
+.report-markdown h2:first-child,
+.report-markdown h3:first-child,
+.report-markdown h4:first-child {
+  margin-top: 0;
+}
+.report-markdown h3,
+.report-markdown h4 {
+  font-size: var(--fs-md);
+}
+.report-markdown ul,
+.report-markdown ol {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.report-markdown li {
+  padding-left: 2px;
+}
+.report-markdown code {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+}
+.report-markdown strong {
+  font-weight: 700;
+}
+.report-markdown p {
+  margin: 0 0 14px;
+}
+.report-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+/* 값이 없을 때 쓰는 대시 자리 표시. 텍스트가 아니라 컴포넌트로 그린다. */
+.missing-value {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.missing-value > i {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+}
+.missing-value.is-lg > i {
+  width: 26px;
+  height: 3px;
+}
+/* 큰 수치 줄은 글자 기준선에 맞춰져 있어, 대시 자리 표시는 세로 가운데로 두고 줄 높이를 유지한다. */
+.kpi-value .missing-value,
+.metric-value .missing-value {
+  align-self: center;
+}
+/* 값이 없을 때는 대시와 단위를 함께 가운데로 둬서 단위가 아래로 처지지 않게 한다. */
+.kpi-value .missing-value + span {
+  align-self: center;
+}
+
+/* 한글 '건'의 잉크가 숫자보다 1px 아래까지 닿아 보여 단위만 살짝 올린다. */
+.kpi-value .unit-lift,
+.metric-value .unit-lift {
+  position: relative;
+  top: -1px;
 }

@@ -10,7 +10,7 @@ export default defineConfig({
     port: 5175,
     strictPort: true,
     allowedHosts: ['sachul.local'],
-    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
+    proxy: { '/api': { target: 'http://61.107.196.157', changeOrigin: true } },
     fs: { allow: [fileURLToPath(new URL('.', import.meta.url))] },
   },
   preview: {
@@ -18,7 +18,7 @@ export default defineConfig({
     port: 5175,
     strictPort: true,
     allowedHosts: ['sachul.local'],
-    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
+    proxy: { '/api': { target: 'http://61.107.196.157', changeOrigin: true } },
   },
   build: { outDir: fileURLToPath(new URL('./dist-tablet', import.meta.url)), emptyOutDir: true },
 });

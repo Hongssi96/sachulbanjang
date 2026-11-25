@@ -3,6 +3,7 @@ import type { FormEvent, KeyboardEvent, PointerEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowDownRight, ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import ApiErrorState from '../components/ApiErrorState';
+import MissingValue from '../components/MissingValue';
 import LoadingState from '../components/LoadingState';
 import Modal from '../components/Modal';
 import MetricTrendChart from '../components/MetricTrendChart';
@@ -12,6 +13,7 @@ import { fetchCurrentProcess } from '../api/process';
 import type { CurrentProcessItem, ReplayState } from '../api/process';
 import { fetchQualitySummary } from '../api/quality';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useAuth } from '../hooks/useAuth';
 import { formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
 
 /** 설비 상태 라벨. BE에 설비 상태 API가 없어 현재는 값이 없으면 '—'로 표시한다. */
@@ -228,6 +230,7 @@ function FilterDropdown({
 
 export default function RealtimePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [machineFilter, setMachineFilter] = useState('전체 설비');
   const [productFilter, setProductFilter] = useState('전체 제품');
   const [trend, setTrend] = useState<'daily' | 'weekly'>('daily');
@@ -378,6 +381,10 @@ export default function RealtimePage() {
   const yesterdayRate = yesterdaySummary?.defect_rate ?? null;
   const defectDelta =
     todayRate !== null && yesterdayRate !== null ? todayRate - yesterdayRate : null;
+  // 두 날짜의 불량률을 같은 기준으로 비교한다. 값이 없는 날은 막대를 그리지 않는다.
+  const rateMax = Math.max(yesterdayRate ?? 0, todayRate ?? 0);
+  const rateBarWidth = (rate: number | null) =>
+    rate === null || rateMax <= 0 ? 0 : (rate / rateMax) * 100;
 
   const thisWeekSummary = weeklyQuery.data?.thisWeek ?? null;
   const lastWeekSummary = weeklyQuery.data?.lastWeek ?? null;
@@ -609,8 +616,8 @@ export default function RealtimePage() {
           ) : (
             <>
               <div className="kpi-value">
-                {countLabel(monthCount)}
-                <span>건</span>
+                {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
+                <span className="unit-lift">건</span>
                 {productionDelta === null ? (
                   <span className="pill pill-neutral">저번 달 대비 {NA}</span>
                 ) : (
@@ -643,9 +650,6 @@ export default function RealtimePage() {
               <div className="kpi-bottom">
                 <span>이번 달 목표 {NA}</span>
                 <span>현재까지 {countLabel(monthCount)}건</span>
-              </div>
-              <div className="mini-progress">
-                <span style={{ width: '0%' }} />
               </div>
             </>
           )}
@@ -739,7 +743,7 @@ export default function RealtimePage() {
           ) : (
             <>
               <div className="kpi-value">
-                {todayRate === null ? NA : todayRate.toFixed(2)}
+                {todayRate === null ? <MissingValue size="lg" /> : todayRate.toFixed(2)}
                 <span>%</span>
                 {defectDelta === null ? (
                   <span className="pill pill-neutral">어제 대비 {NA}</span>
@@ -754,7 +758,10 @@ export default function RealtimePage() {
                 <div className="rt-bar-row">
                   <span>어제</span>
                   <div className="rt-bar">
-                    <span className="rt-bar-previous" style={{ width: '100%' }} />
+                    <span
+                      className="rt-bar-previous"
+                      style={{ width: `${rateBarWidth(yesterdayRate)}%` }}
+                    />
                   </div>
                   <strong>{yesterdayRate === null ? NA : `${yesterdayRate.toFixed(2)}%`}</strong>
                 </div>
@@ -763,20 +770,19 @@ export default function RealtimePage() {
                   <div className="rt-bar">
                     <span
                       className="rt-bar-current"
-                      style={{
-                        width: `${
-                          todayRate === null || yesterdayRate === null || yesterdayRate <= 0
-                            ? 0
-                            : (todayRate / yesterdayRate) * 100
-                        }%`,
-                      }}
+                      style={{ width: `${rateBarWidth(todayRate)}%` }}
                     />
                   </div>
                   <strong>{todayRate === null ? NA : `${todayRate.toFixed(2)}%`}</strong>
                 </div>
               </div>
+              <div className="kpi-bottom">
+                <span>이번 달 검사 {countLabel(monthInspections)}건</span>
+                <span>불량 {countLabel(monthDefects)}건</span>
+              </div>
             </>
           )}
+          <p className="rt-note">라벨 검사 기록 기준 불량률이에요. 전체 생산 불량률과 달라요.</p>
         </article>
       </div>
 
@@ -829,7 +835,9 @@ export default function RealtimePage() {
                     <td>{quality.inspections.toLocaleString()}</td>
                     <td>{quality.defects}</td>
                     <td>
-                      <strong>{quality.rate === null ? NA : `${quality.rate.toFixed(1)}%`}</strong>
+                      <strong>
+                        {quality.rate === null ? <MissingValue /> : `${quality.rate.toFixed(1)}%`}
+                      </strong>
                     </td>
                   </tr>
                 ))
@@ -840,7 +848,7 @@ export default function RealtimePage() {
                 <td>전체</td>
                 <td>{countLabel(monthInspections)}</td>
                 <td>{countLabel(monthDefects)}</td>
-                <td>{percentLabel(monthRate)}</td>
+                <td>{monthRate === null ? <MissingValue /> : percentLabel(monthRate)}</td>
               </tr>
             </tfoot>
           </table>
@@ -1001,10 +1009,10 @@ export default function RealtimePage() {
 
       <section className="card rt-ask" aria-label="사출반장 질문">
         <div className="rt-ask-greeting">
-          <span className="avatar">민</span>
+          <span className="avatar">{user?.display_name.trim().charAt(0) || '?'}</span>
           <p>
             <strong>사출반장</strong>
-            안녕하세요 민규님! 공정 현황에 대해 궁금한 점이 있으신가요?
+            안녕하세요 {user?.display_name ?? '선생'}님! 공정 현황에 대해 궁금한 점이 있으신가요?
           </p>
         </div>
         <form className="rt-ask-form" onSubmit={handleAsk}>
@@ -1025,7 +1033,9 @@ export default function RealtimePage() {
           <section className="metric-summary" aria-label={`${machineDetail.name} 요약`}>
             <p className="metric-eyebrow">{machineDetail.product ?? NA} · 작업 진행률</p>
             <div className="metric-value">
-              <strong>{NA}</strong>
+              <strong>
+                <MissingValue size="lg" />
+              </strong>
               <span className="metric-unit">%</span>
               <span
                 className={`pill ${machineDetail.status ? statePill[machineDetail.status] : 'pill-neutral'}`}
@@ -1119,7 +1129,9 @@ export default function RealtimePage() {
           <section className="metric-summary" aria-label={`${qualityPanel.product} 품질 요약`}>
             <p className="metric-eyebrow">라벨 검사 기준</p>
             <div className="metric-value">
-              <strong>{qualityRate === null ? NA : qualityRate.toFixed(2)}</strong>
+              <strong>
+                {qualityRate === null ? <MissingValue size="lg" /> : qualityRate.toFixed(2)}
+              </strong>
               <span className="metric-unit">%</span>
               <span
                 className={`pill ${
@@ -1315,8 +1327,10 @@ export default function RealtimePage() {
           <section className="metric-summary" aria-label="이번 달 생산 요약">
             <p className="metric-eyebrow">이번 달 누계</p>
             <div className="metric-value">
-              <strong>{countLabel(monthCount)}</strong>
-              <span className="metric-unit">건</span>
+              <strong>
+                {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
+              </strong>
+              <span className="metric-unit unit-lift">건</span>
               {productionDelta === null ? (
                 <span className="pill pill-neutral">저번 달 대비 {NA}</span>
               ) : (
@@ -1377,7 +1391,9 @@ export default function RealtimePage() {
           <section className="metric-summary" aria-label="검사 불량률 요약">
             <p className="metric-eyebrow">이번주 · 라벨 검사 기준</p>
             <div className="metric-value">
-              <strong>{weeklyRate === null ? NA : weeklyRate.toFixed(2)}</strong>
+              <strong>
+                {weeklyRate === null ? <MissingValue size="lg" /> : weeklyRate.toFixed(2)}
+              </strong>
               <span className="metric-unit">%</span>
               {defectDelta === null ? (
                 <span className="pill pill-neutral">어제 대비 {NA}</span>
