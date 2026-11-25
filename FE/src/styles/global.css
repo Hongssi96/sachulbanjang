@@ -733,7 +733,7 @@ main {
 }
 .kpi-value {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   font-size: var(--fs-5xl);
   font-weight: 700;
   line-height: 44px;
@@ -745,6 +745,7 @@ main {
 .kpi-value > span {
   font-size: var(--fs-md);
   font-weight: 500;
+  line-height: 1.2;
   letter-spacing: 0;
   color: var(--muted);
 }
@@ -4490,5 +4491,4 @@ textarea {
 .kpi-value .missing-value,
 .metric-value .missing-value {
   align-self: center;
-  height: 1em;
 }
