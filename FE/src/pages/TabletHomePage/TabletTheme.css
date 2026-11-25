@@ -159,16 +159,17 @@ body:has(.tablet-home) {
   width: 100%;
   min-height: 72px;
   margin-top: auto;
-  color: inherit;
+  color: #ffffff;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  background: linear-gradient(145deg, #6d638f, #4a4363);
 }
-.th-side-help-button > svg { flex: 0 0 auto; color: var(--mint); }
-.th-side-help-button span { display: grid; gap: 4px; }
-.th-side-help-button strong { color: inherit; white-space: nowrap; line-height: 1.35; }
-.th-side-help-button small { color: #ddd7eb; }
-.th-side-help-button:hover { background: linear-gradient(145deg, #81799e, #5d5479); }
+.th-side-help-button > svg { flex: 0 0 auto; color: #9df3ca; }
+.th-side-help-button span { position: relative; z-index: 1; display: grid; gap: 4px; }
+.th-side-help-button strong { color: #ffffff; font-weight: 700; white-space: nowrap; line-height: 1.35; text-shadow: 0 1px 2px #29263f66; }
+.th-side-help-button small { color: #f0ecf8; font-weight: 600; }
+.th-side-help-button:hover { background: linear-gradient(145deg, #7d739f, #565071); }
 .th-workspace {
   margin-left: 200px;
   min-height: calc(100dvh - 32px);

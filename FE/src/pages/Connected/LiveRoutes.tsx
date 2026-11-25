@@ -8,6 +8,7 @@ import LiveInventory from './LiveInventory';
 import LiveUsers from './LiveUsers';
 import LiveChat from './LiveChat';
 import LiveHandover from './LiveHandover';
+import LiveReportDetail from './LiveReportDetail';
 
 export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
   return (
@@ -29,7 +30,7 @@ export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
       <Route path="/reports" element={<LiveCollection kind="reports" tablet={tablet} />} />
       <Route
         path="/reports/:reportId"
-        element={<LiveCollection kind="reports" tablet={tablet} />}
+        element={tablet ? <LiveReportDetail /> : <LiveCollection kind="reports" tablet={tablet} />}
       />
       <Route
         path="/handover"
