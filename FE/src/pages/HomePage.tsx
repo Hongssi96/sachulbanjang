@@ -664,7 +664,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
             </div>
             <div className="kpi-value">
               {pendingCount === null ? <MissingValue size="lg" /> : pendingCount}
-              <span>건</span>
+              <span className="unit-lift">건</span>
               <span className="pill pill-amber">확인 필요</span>
             </div>
             <div className="kpi-bottom">

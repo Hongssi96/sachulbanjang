@@ -4496,3 +4496,10 @@ textarea {
 .kpi-value .missing-value + span {
   align-self: center;
 }
+
+/* 한글 '건'의 잉크가 숫자보다 1px 아래까지 닿아 보여 단위만 살짝 올린다. */
+.kpi-value .unit-lift,
+.metric-value .unit-lift {
+  position: relative;
+  top: -1px;
+}

@@ -617,7 +617,7 @@ export default function RealtimePage() {
             <>
               <div className="kpi-value">
                 {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
-                <span>건</span>
+                <span className="unit-lift">건</span>
                 {productionDelta === null ? (
                   <span className="pill pill-neutral">저번 달 대비 {NA}</span>
                 ) : (
@@ -1328,7 +1328,7 @@ export default function RealtimePage() {
               <strong>
                 {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
               </strong>
-              <span className="metric-unit">건</span>
+              <span className="metric-unit unit-lift">건</span>
               {productionDelta === null ? (
                 <span className="pill pill-neutral">저번 달 대비 {NA}</span>
               ) : (
