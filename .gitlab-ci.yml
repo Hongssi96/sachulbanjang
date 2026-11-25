@@ -46,7 +46,7 @@ be:validate:
     - ruff check .
     - ruff format --check .
     - python -m mypy
-    - pytest
+    - python -m pytest
 
 build:images:
   stage: build
