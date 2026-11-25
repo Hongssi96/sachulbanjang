@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
 import SegmentedControl from '../../components/SegmentedControl';
@@ -129,6 +130,7 @@ export default function InventoryPage() {
   const recentQuery = useApiQuery(`inventory-movements-recent:${historyKind}:${refreshToken}`, () =>
     fetchMovements({ kind: movementFilterKind(historyKind), pageSize: 5 }),
   );
+  usePageEntryReady([stocksQuery, allStocksQuery, recentQuery].every((query) => !query.loading));
   const historyQuery = useApiQuery(
     `inventory-movements-history:${refreshToken}`,
     () => fetchMovements({ pageSize: HISTORY_PAGE_SIZE }),

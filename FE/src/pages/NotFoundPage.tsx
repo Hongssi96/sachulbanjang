@@ -1,6 +1,8 @@
+import { usePageEntryReady } from '../components/PageEntry/PageEntryContext';
 import { Link } from 'react-router';
 import { ArrowLeft, PackageSearch } from 'lucide-react';
 export default function NotFoundPage() {
+  usePageEntryReady(true);
   return (
     <section className="card empty-state">
       <PackageSearch size={36} />

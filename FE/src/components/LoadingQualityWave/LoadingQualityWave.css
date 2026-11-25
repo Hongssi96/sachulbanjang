@@ -1,0 +1,76 @@
+.loading-quality-wave {
+  --quality-wave-duration: 1s;
+  width: min(400px, 100%);
+}
+.loading-quality-wave > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.quality-wave-channel {
+  font-family: inherit;
+  font-size: var(--fs-xs, 12px);
+  font-weight: 500;
+}
+.quality-wave-reveal {
+  animation: quality-wave-draw var(--quality-wave-duration) linear infinite;
+}
+.quality-wave-traces {
+  animation: quality-wave-fade var(--quality-wave-duration) linear infinite;
+}
+.quality-wave-scan {
+  animation: quality-wave-scan var(--quality-wave-duration) linear infinite;
+}
+.dark .quality-wave-channel {
+  fill: #baadc8;
+}
+.dark .quality-wave-grid {
+  stroke: #8c7a9f;
+  stroke-opacity: 0.25;
+}
+@keyframes quality-wave-draw {
+  0% {
+    width: 0;
+  }
+  75%,
+  100% {
+    width: 272px;
+  }
+}
+@keyframes quality-wave-fade {
+  0%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes quality-wave-scan {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  75% {
+    transform: translateX(272px);
+    opacity: 1;
+  }
+  88%,
+  100% {
+    transform: translateX(272px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quality-wave-reveal,
+  .quality-wave-traces {
+    animation: none;
+  }
+  .quality-wave-scan {
+    display: none;
+    animation: none;
+  }
+}

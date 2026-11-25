@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -125,6 +126,8 @@ export default function ReportsPage() {
       };
     },
   );
+  usePageEntryReady(!listQuery.loading && !countsQuery.loading);
+
   // 작성자 선택지는 서버에서 받은 최근 100건에서 만든다. (작성자 필터 API는 없음)
   const authorSourceQuery = useApiQuery('report-authors', () => fetchReports({ pageSize: 100 }));
   // N 표식은 사이드바 배지와 같은 기준(당일 올라온 보고 중 미완료)을 쓴다.

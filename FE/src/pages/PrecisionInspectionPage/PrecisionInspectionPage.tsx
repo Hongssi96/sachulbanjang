@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CircleHelp, ClipboardCheck, Cpu, Download, TriangleAlert } from 'lucide-react';
@@ -50,6 +51,7 @@ export default function PrecisionInspectionPage() {
     { enabled: validId && view === 'production' },
   );
   const active = view === 'inspection' ? inspectionDetail : processDetail;
+  usePageEntryReady(!validId || !active.loading);
   const inspectionRecord: InspectionRecord | null =
     view === 'inspection' ? inspectionDetail.data : null;
   const processRecord: ProcessRecord | null = view === 'production' ? processDetail.data : null;

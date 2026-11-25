@@ -1,0 +1,18 @@
+.home-section-skeleton > div {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0;
+}
+.home-section-skeleton i {
+  height: 12px;
+  border-radius: var(--radius-small);
+  background: var(--border);
+}
+.home-section-skeleton i:last-child {
+  width: 65%;
+}
+.home-initial-errors {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
