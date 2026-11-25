@@ -1,5 +1,5 @@
 import { Navigate, NavLink, useLocation } from 'react-router';
-import { ClipboardList, Factory, House, NotebookPen, Sparkles, TriangleAlert } from 'lucide-react';
+import { ClipboardList, Factory, House, NotebookPen, TriangleAlert, Wrench } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingState from '../../components/LoadingState';
 import TabletAccountDialog from '../TabletHomePage/TabletAccountDialog';
@@ -43,6 +43,11 @@ export default function ConnectedTabletApp() {
     '/handover': '인수인계',
     '/chat': '든든한 현장 파트너',
   };
+  const hideHeaderTitle =
+    ['/tasks', '/equipment', '/reports', '/handover', '/chat'].includes(location.pathname) ||
+    location.pathname.startsWith('/reports/') ||
+    location.pathname.startsWith('/tasks/');
+  const headerTitle = hideHeaderTitle ? undefined : (names[location.pathname] ?? '현장 정보');
   return (
     <div className="tablet-home">
       <aside className="th-sidebar" aria-label="현장 메뉴">
@@ -73,7 +78,7 @@ export default function ConnectedTabletApp() {
           </NavLink>
         </nav>
         <NavLink className="th-side-help th-side-help-button" to="/chat">
-          <Sparkles size={18} />
+          <Wrench size={18} />
           <span>
             <strong>
               든든한 현장
@@ -85,14 +90,7 @@ export default function ConnectedTabletApp() {
         </NavLink>
       </aside>
       <div className="th-workspace">
-        <LiveHeader
-          title={
-            location.pathname.startsWith('/reports/')
-              ? '이상 보고'
-              : (names[location.pathname] ?? '현장 정보')
-          }
-          tablet
-        />
+        <LiveHeader title={headerTitle} tablet />
         <section className="th-content">
           <LiveRoutes tablet />
         </section>

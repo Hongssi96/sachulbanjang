@@ -178,6 +178,15 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
               이상 보고 작성
             </button>
           </div>
+        ) : kind === 'schedules' && tablet ? (
+          <div className="live-toolbar-actions">
+            <button className="button button-white" onClick={resource.reload}>
+              새로고침
+            </button>
+            <button className="button button-primary" onClick={() => setEditing('new')}>
+              일정 등록
+            </button>
+          </div>
         ) : (
           <button className="button button-primary" onClick={() => setEditing('new')}>
             {kind === 'schedules' ? '일정 등록' : '노트 남기기'}
@@ -225,9 +234,11 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
             ))}
           </div>
         )}
-        <button className="button button-white" onClick={resource.reload}>
-          새로고침
-        </button>
+        {!(kind === 'schedules' && tablet) && (
+          <button className="button button-white live-refresh-button" onClick={resource.reload}>
+            새로고침
+          </button>
+        )}
       </div>
       <RemoteState {...resource} retry={resource.reload} />
       {resource.data && (
@@ -280,6 +291,13 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
                   <button
                     className="button button-white"
                     onClick={() => navigate(`/reports/${number(item.report_id)}`)}
+                  >
+                    상세 보기
+                  </button>
+                ) : kind === 'schedules' && tablet ? (
+                  <button
+                    className="button button-white"
+                    onClick={() => navigate(`/tasks/${number(item.schedule_id)}`)}
                   >
                     상세 보기
                   </button>

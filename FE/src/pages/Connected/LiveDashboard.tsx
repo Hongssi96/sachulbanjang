@@ -23,7 +23,7 @@ export default function LiveDashboard({ tablet = false }: { tablet?: boolean }) 
     <div className="live-page">
       <div className="live-toolbar">
         <h1>좋은 하루예요, {user?.display_name}님.</h1>
-        <button className="button button-white" onClick={resource.reload}>
+        <button className="button button-white live-refresh-button" onClick={resource.reload}>
           새로고침
         </button>
       </div>
@@ -56,7 +56,9 @@ export default function LiveDashboard({ tablet = false }: { tablet?: boolean }) 
                       <li key={`${text(row.report_id)}-${index}`}>
                         <strong>{text(row.title)}</strong>
                         <small>
-                          {text(row.author_display_name)} · {date(row.created_at)}
+                          <span>{text(row.author_display_name)}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{date(row.created_at)}</span>
                         </small>
                       </li>
                     ))}
@@ -81,7 +83,6 @@ export default function LiveDashboard({ tablet = false }: { tablet?: boolean }) 
                   <NotebookPen size={26} />
                 </span>
                 <div>
-                  <span className="live-handover-eyebrow">SHIFT HANDOVER</span>
                   <h2>인수인계</h2>
                   <p className="live-muted">
                     교대 근무 인수인계를 확인하고 다음 근무자에게 전달할 내용을 남겨 주세요.

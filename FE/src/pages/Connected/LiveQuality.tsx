@@ -28,7 +28,7 @@ export default function LiveQuality() {
             onChange={(event) => setTo(event.target.value)}
           />
         </label>
-        <button className="button button-white" onClick={resource.reload}>
+        <button className="button button-white live-refresh-button" onClick={resource.reload}>
           새로고침
         </button>
       </div>

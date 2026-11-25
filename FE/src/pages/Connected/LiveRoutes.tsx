@@ -9,6 +9,7 @@ import LiveUsers from './LiveUsers';
 import LiveChat from './LiveChat';
 import LiveHandover from './LiveHandover';
 import LiveReportDetail from './LiveReportDetail';
+import LiveScheduleDetail from './LiveScheduleDetail';
 
 export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
   return (
@@ -18,6 +19,12 @@ export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
       <Route path="/equipment" element={<LiveEquipment />} />
       <Route path="/schedule" element={<LiveCollection kind="schedules" />} />
       <Route path="/tasks" element={<LiveCollection kind="schedules" tablet />} />
+      <Route
+        path="/tasks/:scheduleId"
+        element={
+          tablet ? <LiveScheduleDetail /> : <LiveCollection kind="schedules" tablet={tablet} />
+        }
+      />
       <Route path="/records" element={<LiveRecords />} />
       <Route path="/records/:recordId" element={<LiveRecords detail />} />
       <Route

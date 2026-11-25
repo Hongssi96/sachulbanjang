@@ -5,7 +5,13 @@ import { useAuth } from '../../hooks/useAuth';
 import { date, errorMessage, read, text, write } from '../../api/business';
 import TabletAccountDialog from '../TabletHomePage/TabletAccountDialog';
 
-export default function LiveHeader({ title, tablet = false }: { title: string; tablet?: boolean }) {
+export default function LiveHeader({
+  title,
+  tablet = false,
+}: {
+  title?: string;
+  tablet?: boolean;
+}) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(false);
@@ -14,7 +20,7 @@ export default function LiveHeader({ title, tablet = false }: { title: string; t
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    document.title = `사출반장 · ${title}${tablet ? ' · iPad' : ''}`;
+    document.title = `사출반장${title ? ` · ${title}` : ''}${tablet ? ' · iPad' : ''}`;
   }, [title, tablet]);
   const session = useRemote(
     useCallback(async () => {
@@ -61,9 +67,11 @@ export default function LiveHeader({ title, tablet = false }: { title: string; t
   return (
     <>
       <header className={tablet ? 'th-header' : 'topbar'}>
-        <div className="th-header-location">
-          <strong>{title}</strong>
-        </div>
+        {title ? (
+          <div className="th-header-location">
+            <strong>{title}</strong>
+          </div>
+        ) : null}
         <div className="live-toolbar">
           <span className="live-muted">
             {remaining === null
@@ -110,7 +118,14 @@ export default function LiveHeader({ title, tablet = false }: { title: string; t
           {error}
         </div>
       )}
-      {profile && <TabletAccountDialog onClose={closeProfile} onLoginOpen={() => void leave()} />}
+      {profile && (
+        <TabletAccountDialog
+          onClose={closeProfile}
+          onLoginOpen={() => void leave()}
+          remainingMinutes={remaining}
+          endsAt={session.data?.ends_at ?? null}
+        />
+      )}
     </>
   );
 }
