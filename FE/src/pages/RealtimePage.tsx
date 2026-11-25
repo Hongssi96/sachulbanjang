@@ -617,7 +617,7 @@ export default function RealtimePage() {
             <>
               <div className="kpi-value">
                 {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
-                <span>건</span>
+                <span className="unit-lift">건</span>
                 {productionDelta === null ? (
                   <span className="pill pill-neutral">저번 달 대비 {NA}</span>
                 ) : (
@@ -650,9 +650,6 @@ export default function RealtimePage() {
               <div className="kpi-bottom">
                 <span>이번 달 목표 {NA}</span>
                 <span>현재까지 {countLabel(monthCount)}건</span>
-              </div>
-              <div className="mini-progress">
-                <span style={{ width: '0%' }} />
               </div>
             </>
           )}
@@ -779,8 +776,13 @@ export default function RealtimePage() {
                   <strong>{todayRate === null ? NA : `${todayRate.toFixed(2)}%`}</strong>
                 </div>
               </div>
+              <div className="kpi-bottom">
+                <span>이번 달 검사 {countLabel(monthInspections)}건</span>
+                <span>불량 {countLabel(monthDefects)}건</span>
+              </div>
             </>
           )}
+          <p className="rt-note">라벨 검사 기록 기준 불량률이에요. 전체 생산 불량률과 달라요.</p>
         </article>
       </div>
 
@@ -1328,7 +1330,7 @@ export default function RealtimePage() {
               <strong>
                 {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
               </strong>
-              <span className="metric-unit">건</span>
+              <span className="metric-unit unit-lift">건</span>
               {productionDelta === null ? (
                 <span className="pill pill-neutral">저번 달 대비 {NA}</span>
               ) : (

@@ -495,7 +495,7 @@ export default function QualityReportPage() {
               ) : (
                 metric(summary.inspected_count)
               )}
-              <span>건</span>
+              <span className="unit-lift">건</span>
             </div>
             <div className="kpi-bottom">
               <span>생산 기록 {metric(summary?.production_record_count)}건</span>
@@ -557,7 +557,7 @@ export default function QualityReportPage() {
               ) : (
                 metric(summary.defect_count)
               )}
-              <span>건</span>
+              <span className="unit-lift">건</span>
             </div>
             <div className="kpi-bottom">
               <span>양품 {metric(summary?.good_count)}건</span>

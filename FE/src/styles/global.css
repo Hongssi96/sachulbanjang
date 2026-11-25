@@ -734,6 +734,8 @@ main {
 .kpi-value {
   display: flex;
   align-items: baseline;
+  /* 값이 대시 컴포넌트뿐이면 flex 높이가 줄어들어 카드 간 줄이 어긋난다. 글자 줄 높이를 확보한다. */
+  min-height: 1.22em;
   font-size: var(--fs-5xl);
   font-weight: 700;
   line-height: 44px;
@@ -745,6 +747,7 @@ main {
 .kpi-value > span {
   font-size: var(--fs-md);
   font-weight: 500;
+  line-height: 1.2;
   letter-spacing: 0;
   color: var(--muted);
 }
@@ -2892,8 +2895,13 @@ textarea {
   gap: 16px;
   margin-bottom: 20px;
 }
-.rt-kpi .kpi-value {
+.rt-kpi .kpi-value,
+.rt-defect-card .kpi-value {
   margin: 6px 0 10px;
+}
+/* 생산 카드에만 기간 전환 컨트롤이 있어 제목 높이가 달라진다. 카드 간 내용 줄을 맞춘다. */
+.rt-summary .card-heading {
+  min-height: 38px;
 }
 /* 목표 진행바를 위쪽 비교 막대(rt-bar, 10px)와 두께를 맞춘다 */
 .rt-kpi .mini-progress {
@@ -4490,5 +4498,15 @@ textarea {
 .kpi-value .missing-value,
 .metric-value .missing-value {
   align-self: center;
-  height: 1em;
+}
+/* 값이 없을 때는 대시와 단위를 함께 가운데로 둬서 단위가 아래로 처지지 않게 한다. */
+.kpi-value .missing-value + span {
+  align-self: center;
+}
+
+/* 한글 '건'의 잉크가 숫자보다 1px 아래까지 닿아 보여 단위만 살짝 올린다. */
+.kpi-value .unit-lift,
+.metric-value .unit-lift {
+  position: relative;
+  top: -1px;
 }
