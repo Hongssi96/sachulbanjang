@@ -9,9 +9,10 @@ import { useAuth } from './hooks/useAuth';
 import { useApiQuery } from './hooks/useApiQuery';
 import { useWorkSession } from './hooks/useWorkSession';
 import { fetchReports } from './api/reports';
-import { formatDateTime } from './utils/dateFormat';
+import { formatDateTime, todaySeoulISO } from './utils/dateFormat';
 import TabletPasswordDialog from './pages/TabletHomePage/TabletPasswordDialog';
 import { markLoggedOut } from './utils/logoutNotice';
+import { useReportsVersion } from './services/reportSignals';
 
 const ConnectedTabletApp = lazy(() => import('./pages/Connected/ConnectedTabletApp'));
 
@@ -62,12 +63,17 @@ const routeTitles: Record<string, string> = {
 export default function AppShell() {
   const { user, logout, refreshUser } = useAuth();
   const { extend } = useWorkSession();
-  const { data: notificationReports } = useApiQuery('shell-reports', () =>
+  const reportsVersion = useReportsVersion();
+  const { data: notificationReports } = useApiQuery(`shell-reports:${reportsVersion}`, () =>
     fetchReports({ pageSize: 3 }),
   );
-  const { data: pendingReports } = useApiQuery('shell-pending-reports', () =>
-    fetchReports({ businessStatus: 'pending', pageSize: 1 }),
+  // 사이드바 배지는 당일(한국 기준) 올라온 보고 중 아직 완료되지 않은 건수를 센다.
+  const today = todaySeoulISO();
+  const { data: todayReports } = useApiQuery(`shell-today-reports:${reportsVersion}:${today}`, () =>
+    fetchReports({ from: today, to: today, pageSize: 100 }),
   );
+  const openReportCount =
+    todayReports?.items.filter((item) => item.business_status !== 'completed').length ?? 0;
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -229,7 +235,7 @@ export default function AppShell() {
           active={activeMenu}
           onNavigate={handleNavigate}
           onAssistant={askAssistant}
-          reportBadge={pendingReports?.pagination.total_items ?? 0}
+          reportBadge={openReportCount}
         />
       </div>
       <div className="workspace" ref={workspaceRef}>

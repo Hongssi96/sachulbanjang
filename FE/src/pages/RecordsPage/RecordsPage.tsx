@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import ApiErrorState from '../../components/ApiErrorState';
+import MissingValue from '../../components/MissingValue';
 import DatePicker from '../../components/DatePicker';
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
@@ -65,7 +66,7 @@ type ListRow =
   { kind: 'production'; record: ProcessRecord } | { kind: 'inspection'; record: InspectionRecord };
 
 const number = (value: number) => value.toLocaleString('ko-KR');
-const formatRate = (value: number | null) => (value === null ? NA : `${value.toFixed(2)}%`);
+const rateText = (value: number | null) => (value === null ? null : `${value.toFixed(2)}%`);
 const dateLabel = (value: string) => value.replaceAll('-', '.');
 const positiveInt = (value: string) => (/^\d+$/.test(value) ? Number(value) : undefined);
 const validDate = (value: string) => {
@@ -143,7 +144,7 @@ function csvCell(value: string) {
 }
 
 function NotAvailable() {
-  return <span className="rd-na">{NA}</span>;
+  return <MissingValue />;
 }
 
 function VerdictPill({ row }: { row: ListRow }) {
@@ -345,28 +346,28 @@ export default function RecordsPage() {
   const cards = [
     {
       label: '생산 배치',
-      value: summary ? number(summary.production_record_count) : NA,
-      unit: summary ? '건' : '',
+      value: summary ? number(summary.production_record_count) : null,
+      unit: '건',
       note: '조회 조건의 생산 기록 건수',
       icon: Layers,
     },
     {
       label: '생산 수량',
-      value: NA,
+      value: null,
       unit: '',
       note: 'API에서 제공하지 않아요',
       icon: Package,
     },
     {
       label: '검사 수량',
-      value: summary ? number(summary.inspected_count) : NA,
-      unit: summary ? '건' : '',
+      value: summary ? number(summary.inspected_count) : null,
+      unit: '건',
       note: summary ? `양품 ${number(summary.good_count)}건 · 검사 기록 기준` : NA,
       icon: ClipboardCheck,
     },
     {
       label: '검사 불량률',
-      value: summary ? formatRate(summary.defect_rate) : NA,
+      value: summary ? rateText(summary.defect_rate) : null,
       unit: '',
       note: summary ? `검사 불량 ${number(summary.defect_count)}건` : NA,
       icon: Activity,
@@ -493,8 +494,8 @@ export default function RecordsPage() {
               <Icon size={17} />
             </span>
             <strong>
-              {value}
-              <small>{unit}</small>
+              {value === null ? <MissingValue size="lg" /> : value}
+              {unit && <small>{unit}</small>}
             </strong>
             {note && <p>{note}</p>}
           </div>
@@ -961,12 +962,12 @@ export function RecordDetailPage() {
   };
 
   const summaryCards = [
-    { label: '생산 수량', value: NA, unit: '', note: 'API에서 제공하지 않아요' },
-    { label: '검사 수량', value: NA, unit: '', note: '검사 수량 정보가 없어요' },
-    { label: '검사 양품', value: NA, unit: '', note: '검사 수량 정보가 없어요' },
+    { label: '생산 수량', value: null, unit: '', note: 'API에서 제공하지 않아요' },
+    { label: '검사 수량', value: null, unit: '', note: '검사 수량 정보가 없어요' },
+    { label: '검사 양품', value: null, unit: '', note: '검사 수량 정보가 없어요' },
     {
       label: '검사 불량률',
-      value: NA,
+      value: null,
       unit: '',
       note: inspectionVerdict
         ? `판정 ${inspectionVerdict === 'good' ? '양품' : '불량'}`
@@ -1068,7 +1069,7 @@ export function RecordDetailPage() {
           >
             <span className="rd-stat-label">{label}</span>
             <strong>
-              {value}
+              {value === null ? <MissingValue size="lg" /> : value}
               {unit && <small>{unit}</small>}
             </strong>
             <p>{note}</p>
@@ -1113,8 +1114,7 @@ export function RecordDetailPage() {
                 <div key={type}>
                   <span>{type}</span>
                   <strong>
-                    {NA}
-                    <small>건</small>
+                    <MissingValue />
                   </strong>
                 </div>
               ))}

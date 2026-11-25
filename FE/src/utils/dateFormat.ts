@@ -12,6 +12,10 @@ export function shiftDateISO(value: string, days: number) {
   date.setDate(date.getDate() + days);
   return todayISO(date);
 }
+/** 서버 보고 기간 필터와 같은 한국(Asia/Seoul) 기준 오늘 날짜. */
+export function todaySeoulISO(now: Date = new Date()) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(now);
+}
 export function formatDateTime(value: string) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return '—';
