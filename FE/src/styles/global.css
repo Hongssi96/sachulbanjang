@@ -733,7 +733,7 @@ main {
 }
 .kpi-value {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   font-size: var(--fs-5xl);
   font-weight: 700;
   line-height: 44px;
@@ -4490,5 +4490,9 @@ textarea {
 /* 큰 수치 줄은 글자 기준선에 맞춰져 있어, 대시 자리 표시는 세로 가운데로 두고 줄 높이를 유지한다. */
 .kpi-value .missing-value,
 .metric-value .missing-value {
+  align-self: center;
+}
+/* 값이 없을 때는 대시와 단위를 함께 가운데로 둬서 단위가 아래로 처지지 않게 한다. */
+.kpi-value .missing-value + span {
   align-self: center;
 }
