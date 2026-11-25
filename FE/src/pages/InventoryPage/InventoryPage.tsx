@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import ApiErrorState from '../../components/ApiErrorState';
+import MissingValue from '../../components/MissingValue';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -405,7 +406,10 @@ export default function InventoryPage() {
               가용재고
               <PackageCheck size={19} />
             </div>
-            <div className="kpi-value">{NOT_AVAILABLE}</div>
+            <div className="kpi-value">
+              <MissingValue size="lg" />
+              <span>개</span>
+            </div>
             <div className="kpi-bottom">
               <span>현재고 − 출고 예약</span>
               <span className="positive">즉시 출고 가능</span>
@@ -419,7 +423,10 @@ export default function InventoryPage() {
               출고 예약
               <Truck size={19} />
             </div>
-            <div className="kpi-value">{NOT_AVAILABLE}</div>
+            <div className="kpi-value">
+              <MissingValue size="lg" />
+              <span>개</span>
+            </div>
             <div className="kpi-bottom">
               <span>납품을 위해 확보한 수량</span>
               <span>예약 제외 후 출고</span>
@@ -650,11 +657,13 @@ export default function InventoryPage() {
                       </button>
                     </td>
                     <td className="inv-number">{item.quantity.toLocaleString()}</td>
-                    <td className="inv-number inv-muted-number">{NOT_AVAILABLE}</td>
+                    <td className="inv-number inv-muted-number">
+                      <MissingValue />
+                    </td>
                     <td
                       className={`inv-number inv-available ${item.is_low_stock ? 'warning' : ''}`}
                     >
-                      {NOT_AVAILABLE}
+                      <MissingValue />
                     </td>
                     <td className="inv-number inv-muted-number">
                       {formatMinimumStock(item.minimum_stock)}

@@ -14,7 +14,7 @@ import LoadingState from '../../components/LoadingState';
 import SegmentedControl from '../../components/SegmentedControl';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { useDebouncedSearch } from '../../hooks/useDebouncedSearch';
-import { formatDateTime } from '../../utils/dateFormat';
+import { formatDateTime, todaySeoulISO } from '../../utils/dateFormat';
 import './ReportsPage.css';
 
 const statusFilters = ['전체', '대기', '진행 중', '완료'] as const;
@@ -128,11 +128,19 @@ export default function ReportsPage() {
   );
   // 작성자 선택지는 서버에서 받은 최근 100건에서 만든다. (작성자 필터 API는 없음)
   const authorSourceQuery = useApiQuery('report-authors', () => fetchReports({ pageSize: 100 }));
-  // 최신 3건에만 N 표식을 붙인다.
-  const latestQuery = useApiQuery('report-latest', () => fetchReports({ pageSize: 3 }));
+  // N 표식은 사이드바 배지와 같은 기준(당일 올라온 보고 중 미완료)을 쓴다.
+  const today = todaySeoulISO();
+  const openTodayQuery = useApiQuery(`report-open-today:${today}`, () =>
+    fetchReports({ from: today, to: today, pageSize: 100 }),
+  );
   const newPostIds = useMemo(
-    () => new Set((latestQuery.data?.items ?? []).map((post) => post.report_id)),
-    [latestQuery.data],
+    () =>
+      new Set(
+        (openTodayQuery.data?.items ?? [])
+          .filter((post) => post.business_status !== 'completed')
+          .map((post) => post.report_id),
+      ),
+    [openTodayQuery.data],
   );
   const authorOptions = useMemo(
     () =>

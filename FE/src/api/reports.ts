@@ -1,5 +1,14 @@
 import { apiRequest } from './client';
-import { asArray, asEnum, asNumber, asRecord, asString, parsePagination, toQuery } from './json';
+import {
+  asArray,
+  asEnum,
+  asNumber,
+  asRecord,
+  asString,
+  isRecord,
+  parsePagination,
+  toQuery,
+} from './json';
 import type { ListResponse } from './types';
 
 export type ReportCategory =
@@ -39,6 +48,22 @@ export interface ReportDetail extends ReportListItem {
   body_markdown: string;
   last_editor_id: number | null;
   last_editor_display_name: string | null;
+  generation_snapshot: ReportSnapshot | null;
+}
+
+/** AI 보고서 생성 시 집계에 쓰인 값. 화면에서 확인 항목을 만들 때 참고한다. */
+export interface ReportSnapshot {
+  periodFrom: string | null;
+  periodTo: string | null;
+  productionRecordCount: number;
+  inspectedCount: number;
+  goodCount: number;
+  defectCount: number;
+  defectRatePercent: number | null;
+  defectTypes: string[];
+  includesDemo: boolean;
+  targetCount: number;
+  equipmentCount: number;
 }
 
 export interface ReportListParams {
@@ -96,6 +121,45 @@ function parseReportItem(value: unknown, field: string): ReportListItem {
   };
 }
 
+// 집계 스냅샷은 생성 이후 형식이 바뀔 수 있다. 필요한 값이 없으면 확인 항목 생성에서
+// 제외하고 상세 조회 자체는 실패시키지 않는다.
+function readNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function readIdCount(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function parseReportSnapshot(value: unknown): ReportSnapshot | null {
+  if (!isRecord(value)) return null;
+  const summary = isRecord(value.summary) ? value.summary : {};
+  const period = isRecord(value.period) ? value.period : {};
+  const targets = isRecord(value.requested_targets) ? value.requested_targets : {};
+  return {
+    periodFrom: readString(period.from),
+    periodTo: readString(period.to),
+    productionRecordCount: readNumber(summary.production_record_count) ?? 0,
+    inspectedCount: readNumber(summary.inspected_count) ?? 0,
+    goodCount: readNumber(summary.good_count) ?? 0,
+    defectCount: readNumber(summary.defect_count) ?? 0,
+    defectRatePercent: readNumber(summary.defect_rate_percent),
+    defectTypes: Array.isArray(summary.defect_types)
+      ? summary.defect_types.filter((item): item is string => typeof item === 'string')
+      : [],
+    includesDemo: summary.includes_demo === true,
+    targetCount:
+      readIdCount(targets.department_ids) +
+      readIdCount(targets.production_line_ids) +
+      readIdCount(targets.equipment_ids),
+    equipmentCount: readIdCount(value.resolved_equipment),
+  };
+}
+
 function parseReportDetail(value: unknown): ReportDetail {
   const item = asRecord(value, 'report');
   return {
@@ -107,6 +171,7 @@ function parseReportDetail(value: unknown): ReportDetail {
       item.last_editor_display_name === null
         ? null
         : asString(item.last_editor_display_name, 'report.last_editor_display_name'),
+    generation_snapshot: parseReportSnapshot(item.generation_snapshot),
   };
 }
 
