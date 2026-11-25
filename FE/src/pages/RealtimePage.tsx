@@ -651,9 +651,6 @@ export default function RealtimePage() {
                 <span>이번 달 목표 {NA}</span>
                 <span>현재까지 {countLabel(monthCount)}건</span>
               </div>
-              <div className="mini-progress">
-                <span style={{ width: '0%' }} />
-              </div>
             </>
           )}
           <p className="rt-note">생산 수량이 아니라 생산 기록 건수예요. 목표는 API 미제공입니다.</p>
@@ -779,8 +776,13 @@ export default function RealtimePage() {
                   <strong>{todayRate === null ? NA : `${todayRate.toFixed(2)}%`}</strong>
                 </div>
               </div>
+              <div className="kpi-bottom">
+                <span>이번 달 검사 {countLabel(monthInspections)}건</span>
+                <span>불량 {countLabel(monthDefects)}건</span>
+              </div>
             </>
           )}
+          <p className="rt-note">라벨 검사 기록 기준 불량률이에요. 전체 생산 불량률과 달라요.</p>
         </article>
       </div>
 
