@@ -2,6 +2,7 @@ import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import LoadingState from '../../components/LoadingState';
 import ApiErrorState from '../../components/ApiErrorState';
 import Modal from '../../components/Modal';
+import ReportMarkdown from '../../components/ReportMarkdown';
 import {
   Fragment,
   useEffect,
@@ -678,6 +679,10 @@ export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
                                 <span className="cs-typing-dot" aria-hidden="true" />
                                 <span className="cs-typing-dot" aria-hidden="true" />
                                 <span className="cs-typing-dot" aria-hidden="true" />
+                              </div>
+                            ) : answer.kind === 'answer' ? (
+                              <div className="cs-markdown report-markdown">
+                                <ReportMarkdown markdown={answer.text} />
                               </div>
                             ) : (
                               <p>{answer.text}</p>

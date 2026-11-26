@@ -229,6 +229,33 @@
   margin: 0;
   white-space: pre-wrap;
 }
+/* 채팅 답변의 마크다운: 문단 간격과 제목 크기를 말풍선에 맞춘다. */
+.cs-bubble .cs-markdown p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+.cs-bubble .cs-markdown p:last-child {
+  margin-bottom: 0;
+}
+.cs-bubble .cs-markdown ul,
+.cs-bubble .cs-markdown ol {
+  margin: 0 0 8px;
+}
+.cs-bubble .cs-markdown h2,
+.cs-bubble .cs-markdown h3,
+.cs-bubble .cs-markdown h4 {
+  margin: 12px 0 6px;
+  font-size: var(--fs-md);
+  line-height: 24px;
+}
+.cs-bubble .cs-markdown h2:first-child,
+.cs-bubble .cs-markdown h3:first-child,
+.cs-bubble .cs-markdown h4:first-child {
+  margin-top: 0;
+}
+.cs-bubble .cs-markdown .report-markdown-table {
+  margin: 4px 0 8px;
+}
 .cs-typing {
   display: flex;
   align-items: center;
