@@ -68,6 +68,13 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+// crypto.randomUUID는 HTTPS·localhost 같은 보안 컨텍스트에서만 제공된다.
+function requestKey(): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 interface ChatSearchPageProps {
   onToast: (message: string) => void;
 }
@@ -305,7 +312,7 @@ export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
         }
         const accepted = await submitTurn(targetId, {
           question: message,
-          clientRequestKey: crypto.randomUUID(),
+          clientRequestKey: requestKey(),
         });
         setPendingTurn({ conversationId: targetId, turnId: accepted.turn_id });
         update({ chat: String(targetId), view: '' });
@@ -348,7 +355,7 @@ export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
       setRetryingTurnId(turn.turn_id);
       setNotice('');
       try {
-        const accepted = await retryTurn(activeId, turn.turn_id, crypto.randomUUID());
+        const accepted = await retryTurn(activeId, turn.turn_id, requestKey());
         setPendingTurn({ conversationId: activeId, turnId: accepted.turn_id });
         reloadDetail();
         reloadList();
