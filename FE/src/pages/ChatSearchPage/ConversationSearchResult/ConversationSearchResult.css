@@ -1,0 +1,12 @@
+.cs-result.cs-conversation-result {
+  padding: 10px 12px;
+}
+.cs-conversation-result > div {
+  flex: 1;
+}
+.cs-conversation-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

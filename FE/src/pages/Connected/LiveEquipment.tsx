@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import useRemote from '../../hooks/useRemote';
 import { date, items, list, read, text } from '../../api/business';
 import { RemoteState, Table } from './LiveShared';
@@ -30,9 +31,6 @@ export default function LiveEquipment() {
     <div className="live-page">
       <div className="live-toolbar">
         <h1>설비 현황 · 실시간 공정</h1>
-        <button className="button button-white live-refresh-button" onClick={resource.reload}>
-          새로고침
-        </button>
       </div>
       <RemoteState {...resource} retry={resource.reload} />
       {resource.data && (
@@ -45,14 +43,25 @@ export default function LiveEquipment() {
             이 API는 가동 상태·온도·압력·생산 목표를 제공하지 않습니다. 확인되지 않은 수치를 정상
             상태로 표시하지 않습니다.
           </p>
-          <label>
-            설비 검색
-            <input
-              value={filter}
-              placeholder="설비명 또는 설비 코드 검색"
-              onChange={(event) => setFilter(event.target.value)}
-            />
-          </label>
+          <div className="live-equipment-search">
+            <label>
+              <span>설비 검색</span>
+              <input
+                value={filter}
+                placeholder="설비명 또는 설비 코드 검색"
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </label>
+            <button
+              className="button button-white live-refresh-button"
+              type="button"
+              aria-label="새로고침"
+              title="새로고침"
+              onClick={resource.reload}
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
           <section className="live-card">
             <Table
               rows={rows.filter((row) =>

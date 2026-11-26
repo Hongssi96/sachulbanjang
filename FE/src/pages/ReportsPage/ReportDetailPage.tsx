@@ -12,7 +12,7 @@ import {
 } from '../../api/reports';
 import { ApiError, apiRequestBlob } from '../../api/client';
 import ApiErrorState from '../../components/ApiErrorState';
-import LoadingState from '../../components/LoadingState';
+import ReportDetailSkeleton from './ReportDetailSkeleton';
 import { setReportChecklist, useReportChecklist } from '../../services/reportChecklist';
 import { notifyReportsChanged } from '../../services/reportSignals';
 import { reportTasks } from '../../services/reportTasks';
@@ -180,11 +180,7 @@ export default function ReportDetailPage() {
     );
   }
   if (detailQuery.loading && !post) {
-    return (
-      <section className="reports-page">
-        <LoadingState label="보고를 불러오는 중이에요" />
-      </section>
-    );
+    return <ReportDetailSkeleton />;
   }
   if (detailQuery.error || !post) {
     return (

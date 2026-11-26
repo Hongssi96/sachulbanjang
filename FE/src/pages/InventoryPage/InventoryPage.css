@@ -1501,3 +1501,23 @@
 .inv-detail-history > div > span:nth-child(2) {
   min-width: 0;
 }
+.inventory-page > section > .kpi-grid > .kpi,
+.inventory-page > .inv-bottom-grid > .card {
+  border: 0;
+  padding: 16px;
+}
+.inventory-page > .inv-stock-card {
+  border: 0;
+}
+.inventory-page > .inv-stock-card > :is(.inv-stock-header, .inv-filter-bar, .inv-table-footer) {
+  padding: 16px;
+}
+.inventory-page > .inv-stock-card > .inv-category-bar {
+  padding-inline: 16px;
+}
+.inventory-page > .inv-stock-card :is(th, td):first-child {
+  padding-left: 16px;
+}
+.inventory-page > .inv-stock-card :is(th, td):last-child {
+  padding-right: 16px;
+}

@@ -1,5 +1,21 @@
+.app main:has(.chat-page) {
+  max-width: none;
+  padding: 0;
+}
 .chat-page {
   --cs-soft: #f6f4f9;
+  --cs-typing-color: #8e7bb5;
+  --cs-scrollbar: #b8afc7;
+  --cs-scrollbar-hover: #8e83a5;
+  position: relative;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+.chat-page > .cs-layout {
+  border: 0;
+  border-radius: 0;
 }
 .cs-mode {
   display: flex;
@@ -17,11 +33,13 @@
 .cs-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+  gap: 0;
+  align-items: stretch;
+  overflow: hidden;
 }
 .cs-history {
   padding: 21px 16px;
+  border-right: 1px solid var(--rd-border);
   min-height: 680px;
   display: flex;
   flex-direction: column;
@@ -69,6 +87,7 @@
   padding-left: 8px;
 }
 .cs-history-items {
+  position: relative;
   margin-top: 10px;
   display: grid;
   gap: 7px;
@@ -130,12 +149,16 @@
   min-width: 0;
 }
 .cs-main > .rd-tabs {
-  padding-top: 8px;
+  min-height: 52px;
+  flex-shrink: 0;
+  align-items: stretch;
+  padding-block: 0;
 }
 .cs-main .rd-tabs button {
   display: flex;
   align-items: center;
   gap: 7px;
+  padding-block: 0;
 }
 .cs-chat-heading {
   display: flex;
@@ -143,17 +166,6 @@
   gap: 12px;
   padding: 12px 24px;
   border-bottom: 1px solid var(--rd-border);
-}
-.cs-ai-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #635b85;
-  color: #fff;
-  border-radius: var(--radius-control);
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
 }
 .cs-chat-heading strong {
   font-size: var(--fs-md);
@@ -168,6 +180,7 @@
   margin-left: auto;
 }
 .cs-messages {
+  position: relative;
   padding: 28px 26px 36px;
   max-height: 520px;
   overflow: auto;
@@ -216,6 +229,44 @@
   margin: 0;
   white-space: pre-wrap;
 }
+.cs-typing {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 1.6em;
+  padding-inline: 3px;
+  color: var(--cs-typing-color);
+}
+.cs-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: cs-typing-pulse 1.2s ease-in-out infinite;
+}
+.cs-typing-dot:nth-of-type(3) {
+  animation-delay: 0.16s;
+}
+.cs-typing-dot:nth-of-type(4) {
+  animation-delay: 0.32s;
+}
+@keyframes cs-typing-pulse {
+  0%,
+  60%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  30% {
+    transform: scale(1.5);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-typing-dot {
+    animation: none;
+  }
+}
 .cs-message.user {
   flex-direction: row-reverse;
 }
@@ -248,10 +299,11 @@
 }
 /* 입력창: 글자 칸과 보내기 버튼을 한 줄에 두고, 안내 문구는 상자 밖 아래에 둔다. */
 .cs-composer {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  margin: 0 26px;
+  margin: 0 66px; /* 메시지 여백 26px + 프로필 29px + 간격 11px */
   border: 1px solid #d5cfe1;
   border-radius: var(--radius-control);
   padding: 5px 5px 5px 14px;
@@ -262,9 +314,9 @@
   flex: 1;
   min-width: 0;
   resize: none;
-  min-height: 0; /* 전역 textarea 최소 높이(120px)를 쓰지 않는다 */
+  min-height: 36px; /* 한 줄 높이와 위아래 여백을 확보한다. */
   padding: 7px 0;
-  overflow-y: auto;
+  overflow-y: hidden;
   font: inherit;
   font-size: var(--fs-sm);
   line-height: 22px;
@@ -272,6 +324,25 @@
   border: 0;
   background: transparent;
   outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cs-scrollbar) transparent;
+}
+.cs-composer textarea:hover {
+  scrollbar-color: var(--cs-scrollbar-hover) transparent;
+}
+.cs-composer textarea::-webkit-scrollbar {
+  width: 6px;
+}
+.cs-composer textarea::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 7px;
+}
+.cs-composer textarea::-webkit-scrollbar-thumb {
+  background: var(--cs-scrollbar);
+  border-radius: var(--radius-pill);
+}
+.cs-composer textarea::-webkit-scrollbar-thumb:hover {
+  background: var(--cs-scrollbar-hover);
 }
 .cs-composer:focus-within {
   outline: 2px solid #635b85;
@@ -288,8 +359,8 @@
   padding: 0;
 }
 .cs-composer-hint {
-  margin: 6px 26px 14px;
-  font-size: var(--fs-xs);
+  margin: 6px 66px 14px;
+  font-size: 10px;
   color: var(--rd-muted);
 }
 .cs-disclaimer {
@@ -462,12 +533,23 @@
   color: var(--rd-muted);
   font-size: var(--fs-sm);
 }
+.cs-search-highlight {
+  background: #e8def6;
+  color: #584375;
+  border-radius: 3px;
+}
+.dark .cs-search-highlight {
+  background: #604a7b;
+  color: #f4ebff;
+}
 .cs-result:is(a, button):hover {
   background: var(--cs-soft);
   border-color: #c9c0da;
   cursor: pointer;
 }
 .cs-welcome {
+  flex-shrink: 0;
+  margin-block: auto;
   text-align: center;
   padding: 28px 10px;
   color: #635b85;
@@ -475,9 +557,10 @@
 .cs-welcome h2 {
   font-size: var(--fs-xl);
   color: var(--rd-ink);
-  margin: 20px 0 10px;
+  margin: 0 0 10px;
 }
 .cs-welcome p {
+  margin: 0;
   font-size: var(--fs-sm);
   color: var(--rd-muted);
   line-height: 1.9;
@@ -511,6 +594,9 @@
 }
 .dark .chat-page {
   --cs-soft: #383142;
+  --cs-typing-color: #c7b6e4;
+  --cs-scrollbar: #756982;
+  --cs-scrollbar-hover: #a597b6;
 }
 .dark .cs-history-items button.selected {
   background: #464054;
@@ -536,7 +622,7 @@
   }
   .cs-composer,
   .cs-composer-hint {
-    margin-inline: 20px;
+    margin-inline: 60px;
   }
   .cs-disclaimer {
     padding: 0 20px;
@@ -552,6 +638,8 @@
   .cs-history {
     min-height: 0;
     padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--rd-border);
   }
   .cs-history-note {
     display: none;
@@ -637,7 +725,7 @@
   }
   .cs-composer,
   .cs-composer-hint {
-    margin-inline: 16px;
+    margin-inline: 52px;
   }
   .cs-messages {
     padding: 20px 16px;
@@ -665,9 +753,6 @@
 }
 .cs-composer textarea:focus-visible {
   outline: none;
-}
-.cs-ai-mark {
-  background: #635b85;
 }
 .chat-page > .rd-heading {
   margin-bottom: 20px;
@@ -713,16 +798,6 @@
 .chat-focus .chat-page > .rd-heading {
   margin-bottom: 10px;
 }
-.chat-focus .cs-main > .rd-tabs {
-  padding-top: 0;
-}
-.chat-focus .cs-main > .rd-tabs button {
-  padding-block: 10px;
-}
-.chat-focus .cs-composer,
-.chat-focus .cs-composer-hint {
-  margin-inline: 20px;
-}
 .chat-focus .cs-disclaimer {
   margin-block: 8px;
 }
@@ -745,13 +820,14 @@
     flex: 1;
     width: 100%;
     min-height: 0;
-    padding-bottom: 0; /* 아래 여백은 main의 32px만 쓴다(메뉴 숨김/보임 동일) */
+    padding-bottom: 0;
     display: flex;
     flex-direction: column;
   }
   .fit-viewport .cs-layout {
     flex: 1;
-    min-height: 480px; /* 이보다 낮은 화면에서는 페이지 스크롤로 넘긴다. */
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
   }
   .fit-viewport .cs-history {
@@ -767,6 +843,9 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+  }
+  .fit-viewport .cs-main > :not(.cs-messages, .cs-search-content) {
+    flex-shrink: 0;
   }
   .fit-viewport .cs-messages,
   .fit-viewport .cs-search-content {

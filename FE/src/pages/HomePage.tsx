@@ -609,7 +609,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
             <CalendarDays size={17} />
             {todayLabel}
           </span>
-          <button className="button button-white" onClick={downloadSummary}>
+          <button className="button button-white home-summary-download" onClick={downloadSummary}>
             <Download size={17} /> 요약 다운로드
           </button>
         </div>
