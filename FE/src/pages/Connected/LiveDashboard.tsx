@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Link } from 'react-router';
-import { ArrowRight, NotebookPen } from 'lucide-react';
+import { ArrowRight, NotebookPen, RefreshCw } from 'lucide-react';
 import useRemote from '../../hooks/useRemote';
 import { useAuth } from '../../hooks/useAuth';
 import { date, list, read, text } from '../../api/business';
@@ -23,8 +23,14 @@ export default function LiveDashboard({ tablet = false }: { tablet?: boolean }) 
     <div className="live-page">
       <div className="live-toolbar">
         <h1>좋은 하루예요, {user?.display_name}님.</h1>
-        <button className="button button-white live-refresh-button" onClick={resource.reload}>
-          새로고침
+        <button
+          className="button button-white live-refresh-button"
+          type="button"
+          aria-label="새로고침"
+          title="새로고침"
+          onClick={resource.reload}
+        >
+          <RefreshCw size={16} />
         </button>
       </div>
       <RemoteState {...resource} retry={resource.reload} />
