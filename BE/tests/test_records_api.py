@@ -124,6 +124,10 @@ def test_worker_lists_inspection_records_with_verdict_filter() -> None:
                 "verdict": "defect",
                 "defect_type": "scratch",
                 "reason": "표면 긁힘",
+                "inspected_quantity": None,
+                "good_quantity": None,
+                "defect_quantity": None,
+                "inspector_id": None,
                 "is_demo": True,
                 "version": 1,
             }
@@ -247,6 +251,7 @@ def test_process_record_detail_includes_source_fields() -> None:
     assert body["record_id"] == 7
     assert body["source_import_id"] == 10
     assert body["source_row_number"] == 4
+    assert body["produced_quantity"] is None
     service.get_process_record.assert_called_once_with(7)
 
 

@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { formText } from '../../api/business';
 import { useCallback, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
@@ -57,6 +58,7 @@ export default function LiveRecords({
       [detail, recordId, endpoint],
     ),
   );
+  usePageEntryReady(detail ? !item.loading : !resource.loading && !masters.loading);
   if (detail)
     return (
       <div className="live-page">

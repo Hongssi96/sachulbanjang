@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useState } from 'react';
 import useRemote from '../../hooks/useRemote';
 import { useAuth } from '../../hooks/useAuth';
@@ -20,6 +21,7 @@ export default function LiveUsers() {
       [page, user?.role],
     ),
   );
+  usePageEntryReady(!resource.loading);
   if (user?.role !== 'admin')
     return (
       <div className="live-page">

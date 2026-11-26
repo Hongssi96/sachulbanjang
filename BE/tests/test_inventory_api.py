@@ -1,6 +1,7 @@
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock
 
+import pytest
 from app.core.config import Settings
 from app.dependencies.auth import get_current_user
 from app.main import create_app
@@ -95,10 +96,26 @@ def test_inventory_requires_authentication() -> None:
     assert response.json()["code"] == "AUTHENTICATION_REQUIRED"
 
 
-def test_list_stocks_marks_low_stock() -> None:
+@pytest.mark.parametrize(
+    ("updated_at", "expected"),
+    [
+        (
+            datetime(2026, 11, 26, 13, tzinfo=timezone(timedelta(hours=9))),
+            "2026-11-26T13:00:00+09:00",
+        ),
+        (None, None),
+        (datetime(2026, 11, 26, 13), None),
+    ],
+)
+def test_list_stocks_marks_low_stock(updated_at: datetime | None, expected: str | None) -> None:
     service = MagicMock(spec=InventoryService)
     service.list_stocks.return_value = StockPage(
-        rows=[StockRow(product=make_product(minimum_stock=20), quantity=5)], total_items=1
+        rows=[
+            StockRow(
+                product=make_product(minimum_stock=20), quantity=5, balance_updated_at=updated_at
+            )
+        ],
+        total_items=1,
     )
     application = make_application(service)
 
@@ -113,6 +130,7 @@ def test_list_stocks_marks_low_stock() -> None:
         "quantity": 5,
         "minimum_stock": 20,
         "is_low_stock": True,
+        "balance_updated_at": expected,
     }
     service.list_stocks.assert_called_once_with(
         query=None, low_stock_only=True, page=1, page_size=10

@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect } from 'react';
 interface PageEntryState {
   onReady: () => void;
   contentLoading: boolean;
+  preparing?: boolean;
 }
 
 export const PageEntryContext = createContext<PageEntryState | null>(null);
@@ -17,4 +18,8 @@ export function usePageEntryReady(ready: boolean): void {
 
 export function usePageContentLoading(): boolean {
   return useContext(PageEntryContext)?.contentLoading ?? false;
+}
+
+export function usePageLoadingComplete(): boolean {
+  return useContext(PageEntryContext)?.preparing === false;
 }

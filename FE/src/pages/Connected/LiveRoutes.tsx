@@ -10,6 +10,7 @@ import LiveChat from './LiveChat';
 import LiveHandover from './LiveHandover';
 import LiveReportDetail from './LiveReportDetail';
 import LiveScheduleDetail from './LiveScheduleDetail';
+import NotFoundPage from '../NotFoundPage';
 
 export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
   return (
@@ -44,14 +45,7 @@ export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
         element={tablet ? <LiveHandover /> : <LiveCollection kind="handover-notes" />}
       />
       <Route path="/chat" element={<LiveChat />} />
-      <Route
-        path="*"
-        element={
-          <div className="live-page">
-            <h1>화면을 찾을 수 없습니다.</h1>
-          </div>
-        }
-      />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

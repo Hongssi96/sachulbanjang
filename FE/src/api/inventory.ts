@@ -31,6 +31,7 @@ export interface StockItem {
   quantity: number;
   minimum_stock: number | null;
   is_low_stock: boolean;
+  balance_updated_at: string | null;
 }
 
 export interface MovementItem {
@@ -67,6 +68,10 @@ function parseStock(value: unknown, field: string): StockItem {
     quantity: asNumber(item.quantity, `${field}.quantity`),
     minimum_stock: asNullableNumber(item.minimum_stock, `${field}.minimum_stock`),
     is_low_stock: asBoolean(item.is_low_stock, `${field}.is_low_stock`),
+    balance_updated_at: asNullableString(
+      item.balance_updated_at ?? null,
+      `${field}.balance_updated_at`,
+    ),
   };
 }
 

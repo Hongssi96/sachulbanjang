@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback } from 'react';
 import { Link } from 'react-router';
 import { ArrowRight, NotebookPen, RefreshCw } from 'lucide-react';
@@ -20,6 +21,7 @@ export default function LiveDashboard({ tablet = false }: { tablet?: boolean }) 
       [],
     ),
   );
+  usePageEntryReady(!resource.loading);
   return (
     <div className="live-page">
       <div className="live-toolbar">
