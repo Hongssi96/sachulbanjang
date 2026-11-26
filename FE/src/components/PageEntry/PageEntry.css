@@ -1,0 +1,18 @@
+.page-entry-content {
+  display: contents;
+}
+.page-entry-content[hidden] {
+  display: none;
+}
+.page-entry-local-loading {
+  display: grid;
+  place-items: center;
+  min-height: calc(100dvh - 144px);
+}
+.page-entry-local-loading > .loading-state {
+  min-height: 0;
+}
+.fit-viewport .page-entry-local-loading {
+  min-height: 0;
+  height: 100%;
+}

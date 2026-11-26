@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../components/PageEntry/PageEntryContext';
 import { formatDate } from '../utils/dateFormat';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
@@ -173,6 +174,7 @@ export default function SchedulePage({ onToast }: SchedulePageProps) {
     () => fetchSchedules({ from: range.from, to: range.to, pageSize: 100 }),
     { pollMs: 60_000 },
   );
+  usePageEntryReady(!scheduleQuery.loading);
   const allEvents = (scheduleQuery.data?.items ?? []).map(toView);
 
   const monthEvents = allEvents.filter((event) => event.year === year && event.month === month);

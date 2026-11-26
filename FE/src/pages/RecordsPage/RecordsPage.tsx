@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
@@ -316,6 +317,11 @@ export default function RecordsPage() {
   const activeData = production ? processQuery.data : inspectionQuery.data;
   const activeError = production ? processQuery.error : inspectionQuery.error;
   const activeLoading = production ? processQuery.loading : inspectionQuery.loading;
+  usePageEntryReady(
+    !equipmentQuery.loading &&
+      !productsQuery.loading &&
+      (Boolean(rangeError) || (!summaryQuery.loading && !activeLoading)),
+  );
   const activeReload = production ? processQuery.reload : inspectionQuery.reload;
   const totalItems = activeData?.pagination.total_items ?? 0;
   const totalPages = activeData?.pagination.total_pages ?? 0;
@@ -743,6 +749,7 @@ export function RecordDetailPage() {
     { enabled: validId && view === 'production' },
   );
   const active = view === 'inspection' ? inspectionDetail : processDetail;
+  usePageEntryReady(!validId || !active.loading);
   const inspectionRecord = view === 'inspection' ? inspectionDetail.data : null;
   const processRecord = view === 'production' ? processDetail.data : null;
   const record: InspectionRecord | ProcessRecordDetail | null = inspectionRecord ?? processRecord;

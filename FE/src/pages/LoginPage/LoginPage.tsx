@@ -14,9 +14,10 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import logoMark from '../../assets/logo-mark.png';
-import LoadingState from '../../components/LoadingState';
+import AuthLoading from '../../components/AuthLoading/AuthLoading';
 import { ApiError } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useMinimumAuthLoading } from '../../hooks/useMinimumAuthLoading';
 import { consumeLoggedOut } from '../../utils/logoutNotice';
 import './LoginPage.css';
 
@@ -52,7 +53,8 @@ function loginErrorMessage(error: unknown): string {
 }
 
 export default function LoginPage() {
-  const { status, login } = useAuth();
+  const { status, user, login } = useAuth();
+  const authLoading = useMinimumAuthLoading(status);
   const location = useLocation();
   const employeeId = useId();
   const passwordId = useId();
@@ -82,14 +84,15 @@ export default function LoginPage() {
     if (submitError) errorRef.current?.focus();
   }, [submitError]);
 
-  if (status === 'authenticated') return <Navigate to={returnPath} replace />;
-  if (status === 'checking') {
+  if (authLoading && user?.employee_no !== 'IPAD001') {
     return (
       <div className="login-page login-page-loading">
-        <LoadingState label="로그인 상태를 확인하는 중이에요" />
+        <AuthLoading label="로그인 상태를 확인하는 중이에요" />
       </div>
     );
   }
+
+  if (status === 'authenticated') return <Navigate to={returnPath} replace />;
 
   const updateEmployeeNo = (value: string) => {
     setEmployeeNo(value);

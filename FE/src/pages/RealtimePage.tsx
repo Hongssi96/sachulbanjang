@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../components/PageEntry/PageEntryContext';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, KeyboardEvent, PointerEvent } from 'react';
 import { useNavigate } from 'react-router';
@@ -284,6 +285,18 @@ export default function RealtimePage() {
     ]);
     return { lastWeek: lastWeekSummary, thisWeek: thisWeekSummary };
   });
+
+  usePageEntryReady(
+    [
+      currentQuery,
+      equipmentQuery,
+      productsQuery,
+      monthQuery,
+      previousMonthQuery,
+      dailyQuery,
+      weeklyQuery,
+    ].every((query) => !query.loading),
+  );
 
   const productIds = (productsQuery.data ?? []).map((item) => item.product_id).join(',');
   const productQualityQuery = useApiQuery(

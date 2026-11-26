@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, ClipboardList, Download, Eye, FileText } from 'lucide-react';
@@ -57,6 +58,7 @@ export default function ReportDetailPage() {
   const id = Number(reportId);
   const validId = Number.isInteger(id) && id >= 1;
   const detailQuery = useApiQuery(`report:${id}`, () => fetchReport(id), { enabled: validId });
+  usePageEntryReady(!validId || !detailQuery.loading);
   // 이전·다음 글은 목록에서 현재 위치로 계산한다.
   const listQuery = useApiQuery('report-neighbors', () => fetchReports({ pageSize: 100 }), {
     enabled: validId,
