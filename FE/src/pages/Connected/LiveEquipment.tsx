@@ -4,7 +4,7 @@ import useRemote from '../../hooks/useRemote';
 import { date, items, list, read, text } from '../../api/business';
 import { RemoteState, Table } from './LiveShared';
 
-export default function LiveEquipment() {
+export default function LiveEquipment({ tablet = false }: { tablet?: boolean }) {
   const [filter, setFilter] = useState('');
   const [query, setQuery] = useState('');
   useEffect(() => {
@@ -27,22 +27,31 @@ export default function LiveEquipment() {
       ...equipment,
       ...current.find((row) => row.equipment_id === equipment.equipment_id),
     })) ?? [];
+  const visibleRows = rows.filter((row) =>
+    `${text(row.equipment_code)} ${text(row.name)}`.toLowerCase().includes(query.toLowerCase()),
+  );
   return (
     <div className="live-page">
-      <div className="live-toolbar">
-        <h1>설비 현황 · 실시간 공정</h1>
-      </div>
+      {!tablet && (
+        <div className="live-toolbar">
+          <h1>설비 현황 · 실시간 공정</h1>
+        </div>
+      )}
       <RemoteState {...resource} retry={resource.reload} />
       {resource.data && (
         <>
-          <p className="live-muted">
-            조회 {date(resource.data.current.queried_at)} · 데이터 기준{' '}
-            {date(resource.data.current.data_time)} · 30초마다 갱신
-          </p>
-          <p className="live-muted">
-            이 API는 가동 상태·온도·압력·생산 목표를 제공하지 않습니다. 확인되지 않은 수치를 정상
-            상태로 표시하지 않습니다.
-          </p>
+          {!tablet && (
+            <>
+              <p className="live-muted">
+                조회 {date(resource.data.current.queried_at)} · 데이터 기준{' '}
+                {date(resource.data.current.data_time)} · 30초마다 갱신
+              </p>
+              <p className="live-muted">
+                이 API는 가동 상태·온도·압력·생산 목표를 제공하지 않습니다. 확인되지 않은 수치를
+                정상 상태로 표시하지 않습니다.
+              </p>
+            </>
+          )}
           <div className="live-equipment-search">
             <label>
               <span>설비 검색</span>
@@ -62,15 +71,24 @@ export default function LiveEquipment() {
               <RefreshCw size={16} />
             </button>
           </div>
-          <section className="live-card">
+          <section className="live-card live-table-card">
             <Table
-              rows={rows.filter((row) =>
-                `${text(row.equipment_code)} ${text(row.name)}`
-                  .toLowerCase()
-                  .includes(query.toLowerCase()),
-              )}
+              rows={visibleRows}
               columns={[
-                ['equipment_code', '설비'],
+                [
+                  'equipment_code',
+                  '설비',
+                  tablet
+                    ? (row) => (
+                        <span className="live-table-ordinal">
+                          <span className="live-table-ordinal-number">
+                            {visibleRows.indexOf(row) + 1}
+                          </span>
+                          {text(row.equipment_code)}
+                        </span>
+                      )
+                    : undefined,
+                ],
                 ['name', '설비명'],
                 ['product_name', '현재 제품'],
                 ['cycle_time_seconds', '최근 사이클(초)'],

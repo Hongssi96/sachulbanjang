@@ -250,12 +250,6 @@ export default function LiveHandover() {
   return (
     <div className="live-page live-handover-page">
       <div className="live-handover-head">
-        <div>
-          <h1>인수인계</h1>
-          <p className="live-muted">
-            교대 근무 인수인계를 확인하고 다음 근무자에게 전달할 내용을 남겨 주세요.
-          </p>
-        </div>
         <div className="live-handover-head-actions">
           <button
             className="button button-white live-refresh-button"

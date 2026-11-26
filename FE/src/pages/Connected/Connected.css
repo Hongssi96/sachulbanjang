@@ -196,6 +196,16 @@
 .tablet-home .live-page {
   padding: 0;
 }
+.tablet-home .live-table-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+.tablet-home .live-toolbar > .live-toolbar-actions:only-child,
+.tablet-home .live-handover-head > .live-handover-head-actions:only-child {
+  margin-left: auto;
+}
 .tablet-home .live-page .button {
   min-height: 44px;
 }
@@ -228,6 +238,34 @@
 .tablet-home .live-schedule-actions .live-refresh-button {
   width: 40px;
   min-height: 40px;
+}
+.tablet-home .live-table-detail-button {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.tablet-home .live-table-ordinal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tablet-home .live-table-ordinal-number {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #635b85;
+  background: #f0edf6;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tablet-home .live-filters > label:has(input) {
+  width: min(100%, 340px);
+}
+.tablet-home .live-filters > label:has(input) input {
+  width: 100%;
 }
 .tablet-home .live-handover-create {
   min-height: 40px;
@@ -399,6 +437,15 @@
 .live-chat-turn strong { color: #29263f; font-size: var(--fs-sm); }
 .live-chat-turn p { margin: 6px 0 0; color: #39364a; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; }
 .live-chat-turn small { display: inline-block; margin-top: 8px; color: #8b849d; font-size: var(--fs-xs); }
+.live-chat-markdown { gap: 8px; margin-top: 6px; }
+.live-chat-markdown > :first-child { margin-top: 0; }
+.live-chat-markdown h2 { font-size: var(--fs-md); }
+.live-chat-markdown h3,
+.live-chat-markdown h4 { font-size: var(--fs-sm); }
+.live-chat-markdown .report-markdown-table { overflow-x: auto; }
+.live-chat-markdown table { font-size: var(--fs-xs); }
+.live-chat-markdown th,
+.live-chat-markdown td { padding: 6px 8px; }
 .live-chat-composer { display: grid; gap: 8px; width: min(100% - 40px, 920px); margin: 0 auto; padding: 12px 14px 10px; border: 1px solid #dedbe6; border-radius: 18px; background: white; transition: border-color .16s ease, box-shadow .16s ease; }
 .live-chat-composer:focus-within { border-color: #ded9ea; box-shadow: 0 0 0 3px #635b850d; }
 .live-chat-composer textarea { width: 100%; min-height: 50px; max-height: 160px; resize: vertical; border: 0; outline: 0; padding: 8px 6px; color: #29263f; background: transparent; font: inherit; }
