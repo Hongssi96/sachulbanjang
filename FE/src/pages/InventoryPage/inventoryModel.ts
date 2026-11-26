@@ -87,4 +87,6 @@ export async function fetchAllStocks(): Promise<StockItem[]> {
   return items;
 }
 
-export const formatStockDate = formatDateTime;
+export function formatStockDate(value: string | null): string {
+  return value === null ? NOT_AVAILABLE : formatDateTime(value);
+}

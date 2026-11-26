@@ -858,6 +858,20 @@
   color: var(--muted);
   margin: 16px 0 24px;
 }
+.inv-detail-balance-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+  font-size: var(--fs-sm);
+}
+.inv-detail-balance-time dt {
+  color: var(--muted);
+}
+.inv-detail-balance-time dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
 .inv-safety-form {
   background: var(--soft);
   border: 1px solid var(--border);
