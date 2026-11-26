@@ -1,6 +1,6 @@
 # 배포 구성 — 단일 VM + Docker Compose
 
-> 상태: 구현 초안 (2026-11-25). 팀 검토 후 `prod` 브랜치와 서버 설정을 확정한다.
+> 상태: 구현 초안 (2026-11-26). 팀 검토 후 `prod` 브랜치와 서버 설정을 확정한다.
 > 이 문서는 구성과 절차를 설명하고, 실제 설정은 `deploy/`와 `.gitlab-ci.yml`에 있다.
 
 ## 1. 전제
@@ -39,12 +39,12 @@ FE와 API 출처가 다르면 CORS·쿠키 설정이 추가로 필요하다. ngi
 
 | 파일 | 역할 |
 | --- | --- |
-| `.gitlab-ci.yml` | 검증(MR·dev·prod), 이미지 빌드(prod), 배포(prod, 수동) |
+| `.gitlab-ci.yml` | 검증(MR·dev·prod), VM 로컬 이미지 빌드(prod), 자동 배포(prod) |
 | `.dockerignore` | web 이미지 빌드 컨텍스트에서 `.git`, `.venv`, `node_modules`, `dist` 제외 |
 | `deploy/compose.yaml` | 운영 Compose (postgres, api, worker×2, web) |
 | `deploy/Dockerfile.web` | FE 2개 빌드 → nginx 이미지. FE 소스는 수정하지 않음 |
 | `deploy/nginx/default.conf` | 정적 서빙, SPA fallback, `/api` 프록시 |
-| `deploy/deploy.sh` | prod 갱신 → pull → 마이그레이션 → 기동 → 헬스체크 |
+| `deploy/deploy.sh` | prod 갱신 → 누락 이미지 빌드 → 마이그레이션 → 기동 → 헬스체크 대기 |
 | `deploy/.gitignore` | `.env`, `certbot/`, `seed/`, `backup/` 제외 |
 
 태블릿은 `vite build ... --base=/tablet/`로 빌드해 `/tablet/assets/...`를 참조한다. 따라서 FE
@@ -67,12 +67,15 @@ FE와 API 출처가 다르면 CORS·쿠키 설정이 추가로 필요하다. ngi
 | BE `python -m mypy` | 통과 (169 source files) |
 | BE `pytest` | 413 passed |
 | FE `pnpm lint` | 통과 |
+| CI 파이프라인 `validate` (MR/dev/prod) | 통과 |
+| 수동 배포 (`9bdfaa0`) | 컨테이너 기동, `/api/v1/health/live`·`/`·`/tablet/` 200 |
+| AI 대화 E2E (VM) | `succeeded`, 답변 반환 |
 
 검증하지 못한 항목:
 
-- 실제 VM·DNS·TLS(certbot), SSH 배포, GitLab Runner의 Docker-in-Docker, 레지스트리 push.
-- 운영 시크릿·AI 키를 넣은 worker 기동, 최초 데이터 seed.
-- GitLab에서 파이프라인 실행 자체.
+- 실제 도메인·TLS(certbot), CI에서 자동 배포 잡 실행.
+- 러너 Docker 소켓 마운트 후 CI 빌드.
+- GitLab Registry는 5050 포트가 막혀 사용하지 않는다(VM·외부 모두 타임아웃).
 
 알려진 문제:
 
@@ -85,7 +88,7 @@ FE와 API 출처가 다르면 CORS·쿠키 설정이 추가로 필요하다. ngi
 ## 5. 서버 준비
 
 ```
-/srv/imleader/                 # prod 브랜치 git clone (읽기 전용 deploy key)
+/srv/imleader/                 # prod 브랜치 git clone (HTTPS + read_repository Deploy Token)
 ├── BE/, FE/, deploy/ ...
 └── deploy/
     ├── compose.yaml
@@ -117,9 +120,7 @@ APP_AI_REQUEST_TIMEOUT_SECONDS=120
 POSTGRES_DB=imleader
 POSTGRES_USER=imleader
 POSTGRES_PASSWORD=<DB_PASSWORD>   # APP_DATABASE_URL과 동일
-# REGISTRY_IMAGE는 CI 배포 시 파이프라인이 자동으로 전달한다.
-# 수동 배포에서만 아래 값을 채운다.
-REGISTRY_IMAGE=<CI_REGISTRY_IMAGE와 동일한 경로>
+REGISTRY_IMAGE=imleader
 IMAGE_TAG=<배포 스크립트가 export>
 ```
 
@@ -133,20 +134,20 @@ IMAGE_TAG=<배포 스크립트가 export>
 1. VM 준비: Docker Engine + Compose v2.20 이상, `git`, `curl`, (선택) certbot 설치.
    방화벽은 22(제한)/80/443만 허용한다.
 2. DNS A 레코드를 VM IP로 연결한다.
-3. 서버에서 `prod` 브랜치를 clone하고 `.env`를 작성한 뒤 `docker login`(read_registry Deploy Token)을
-   한 번 수행한다.
+3. 서버에서 `prod` 브랜치를 clone하고 `.env`를 작성한다. VM→GitLab 22 포트가 막혀 있으므로
+   HTTPS remote + `read_repository` Deploy Token을 `~/.git-credentials`(600)에 저장한다.
 4. **`prod` 브랜치를 만든다.** 최신 `dev`에서 생성하고, 직접 push 금지·MR 전용으로 보호한다.
-   `prod`에 병합되면 `build:images`가 이미지를 push한다.
+   `prod`에 병합되면 `build:images`가 VM Docker에 `imleader/api:<sha>`, `imleader/web:<sha>`를 빌드한다.
 5. TLS: `web`을 띄우기 전에 `certbot certonly --standalone -d <도메인>`으로 인증서를 발급하고,
    `deploy/nginx/default.conf`의 443 블록을 활성화한다. (HTTP 먼저 운영하려면 80만 열고
    `APP_AUTH_COOKIE_SECURE=false`로 두되 외부에 노출하지 않는다.)
-6. 배포:
+6. 수동 확인이 필요할 때만 배포:
    ```bash
    cd /srv/imleader
    ./deploy/deploy.sh <커밋 SHA>
    ```
-   스크립트가 prod를 pull하고, 이미지를 pull하고, `alembic upgrade head` 후 api/web을 기동하고
-   `/api/v1/health/live`를 확인한다.
+   스크립트가 prod를 pull하고, 이미지 존재를 확인하고, `alembic upgrade head` 후 api/web을 기동하고
+   `/api/v1/health/live`가 200이 될 때까지 기다린다. 이미지가 없으면 먼저 빌드해야 한다.
 7. 최초 데이터 적재(운영 데이터 변경이므로 담당자 승인 후):
    ```bash
    cd /srv/imleader/deploy
@@ -160,8 +161,8 @@ IMAGE_TAG=<배포 스크립트가 export>
 ## 7. VM QA (feature 브랜치)
 
 운영 전 새 VM에서 Draft MR 브랜치를 확인하는 절차다. CI 이미지 빌드는 `prod`에서만 실행되므로
-이 단계에서는 이미지를 VM에서 직접 빌드한다. `deploy.sh`는 기본적으로 `prod`로 전환하고 이미지를
-pull하므로 아래 두 옵션으로 건너뛴다.
+이 단계에서는 이미지를 VM에서 직접 빌드한다. `deploy.sh`는 기본적으로 `prod`로 전환하므로
+`SKIP_PULL=1`로 건너뛴다.
 
 ```bash
 cd /srv/imleader
@@ -171,7 +172,7 @@ cd deploy
 # QA 전용 .env: REGISTRY_IMAGE=imleader-qa, IMAGE_TAG=qa, APP_AUTH_COOKIE_SECURE=false
 docker build -f ../BE/Dockerfile -t imleader-qa/api:qa ../BE
 docker build -f Dockerfile.web -t imleader-qa/web:qa ..
-SKIP_PULL=1 SKIP_IMAGE_PULL=1 ./deploy.sh qa
+SKIP_PULL=1 ./deploy.sh qa
 ```
 
 - 운영 중인 VM에서 같은 디렉터리로 QA하지 않는다. 프로젝트명(`imleader`), 80/443 포트,
@@ -180,15 +181,17 @@ SKIP_PULL=1 SKIP_IMAGE_PULL=1 ./deploy.sh qa
 
 ## 8. 자동 배포와 롤백
 
-흐름: `dev` → `prod` MR → `validate` 통과 → 병합 → `build:images` → `deploy:prod`(수동) → 이후 자동.
+흐름: `dev` → `prod` MR → `validate` 통과 → 병합 → `build:images`(VM 로컬) → `deploy:prod` 자동.
 
-- `deploy:prod`는 처음에 `when: manual`이다. 첫 배포가 성공하면 `.gitlab-ci.yml`에서
-  `when: manual`을 제거해 자동 배포로 전환한다.
+- `build:images`는 러너에 마운트된 `/var/run/docker.sock`으로 VM의 Docker에 이미지를 빌드한다.
+  레지스트리는 사용하지 않는다(GitLab Registry 5050 포트가 막혀 있음).
+- `deploy:prod`는 `prod` 병합 시 자동 실행된다. 첫 배포 확인용 `when: manual`은 제거했다.
 - 서버 체크아웃이 `prod`가 아니거나 로컬 변경이 있으면 `git pull --ff-only`에서 실패한다.
   이는 의도된 보호 장치다.
-- 순서: 마이그레이션 → api/worker 기동. BE는 시작 시 마이그레이션 head를 검사하므로
-  (`BE/app/db/migrations.py`) 마이그레이션이 선행되어야 한다.
-- 롤백: `./deploy/deploy.sh <이전 SHA>`로 이미지만 되돌린다. DB는 전진 수정이 원칙이고,
+- 순서: 이미지 확인 → 마이그레이션 → api/worker 기동 → 헬스체크 대기. BE는 시작 시 마이그레이션
+  head를 검사하므로(`BE/app/db/migrations.py`) 마이그레이션이 선행되어야 한다.
+- 롤백: 이미지 태그가 SHA이므로 `./deploy/deploy.sh <이전 SHA>`로 되돌린다. 해당 이미지가 VM에
+  남아 있어야 하며, 없으면 그 커밋을 체크아웃해 다시 빌드한다. DB는 전진 수정이 원칙이고,
   `alembic downgrade`는 되돌림이 검증된 revision에 한해 담당자 승인 후 실행한다.
 - 파괴적 마이그레이션은 사전 백업과 승인 없이 실행하지 않는다.
 
@@ -201,16 +204,24 @@ SKIP_PULL=1 SKIP_IMAGE_PULL=1 ./deploy.sh qa
 | `DEPLOY_HOST` | O | - | VM 주소 |
 | `DEPLOY_USER` | O | - | 배포 계정(비-root 권장) |
 | `DEPLOY_PATH` | O | - | `/srv/imleader` |
-| `SSH_PRIVATE_KEY` | O | O | 배포 전용 키 |
+| `SSH_PRIVATE_KEY` | O | - | 배포 전용 키 |
 | `SSH_KNOWN_HOSTS` | O | - | 호스트 키 고정 |
 | `PUBLIC_URL` | O | - | `environment.url` (예: `https://<도메인>`) |
-| `REGISTRY_IMAGE` | O | - | 서버 `.env`의 값과 동일해야 함 |
 
-레지스트리 인증은 기본 변수(`CI_REGISTRY`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD`)를 쓴다.
-서버에는 `read_registry` 권한의 Deploy Token으로 로그인한다.
+**Runner 설정**: `build:images`가 VM의 Docker를 사용하므로 러너에 소켓을 마운트한다.
 
-**Runner 확인 필요**: `build:images`는 Docker-in-Docker(privileged)를 사용한다. Elice GitLab 공유
-Runner가 이를 막으면 kaniko로 바꾸거나 서버에서 빌드하도록 수정해야 한다.
+```toml
+[runners.docker]
+  privileged = true
+  volumes = ["/certs/client", "/cache", "/var/run/docker.sock:/var/run/docker.sock"]
+```
+
+```bash
+sudo systemctl restart gitlab-runner
+```
+
+소켓 마운트는 CI 잡이 호스트 Docker를 제어할 수 있게 하므로, 이 러너는 이 프로젝트 전용으로만
+사용한다. GitLab Registry는 사용하지 않는다(5050 포트 차단).
 
 ## 10. 운영 작업
 
@@ -230,15 +241,15 @@ Runner가 이를 막으면 kaniko로 바꾸거나 서버에서 빌드하도록 �
 1. 최신 `dev`에서 `prod` 생성.
 2. `prod` 보호: 직접 push 금지, MR로만 병합, 병합 권한 제한.
 3. `dev` → `prod` MR에서 `validate` 통과 후 병합.
-4. `build:images` → `deploy:prod` 순서로 실행. 첫 배포는 수동 승인.
-5. 배포 이력은 커밋 SHA로 추적한다. 필요하면 `release-<sha>` 태그를 남긴다.
+4. `build:images`(VM 로컬 빌드) → `deploy:prod` 자동 실행.
+5. 배포 이력은 커밋 SHA 이미지 태그로 추적한다. 필요하면 `release-<sha>` 태그를 남긴다.
 
 일상 작업은 `dev`에서 하고, `prod` 병합은 릴리스 단위로만 한다.
 
 ## 12. 팀 확인이 필요한 항목
 
 1. VM 위치·스펙, 도메인, TLS 방식(certbot vs Caddy).
-2. GitLab Runner의 DinD 허용 여부와 이미지 빌드 방식.
+2. 러너 Docker 소켓 마운트 허용 여부와 보안 영향.
 3. PostgreSQL을 같은 VM에 둘지, 관리형 DB를 쓸지(현 규모는 같은 VM 권장).
 4. 최초 배포 시 AI 키 제공 여부(`COMPOSE_PROFILES=ai`).
 5. `deploy/`·`.dockerignore`·`.gitlab-ci.yml`의 소유자와 리뷰 절차.
