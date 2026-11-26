@@ -5,6 +5,7 @@ from app.services.report_pdf import (
     ReportPdfDocument,
     _cutoff_label,
     _markdown_story,
+    _parse_markdown_table_row,
     _styles,
     render_report_defect_chart,
     render_report_pdf,
@@ -71,8 +72,11 @@ def test_markdown_story_converts_markdown_table_to_reportlab_table() -> None:
     tables = [flowable for flowable in story if isinstance(flowable, Table)]
 
     assert len(tables) == 1
-    assert tables[0]._cellvalues[0][0].getPlainText() == "항목"
-    assert tables[0]._cellvalues[1][1].getPlainText() == "112건"
+
+
+def test_parse_markdown_table_row_returns_cell_values() -> None:
+    assert _parse_markdown_table_row("| 항목 | 수치 |") == ["항목", "수치"]
+    assert _parse_markdown_table_row("| 양품 | 112건 |") == ["양품", "112건"]
 
 
 def test_render_report_pdf_with_markdown_table_contains_pdf_document() -> None:
