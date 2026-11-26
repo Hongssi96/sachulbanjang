@@ -233,6 +233,22 @@ def _styles() -> dict[str, ParagraphStyle]:
             textColor=colors.HexColor("#6E6B7D"),
             spaceAfter=4,
         ),
+        "TableHeader": ParagraphStyle(
+            "TableHeader",
+            parent=base["BodyText"],
+            fontName=_FONT_BOLD_NAME,
+            fontSize=9.5,
+            leading=14,
+            textColor=_TEXT,
+        ),
+        "TableCell": ParagraphStyle(
+            "TableCell",
+            parent=base["BodyText"],
+            fontName=_FONT_NAME,
+            fontSize=9.5,
+            leading=14,
+            textColor=_TEXT,
+        ),
     }
 
 
@@ -291,8 +307,19 @@ def _snapshot_story(
 
 def _markdown_story(markdown: str, styles: dict[str, ParagraphStyle]) -> list[Flowable]:
     story: list[Flowable] = []
-    for raw_line in markdown.splitlines():
+    lines = markdown.splitlines()
+    line_index = 0
+    while line_index < len(lines):
+        raw_line = lines[line_index]
         line = raw_line.strip()
+        if _is_markdown_table_start(lines, line_index):
+            rows: list[list[str]] = [_parse_markdown_table_row(line)]
+            line_index += 2
+            while line_index < len(lines) and _is_markdown_table_row(lines[line_index]):
+                rows.append(_parse_markdown_table_row(lines[line_index].strip()))
+                line_index += 1
+            story.extend([_markdown_table(rows, styles), Spacer(1, 2.5 * mm)])
+            continue
         if not line:
             story.append(Spacer(1, 2.5 * mm))
         elif line.startswith("## "):
@@ -305,7 +332,67 @@ def _markdown_story(markdown: str, styles: dict[str, ParagraphStyle]) -> list[Fl
             story.append(Paragraph(f"- {html.escape(line[2:])}", styles["Bullet"]))
         else:
             story.append(Paragraph(html.escape(line), styles["Body"]))
+        line_index += 1
     return story
+
+
+def _is_markdown_table_start(lines: list[str], line_index: int) -> bool:
+    if line_index + 1 >= len(lines):
+        return False
+    header = _parse_markdown_table_row(lines[line_index].strip())
+    separator = _parse_markdown_table_row(lines[line_index + 1].strip())
+    return (
+        len(header) >= 2
+        and len(header) == len(separator)
+        and all(_is_markdown_table_separator(cell) for cell in separator)
+    )
+
+
+def _is_markdown_table_row(line: str) -> bool:
+    return len(_parse_markdown_table_row(line.strip())) >= 2
+
+
+def _parse_markdown_table_row(line: str) -> list[str]:
+    if "|" not in line:
+        return []
+    content = line.strip()
+    if content.startswith("|"):
+        content = content[1:]
+    if content.endswith("|"):
+        content = content[:-1]
+    return [cell.strip() for cell in content.split("|")]
+
+
+def _is_markdown_table_separator(cell: str) -> bool:
+    stripped = cell.strip(":")
+    return len(stripped) >= 3 and set(stripped) == {"-"}
+
+
+def _markdown_table(rows: list[list[str]], styles: dict[str, ParagraphStyle]) -> Table:
+    column_count = len(rows[0])
+    normalized_rows = [row[:column_count] + [""] * (column_count - len(row)) for row in rows]
+    cells = [
+        [
+            Paragraph(html.escape(value), styles["TableHeader" if row_index == 0 else "TableCell"])
+            for value in row
+        ]
+        for row_index, row in enumerate(normalized_rows)
+    ]
+    table = Table(cells, colWidths=[162 * mm / column_count] * column_count, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), _WARM_CLOUD),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D7E3")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
 
 
 def _defect_chart(snapshot: dict[str, object]) -> BytesIO | None:

@@ -4,9 +4,12 @@ from app.models.report import Report
 from app.services.report_pdf import (
     ReportPdfDocument,
     _cutoff_label,
+    _markdown_story,
+    _styles,
     render_report_defect_chart,
     render_report_pdf,
 )
+from reportlab.platypus import Table
 
 
 def make_report() -> Report:
@@ -54,6 +57,35 @@ def make_report() -> Report:
 
 def test_render_report_pdf_contains_pdf_document() -> None:
     content = render_report_pdf(make_report())
+
+    assert content.startswith(b"%PDF-")
+    assert len(content) > 20_000
+
+
+def test_markdown_story_converts_markdown_table_to_reportlab_table() -> None:
+    story = _markdown_story(
+        "| 항목 | 수치 |\n| --- | ---: |\n| 양품 | 112건 |\n| 불량 | 8건 |",
+        _styles(),
+    )
+
+    tables = [flowable for flowable in story if isinstance(flowable, Table)]
+
+    assert len(tables) == 1
+    assert tables[0]._cellvalues[0][0].getPlainText() == "항목"
+    assert tables[0]._cellvalues[1][1].getPlainText() == "112건"
+
+
+def test_render_report_pdf_with_markdown_table_contains_pdf_document() -> None:
+    report = make_report()
+    report.body_markdown += (
+        "\n\n## 불량 현황\n"
+        "| 불량 유형 | 건수 |\n"
+        "| --- | ---: |\n"
+        "| 흑점 | 5건 |\n"
+        "| 치수 불량 | 3건 |"
+    )
+
+    content = render_report_pdf(report)
 
     assert content.startswith(b"%PDF-")
     assert len(content) > 20_000
