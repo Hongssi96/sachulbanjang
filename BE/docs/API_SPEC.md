@@ -191,6 +191,19 @@ replay가 없거나 공개된 레코드가 없으면 200과 빈 `items`를 반�
 JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하지 않으면 401
 `AUTHENTICATION_REQUIRED`, `equipment_id`가 1 미만이면 422를 반환한다.
 
+#### 설비 관측 시각과 제품 수량 응답
+
+| 응답 | 추가 필드 |
+| --- | --- |
+| `GET /process/current`의 `items[]` | `equipment_status_observed_at`, `produced_quantity`, `target_quantity` |
+| `GET /process-records/{record_id}` | `produced_quantity` |
+| 검사 이력 목록과 상세 | `inspected_quantity`, `good_quantity`, `defect_quantity`, `inspector_id` |
+| `GET /quality/summary` | `produced_quantity`, `target_quantity`, `inspected_quantity`, `good_quantity`, `defect_quantity` |
+
+관측 시각은 시간대가 포함된 ISO 8601 문자열 또는 `null`이다. 수량은 0 이상의 제품 개수
+또는 `null`이며, 담당자는 양의 사용자 ID 또는 `null`이다. 현재 원천 수집 연동 전이므로
+새 필드는 모두 `null`이다. 기존 기록 건수, 판정 건수, 기록 기준 불량률은 기존 의미를 유지한다.
+
 ### 필드·응답 기술 기본안
 
 - 목록: `items`, `pagination: {page, page_size, total_items, total_pages}`. 빈 결과는 items=[]·total_items=0·total_pages=0. page>=1, page_size 1~100. 번호 10개 묶음은 FE 표시 규칙이다.
