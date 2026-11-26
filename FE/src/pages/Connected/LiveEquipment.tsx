@@ -45,7 +45,7 @@ export default function LiveEquipment() {
           </p>
           <div className="live-equipment-search">
             <label>
-              설비 검색
+              <span>설비 검색</span>
               <input
                 value={filter}
                 placeholder="설비명 또는 설비 코드 검색"
