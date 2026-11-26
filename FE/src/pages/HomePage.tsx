@@ -19,10 +19,16 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Trash2,
   TriangleAlert,
   Wrench,
 } from 'lucide-react';
-import { confirmHandoverNote, createHandoverNote, fetchHandoverNotes } from '../api/handover';
+import {
+  confirmHandoverNote,
+  createHandoverNote,
+  deleteHandoverNote,
+  fetchHandoverNotes,
+} from '../api/handover';
 import type { HandoverNote } from '../api/handover';
 import { fetchCurrentProcess } from '../api/process';
 import { fetchQualitySummary } from '../api/quality';
@@ -73,9 +79,9 @@ interface ChartPoint {
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const RECENT_DAYS = 9;
+const RECENT_DAYS = 7;
 const INSIGHT_DAYS = 30;
-const NOTE_PAGE_SIZE = 5;
+const NOTE_PAGE_SIZE = 20;
 const kindPill: Record<Kind, string> = {
   점검: 'pill-amber',
   납품: 'pill-green',
@@ -338,6 +344,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [confirmingNoteId, setConfirmingNoteId] = useState<number | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
   const [reportFilter, setReportFilter] = useState('전체');
   const [announcementRead, setAnnouncementRead] = useState(false);
 
@@ -494,9 +501,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     : null;
 
   const notes = notesQuery.data?.items ?? [];
-  const latestNote = notes.length ? notes[0] : null;
   const noteTotal = notesQuery.data?.pagination.total_items ?? notes.length;
-  const unreadNotes = notes.filter((note) => !note.my_confirmed_at).length;
+  // 홈 카드는 최신 3건만 보여 주고, 나머지는 노트 모달에서 확인한다.
+  const previewNotes = notes.slice(0, 3);
 
   const quality = qualityQuery.data;
   const defectRate = quality?.defect_rate ?? null;
@@ -555,6 +562,21 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       onToast(errorMessage(error));
     } finally {
       setConfirmingNoteId(null);
+    }
+  };
+  const canDeleteNote = (note: HandoverNote) =>
+    Boolean(user && (user.role === 'admin' || user.id === note.author_id));
+  const deleteNote = async (note: HandoverNote) => {
+    if (!window.confirm('이 인수인계 노트를 삭제할까요?')) return;
+    setDeletingNoteId(note.note_id);
+    try {
+      await deleteHandoverNote(note.note_id, note.version);
+      onToast('인수인계 노트를 삭제했어요.');
+      notesQuery.reload();
+    } catch (error) {
+      onToast(errorMessage(error));
+    } finally {
+      setDeletingNoteId(null);
     }
   };
   const submitNote = async (event: FormEvent<HTMLFormElement>) => {
@@ -728,7 +750,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 value={period}
                 options={[
                   { value: 'today', label: '오늘' },
-                  { value: 'week', label: '최근 9일' },
+                  { value: 'week', label: `최근 ${RECENT_DAYS}일` },
                 ]}
                 onChange={setPeriod}
               />
@@ -849,7 +871,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
             <div className="card-heading">
               <div className="heading-inline">
                 <h2>인수인계 노트</h2>
-                {unreadNotes > 0 && <span className="count-dot">{unreadNotes}</span>}
+                {noteTotal > 0 && <span className="count-dot">{noteTotal}</span>}
               </div>
               <button
                 className="icon-button"
@@ -863,41 +885,53 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <HomeSectionSkeleton label="인수인계 노트를 불러오는 중이에요" />
             ) : notesQuery.error && !notesQuery.data ? (
               <ApiErrorState compact error={notesQuery.error} onRetry={notesQuery.reload} />
-            ) : latestNote ? (
+            ) : previewNotes.length ? (
               <>
-                <div className="note-preview">
-                  <span
-                    className={`pill ${latestNote.my_confirmed_at ? 'pill-green' : 'pill-amber'}`}
-                  >
-                    {latestNote.my_confirmed_at ? '확인 완료' : '미확인'}
-                  </span>
-                  <p>{latestNote.body}</p>
-                  <small>
-                    {latestNote.author_display_name} · {formatDateTime(latestNote.created_at)}
-                  </small>
+                <div className="note-list">
+                  {previewNotes.map((note) => (
+                    <article className="note-preview" key={note.note_id}>
+                      {canDeleteNote(note) && (
+                        <button
+                          className="note-delete"
+                          aria-label="인수인계 노트 삭제"
+                          title="삭제"
+                          onClick={() => {
+                            void deleteNote(note);
+                          }}
+                          disabled={deletingNoteId === note.note_id}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                      <p>{note.body}</p>
+                      <small>
+                        {note.author_display_name} · {formatDateTime(note.created_at)}
+                      </small>
+                      <button
+                        className={`note-action note-confirm-side${note.my_confirmed_at ? ' is-done' : ''}`}
+                        onClick={() => {
+                          void confirmNote(note);
+                        }}
+                        disabled={
+                          Boolean(note.my_confirmed_at) || confirmingNoteId === note.note_id
+                        }
+                      >
+                        <Check size={15} />
+                        {note.my_confirmed_at
+                          ? '확인 완료'
+                          : confirmingNoteId === note.note_id
+                            ? '확인 중...'
+                            : '확인'}
+                      </button>
+                    </article>
+                  ))}
                 </div>
-                <button
-                  className="note-confirm"
-                  onClick={() => {
-                    void confirmNote(latestNote);
-                  }}
-                  disabled={
-                    Boolean(latestNote.my_confirmed_at) || confirmingNoteId === latestNote.note_id
-                  }
-                >
-                  <Check size={16} />
-                  {latestNote.my_confirmed_at
-                    ? '확인 완료'
-                    : confirmingNoteId === latestNote.note_id
-                      ? '확인 중...'
-                      : '내용 확인했어요'}
-                </button>
-                {noteTotal > 1 && (
+                {noteTotal > previewNotes.length && (
                   <button
                     className="text-link note-more"
                     onClick={() => setOverlay({ kind: 'note' })}
                   >
-                    전체 노트 {noteTotal}건 보기
+                    노트 더 보기
                     <ArrowRight size={14} />
                   </button>
                 )}
@@ -1186,7 +1220,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 <div className="form-footer">
                   <small>{noteText.length} / 1,000</small>
                   <button
-                    className="button button-primary"
+                    className="button button-primary button-sm"
                     type="submit"
                     disabled={!noteText.trim() || savingNote}
                   >
@@ -1205,18 +1239,28 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   {notes.map((note) => (
                     <article key={note.note_id}>
                       <div>
-                        <span
-                          className={`pill ${note.my_confirmed_at ? 'pill-green' : 'pill-amber'}`}
-                        >
-                          {note.my_confirmed_at ? '확인 완료' : '미확인'}
-                        </span>
-                        <small>
-                          {note.author_display_name} · {formatDateTime(note.created_at)}
-                        </small>
+                        <div className="all-note-meta">
+                          <small>
+                            {note.author_display_name} · {formatDateTime(note.created_at)}
+                          </small>
+                        </div>
+                        {canDeleteNote(note) && (
+                          <button
+                            className="note-delete"
+                            aria-label="인수인계 노트 삭제"
+                            title="삭제"
+                            onClick={() => {
+                              void deleteNote(note);
+                            }}
+                            disabled={deletingNoteId === note.note_id}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                       <p>{note.body}</p>
                       <button
-                        className="text-link"
+                        className={`note-action note-confirm-side${note.my_confirmed_at ? ' is-done' : ''}`}
                         onClick={() => {
                           void confirmNote(note);
                         }}
@@ -1224,12 +1268,12 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                           Boolean(note.my_confirmed_at) || confirmingNoteId === note.note_id
                         }
                       >
-                        <Check size={15} />
+                        <Check size={12} />
                         {note.my_confirmed_at
                           ? '확인 완료'
                           : confirmingNoteId === note.note_id
                             ? '확인 중...'
-                            : '내용 확인'}
+                            : '확인'}
                       </button>
                     </article>
                   ))}

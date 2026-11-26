@@ -295,6 +295,189 @@
   align-items: center;
   gap: 4px;
 }
+.rpd-edit-button {
+  margin-left: auto;
+}
+.rpd-title-input {
+  width: 100%;
+  height: 40px;
+  margin: 0 0 12px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-3xl);
+  line-height: 38px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.rpd-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rpd-body-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rpd-body-head .field-label {
+  margin-bottom: 0;
+}
+.rpd-body-modes {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.rpd-body-modes button {
+  height: 32px;
+  padding: 0 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.rpd-body-modes button + button {
+  border-left: 1px solid var(--border);
+}
+.rpd-body-modes button.active {
+  background: var(--soft);
+  color: var(--ink);
+}
+.rpd-body-raw {
+  min-height: 360px;
+  max-height: none;
+}
+.rpd-body-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rpd-body-editor textarea {
+  min-height: 96px;
+  max-height: none;
+  field-sizing: content;
+}
+.rpd-edit-hint {
+  margin: -2px 0 0;
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  color: var(--muted);
+}
+.rpd-edit-error {
+  font-size: var(--fs-sm);
+  line-height: 22px;
+  color: var(--danger);
+}
+.rpd-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+.rpd-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+.rpd-table-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rpd-table-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+.rpd-table-block-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.rpd-table-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-small);
+  color: var(--muted);
+}
+.rpd-table-move:hover:not(:disabled) {
+  background: var(--soft);
+  color: var(--ink);
+}
+.rpd-table-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+.rpd-table-delete:hover {
+  color: var(--danger);
+}
+.rpd-table-grid-wrap {
+  overflow-x: auto;
+}
+.rpd-table-grid {
+  display: grid;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 100%;
+}
+.rpd-table-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.rpd-table-head-cell {
+  position: relative;
+}
+.rpd-table-head-cell input {
+  padding-right: 34px;
+  background: var(--soft);
+  font-weight: 600;
+}
+.rpd-table-head-cell .rpd-table-remove {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+.rpd-table-remove {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-small);
+  color: var(--muted);
+}
+.rpd-table-remove:hover:not(:disabled) {
+  background: var(--soft);
+  color: var(--danger);
+}
+.rpd-table-block-actions {
+  display: flex;
+  gap: 6px;
+}
 .rpd-layout {
   display: grid;
   flex: 1;
