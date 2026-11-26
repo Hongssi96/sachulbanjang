@@ -1,5 +1,6 @@
 import { formText, localDateTime } from '../../api/business';
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
 import useRemote from '../../hooks/useRemote';
@@ -15,6 +16,7 @@ import {
   errorMessage,
 } from '../../api/business';
 import type { Row } from '../../api/business';
+import FilterSelect from '../../components/FilterSelect';
 import { fetchReportJob, submitReportJob } from '../../api/reportJobs';
 import type { ReportCategory } from '../../api/reports';
 import { Field, MutationDialog, Pager, RemoteState, Select, Table } from './LiveShared';
@@ -29,6 +31,15 @@ const reportCategories: [string, string][] = [
   ['equipment_issue', '설비 이상'],
   ['quality_report', '품질 보고'],
   ['inspection_done', '검사 완료'],
+  ['other', '기타'],
+];
+const reportCategoryFilters: [string, string][] = [
+  ['', '전체'],
+  ['equipment_issue', '설비 이상'],
+  ['quality_report', '품질 보고'],
+  ['inspection_done', '검사 완료'],
+  ['periodic_weekly', '주간 보고'],
+  ['periodic_monthly', '월간 보고'],
   ['other', '기타'],
 ];
 const reportJobCategories: [ReportCategory, string][] = [
@@ -64,6 +75,7 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [category, setCategory] = useState('');
   const [editing, setEditing] = useState<Row | 'new' | null>(null);
   const [selected, setSelected] = useState<number | null>(() =>
     reportId && /^\d+$/.test(reportId) ? Number(reportId) : null,
@@ -92,10 +104,10 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           page_size: 10,
           q: kind === 'schedules' ? undefined : search,
           business_status: kind === 'reports' ? status : undefined,
-          category: kind === 'reports' && tablet ? 'equipment_issue' : undefined,
+          category: kind === 'reports' && tablet ? category || undefined : undefined,
         }),
       ),
-    [kind, page, search, status, tablet],
+    [kind, page, search, status, category, tablet],
   );
   const resource = useRemote(load);
   const reloadList = resource.reload;
@@ -171,19 +183,34 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
         <h1>{title}</h1>
         {kind === 'reports' ? (
           <div className="live-toolbar-actions">
-            <button className="button button-white" onClick={() => setReportJobOpen(true)}>
+            <button
+              className="button button-white live-report-action-button"
+              onClick={() => setReportJobOpen(true)}
+            >
               자동 보고서 생성
             </button>
-            <button className="button button-primary" onClick={() => setEditing('new')}>
+            <button
+              className="button button-primary live-report-action-button"
+              onClick={() => setEditing('new')}
+            >
               이상 보고 작성
             </button>
           </div>
         ) : kind === 'schedules' && tablet ? (
-          <div className="live-toolbar-actions">
-            <button className="button button-white" onClick={resource.reload}>
-              새로고침
+          <div className="live-toolbar-actions live-schedule-actions">
+            <button
+              className="button button-white live-refresh-button"
+              type="button"
+              aria-label="새로고침"
+              title="새로고침"
+              onClick={resource.reload}
+            >
+              <RefreshCw size={16} />
             </button>
-            <button className="button button-primary" onClick={() => setEditing('new')}>
+            <button
+              className="button button-primary live-schedule-action-button"
+              onClick={() => setEditing('new')}
+            >
               일정 등록
             </button>
           </div>
@@ -218,6 +245,20 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
             />
           </label>
         )}
+        {kind === 'reports' && tablet && (
+          <div className="live-filter-field">
+            <span>분류</span>
+            <FilterSelect
+              label="분류"
+              value={category}
+              options={reportCategoryFilters.map(([value, label]) => ({ value, label }))}
+              onChange={(value) => {
+                setCategory(value);
+                setPage(1);
+              }}
+            />
+          </div>
+        )}
         {kind === 'reports' && (
           <div className="live-tabs">
             {[['', '전체'], ...statuses].map(([key, label]) => (
@@ -235,8 +276,14 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           </div>
         )}
         {!(kind === 'schedules' && tablet) && (
-          <button className="button button-white live-refresh-button" onClick={resource.reload}>
-            새로고침
+          <button
+            className="button button-white live-refresh-button"
+            type="button"
+            aria-label="새로고침"
+            title="새로고침"
+            onClick={resource.reload}
+          >
+            <RefreshCw size={16} />
           </button>
         )}
       </div>

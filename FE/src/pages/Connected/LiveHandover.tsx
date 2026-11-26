@@ -257,10 +257,16 @@ export default function LiveHandover() {
           </p>
         </div>
         <div className="live-handover-head-actions">
-          <button className="button button-white live-refresh-button" onClick={notes.reload}>
-            <RefreshCw size={16} /> 새로고침
+          <button
+            className="button button-white live-refresh-button"
+            type="button"
+            aria-label="새로고침"
+            title="새로고침"
+            onClick={notes.reload}
+          >
+            <RefreshCw size={16} />
           </button>
-          <button className="button button-primary" onClick={openNew}>
+          <button className="button button-primary live-handover-create" onClick={openNew}>
             <Plus size={17} /> 인수인계 작성
           </button>
         </div>
