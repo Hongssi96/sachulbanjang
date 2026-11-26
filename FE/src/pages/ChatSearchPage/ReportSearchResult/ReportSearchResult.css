@@ -1,0 +1,9 @@
+.cs-report-result > div {
+  flex: 1;
+}
+.cs-report-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

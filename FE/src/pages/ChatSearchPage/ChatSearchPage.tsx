@@ -39,20 +39,15 @@ import {
 import type { ChatTurn } from '../../api/conversations';
 import { fetchInspectionRecords } from '../../api/records';
 import { fetchReports } from '../../api/reports';
-import type { ReportStatus } from '../../api/reports';
 import { formatDateTime } from '../../utils/dateFormat';
 import { NA, isJobRunning, isRetryableTurn, turnAnswer, turnSources } from './chatModel';
 import ConversationSearchResult from './ConversationSearchResult/ConversationSearchResult';
+import ReportSearchResult from './ReportSearchResult/ReportSearchResult';
 import '../RecordsPage/RecordsPage.css';
 import './ChatSearchPage.css';
 
 const COMPOSER_MAX_HEIGHT = 140;
 const LIST_PAGE_SIZE = 100;
-const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
-  pending: '대기',
-  in_progress: '진행 중',
-  completed: '완료',
-};
 
 function positiveInt(value: string | null): number | null {
   if (value === null || !/^\d+$/.test(value)) return null;
@@ -90,6 +85,7 @@ export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
     [rawSetParams, startTransition],
   );
   const messageList = useRef<HTMLDivElement>(null);
+  const scrolledConversation = useRef<number | null>(null);
   const composerInput = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState('');
   const [historyQuery, setHistoryQuery] = useState('');
@@ -237,13 +233,29 @@ export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
     if (turn && !isJobRunning(turn.job)) setPendingTurn(null);
   }, [detail, pendingTurnId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = messageList.current;
-    // 질문·답변 수가 바뀔 때만 마지막 말풍선으로 이동한다.
-    if (list && turnCount > 0) {
-      // 마지막 말풍선 아래 여백까지 보이도록 컨테이너 끝으로 스크롤한다.
-      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    if (searching || activeId === null) {
+      scrolledConversation.current = null;
+      return;
     }
+    if (!list || turnCount === 0) return;
+
+    const scrollToLatest = () => {
+      // 로딩 중에는 상위 요소가 숨겨져 있으므로 실제 표시된 뒤 위치를 맞춘다.
+      if (list.clientHeight === 0) return;
+      const firstDisplay = scrolledConversation.current !== activeId;
+      list.scrollTo({ top: list.scrollHeight, behavior: firstDisplay ? 'instant' : 'smooth' });
+      scrolledConversation.current = activeId;
+    };
+    scrollToLatest();
+
+    const observer = new ResizeObserver(() => {
+      // 최초 표시만 보정하고 이후 크기 변경은 사용자가 읽고 있는 위치를 유지한다.
+      if (scrolledConversation.current !== activeId) scrollToLatest();
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
   }, [turnCount, activeId, searching]);
 
   // 기록 통합 검색도 각 API가 제공하는 조회 결과만 사용한다.
@@ -555,17 +567,11 @@ export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
                         올라온 보고 <span>{reportResults.length}</span>
                       </h3>
                       {reportResults.map((item) => (
-                        <article className="cs-result" key={item.report_id}>
-                          <FileText size={18} />
-                          <div>
-                            <strong>{item.title}</strong>
-                            <p>{NA}</p>
-                            <small>
-                              {item.author_display_name} · {formatDateTime(item.created_at)} ·{' '}
-                              {REPORT_STATUS_LABELS[item.business_status]}
-                            </small>
-                          </div>
-                        </article>
+                        <ReportSearchResult
+                          key={item.report_id}
+                          report={item}
+                          query={searchQuery}
+                        />
                       ))}
                     </section>
                   )}

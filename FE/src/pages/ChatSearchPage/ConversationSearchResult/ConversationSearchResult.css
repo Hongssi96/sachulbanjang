@@ -4,15 +4,6 @@
 .cs-conversation-result > div {
   flex: 1;
 }
-.cs-conversation-result mark {
-  background: #e8def6;
-  color: #584375;
-  border-radius: 3px;
-}
-.dark .cs-conversation-result mark {
-  background: #604a7b;
-  color: #f4ebff;
-}
 .cs-conversation-preview {
   display: -webkit-box;
   -webkit-box-orient: vertical;

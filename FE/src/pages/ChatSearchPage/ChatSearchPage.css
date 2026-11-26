@@ -7,6 +7,7 @@
   --cs-typing-color: #8e7bb5;
   --cs-scrollbar: #b8afc7;
   --cs-scrollbar-hover: #8e83a5;
+  position: relative;
   max-width: none;
   width: 100%;
   margin: 0;
@@ -86,6 +87,7 @@
   padding-left: 8px;
 }
 .cs-history-items {
+  position: relative;
   margin-top: 10px;
   display: grid;
   gap: 7px;
@@ -178,6 +180,7 @@
   margin-left: auto;
 }
 .cs-messages {
+  position: relative;
   padding: 28px 26px 36px;
   max-height: 520px;
   overflow: auto;
@@ -296,6 +299,7 @@
 }
 /* 입력창: 글자 칸과 보내기 버튼을 한 줄에 두고, 안내 문구는 상자 밖 아래에 둔다. */
 .cs-composer {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 10px;
@@ -528,6 +532,15 @@
 .cs-result small {
   color: var(--rd-muted);
   font-size: var(--fs-sm);
+}
+.cs-search-highlight {
+  background: #e8def6;
+  color: #584375;
+  border-radius: 3px;
+}
+.dark .cs-search-highlight {
+  background: #604a7b;
+  color: #f4ebff;
 }
 .cs-result:is(a, button):hover {
   background: var(--cs-soft);

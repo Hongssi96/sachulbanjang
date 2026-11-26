@@ -410,7 +410,7 @@ export default function RecordsPage() {
     : undefined;
 
   return (
-    <section className="records-page" aria-busy={isPending}>
+    <section className="records-page records-list-page" aria-busy={isPending}>
       <h1 className="sr-only">생산·검사 이력</h1>
       <QueryFilterCard
         presets={

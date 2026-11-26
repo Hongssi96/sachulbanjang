@@ -1,33 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 import { MessageSquare } from 'lucide-react';
 import { fetchConversation } from '../../../api/conversations';
 import type { ConversationListItem } from '../../../api/conversations';
 import { useApiQuery } from '../../../hooks/useApiQuery';
 import { conversationPreview } from '../chatModel';
+import { highlightMatches } from '../searchHighlight';
 import './ConversationSearchResult.css';
 
 interface ConversationSearchResultProps {
   conversation: ConversationListItem;
   query: string;
   onOpen: () => void;
-}
-
-function highlightMatches(text: string, query: string): ReactNode {
-  const keyword = query.trim().toLowerCase();
-  if (!keyword) return text;
-  const normalized = text.toLowerCase();
-  const parts: ReactNode[] = [];
-  let start = 0;
-  let index = normalized.indexOf(keyword);
-  while (index !== -1) {
-    parts.push(text.slice(start, index));
-    parts.push(<mark key={index}>{text.slice(index, index + keyword.length)}</mark>);
-    start = index + keyword.length;
-    index = normalized.indexOf(keyword, start);
-  }
-  parts.push(text.slice(start));
-  return parts;
 }
 
 export default function ConversationSearchResult({

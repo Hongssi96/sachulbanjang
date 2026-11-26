@@ -625,6 +625,9 @@ main {
   flex-direction: column;
   gap: 12px;
 }
+.intro-actions .home-summary-download {
+  font-size: var(--fs-sm);
+}
 .date-label {
   display: flex;
   align-items: center;
@@ -2904,6 +2907,11 @@ textarea {
   gap: 16px;
   margin-bottom: 20px;
 }
+.rt-summary > .card,
+.card:is(.rt-quality, .rt-events, .rt-ask, .rt-empty) {
+  border: 0;
+  padding: 16px;
+}
 .rt-kpi .kpi-value,
 .rt-defect-card .kpi-value {
   margin: 6px 0 10px;
@@ -3080,7 +3088,7 @@ textarea {
 .rt-machine {
   scroll-snap-align: start;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-card);
   transition: border-color 0.15s;
 }
@@ -3421,6 +3429,10 @@ textarea {
   /* .fit-viewport에서는 남은 높이를 채운다(아래 규칙). */
   gap: 16px;
   align-items: stretch;
+}
+.sc-grid > .card {
+  border: 0;
+  padding: 16px;
 }
 /* 캘린더 높이 = 탑바·필터·패딩(200px)을 제외한 화면 높이, 폭 960px 상한.
    남은 폭이 부족한 좁은 화면에서는 폭 상한을 따른다. */
