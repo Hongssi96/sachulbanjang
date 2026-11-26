@@ -1487,6 +1487,11 @@ main {
 .schedule-row > svg {
   color: #aba5b5;
 }
+.handover-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .handover-card .card-heading {
   margin-bottom: 12px;
 }
@@ -1503,16 +1508,26 @@ main {
   font-weight: 600;
 }
 .note-preview {
-  position: relative;
-  min-height: 112px;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
   background: #faf8f2;
   border: 1px solid #efeadf;
   border-radius: var(--radius-control);
   padding: 14px;
 }
-.note-preview > p,
-.note-preview > small {
-  padding-right: 96px;
+.note-main {
+  flex: 1;
+  min-width: 0;
+}
+.note-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 88px;
 }
 .note-confirm-side {
   position: absolute;
@@ -1520,28 +1535,47 @@ main {
   right: 14px;
   transform: translateY(-50%);
 }
-/* 홈 카드의 확인 버튼은 모달보다 크게 쓴다. */
+/* 홈 카드의 확인 버튼은 모달보다 크게 쓰고, 카드 오른쪽 아래에 둔다. */
 .note-preview .note-confirm-side {
+  position: static;
+  transform: none;
   padding: 6px 12px;
   gap: 5px;
   font-size: var(--fs-sm);
 }
-.note-preview > p {
+.note-main > p {
   font-size: var(--fs-sm);
   line-height: 22px;
   margin: 8px 0;
   color: #625e67;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.note-preview > small {
+.note-main > small {
   display: block;
   font-size: var(--fs-xs);
   color: #948c82;
 }
 .note-list {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.note-list::-webkit-scrollbar {
+  width: 8px;
+}
+.note-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.note-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 .note-top-actions {
   display: flex;
@@ -1559,7 +1593,6 @@ main {
   color: var(--muted);
 }
 /* 노트 카드의 삭제 아이콘은 오른쪽 위 모서리에서 같은 간격으로 띄운다. */
-.note-preview .note-delete,
 .all-notes article .note-delete {
   position: absolute;
   top: 12px;
@@ -1590,10 +1623,6 @@ main {
   color: #226348;
   border-color: #c9ecda;
   background: #e5f8ee;
-}
-.note-more {
-  width: 100%;
-  margin-top: 12px;
 }
 .all-note-meta {
   display: flex;
@@ -1682,6 +1711,35 @@ main {
 .modal-body {
   padding: 24px;
   line-height: 28px;
+}
+/* 데스크톱 모달: 헤더는 고정하고 본문 영역만 스크롤한다. */
+.app .modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app .modal .modal-heading {
+  flex: none;
+  position: static;
+}
+.app .modal .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.app .modal .modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+.app .modal .modal-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.app .modal .modal-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 .modal-body > h3 {
   margin-top: 16px;
@@ -1789,6 +1847,41 @@ textarea {
   color: var(--ink);
   font-size: var(--fs-sm);
   line-height: 24px;
+}
+/* 인수인계 노트 입력: 굵은 포커스 선 대신 은은한 테두리·그림자를 쓰고,
+   내용에 맞춰 최대 높이까지 늘어난 뒤 스크롤한다. */
+.note-input {
+  min-height: 96px;
+  max-height: 220px;
+  resize: none;
+  overflow-y: auto;
+  field-sizing: content;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  transition:
+    border-color 0.16s,
+    box-shadow 0.16s;
+}
+.note-input:focus,
+.note-input:focus-visible {
+  outline: none;
+  border-color: #ded9ea;
+  box-shadow: 0 0 0 3px #635b850d;
+}
+.dark .note-input:focus,
+.dark .note-input:focus-visible {
+  border-color: #5e526e;
+  box-shadow: 0 0 0 3px #635b8533;
+}
+.note-input::-webkit-scrollbar {
+  width: 6px;
+}
+.note-input::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.note-input::-webkit-scrollbar-track {
+  background: transparent;
 }
 .form-footer {
   display: flex;
@@ -2043,10 +2136,10 @@ textarea {
   background: #373329;
   border-color: #524a36;
 }
-.dark .note-preview > p {
+.dark .note-main > p {
   color: #d2c9b9;
 }
-.dark .note-preview > small {
+.dark .note-main > small {
   color: #b0a591;
 }
 .dark .note-action.is-done:disabled {
@@ -2118,7 +2211,7 @@ textarea {
   .insight-disclaimer {
     font-size: var(--fs-xs);
   }
-  .note-preview > p {
+  .note-main > p {
     font-size: var(--fs-sm);
     line-height: 24px;
   }
@@ -2532,7 +2625,7 @@ textarea {
   .calendar-day {
     min-height: 40px;
   }
-  .note-preview > p {
+  .note-main > p {
     font-size: var(--fs-sm);
     line-height: 24px;
   }
@@ -2766,11 +2859,11 @@ textarea {
     font-size: var(--fs-xs);
     line-height: 20px;
   }
-  .note-preview > p {
+  .note-main > p {
     font-size: var(--fs-sm);
     line-height: 22px;
   }
-  .note-preview > small {
+  .note-main > small {
     font-size: var(--fs-xs);
   }
   .shift-card strong {
@@ -3937,6 +4030,12 @@ textarea {
   .home-dashboard > .main-column,
   .home-dashboard > .side-column {
     height: 100%;
+  }
+  .home-dashboard > .main-column > .handover-card {
+    flex: 1;
+    min-height: 200px;
+    /* 노트 내용이 카드 높이를 늘리지 않게 하고, 남는 높이만 채운다. */
+    contain: size;
   }
   .home-dashboard > .side-column > .calendar-card {
     flex: 1;

@@ -49,6 +49,11 @@ export interface ReportDetail extends ReportListItem {
   last_editor_id: number | null;
   last_editor_display_name: string | null;
   generation_snapshot: ReportSnapshot | null;
+  /**
+   * 보고 작성자에게 배정된 설비.
+   * BE가 아직 내려주지 않으면 빈 배열로 처리하고 화면에는 —로 표시한다.
+   */
+  author_equipment: ReportEquipment[];
 }
 
 /** AI 보고서 생성 시 집계에 쓰인 값. 화면에서 확인 항목을 만들 때 참고한다. */
@@ -64,8 +69,6 @@ export interface ReportSnapshot {
   includesDemo: boolean;
   targetCount: number;
   equipmentCount: number;
-  /** 집계 대상으로 확정된 설비. 상세 화면의 대상 설비 표시에 쓴다. */
-  equipments: ReportEquipment[];
 }
 
 export interface ReportEquipment {
@@ -168,7 +171,6 @@ function parseReportSnapshot(value: unknown): ReportSnapshot | null {
   const summary = isRecord(value.summary) ? value.summary : {};
   const period = isRecord(value.period) ? value.period : {};
   const targets = isRecord(value.requested_targets) ? value.requested_targets : {};
-  const equipments = readEquipments(value.resolved_equipment);
   return {
     periodFrom: readString(period.from),
     periodTo: readString(period.to),
@@ -185,8 +187,7 @@ function parseReportSnapshot(value: unknown): ReportSnapshot | null {
       readIdCount(targets.department_ids) +
       readIdCount(targets.production_line_ids) +
       readIdCount(targets.equipment_ids),
-    equipmentCount: equipments.length,
-    equipments,
+    equipmentCount: readIdCount(value.resolved_equipment),
   };
 }
 
@@ -202,6 +203,7 @@ function parseReportDetail(value: unknown): ReportDetail {
         ? null
         : asString(item.last_editor_display_name, 'report.last_editor_display_name'),
     generation_snapshot: parseReportSnapshot(item.generation_snapshot),
+    author_equipment: readEquipments(item.author_equipment),
   };
 }
 

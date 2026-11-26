@@ -797,3 +797,76 @@
   justify-content: center;
   margin-top: 10px;
 }
+.rpd-handover {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--soft);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    border-color 0.16s,
+    background 0.16s,
+    transform 0.16s;
+}
+.rpd-handover:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: #f3f0fa;
+  transform: translateY(-1px);
+}
+.dark .rpd-handover:hover:not(:disabled) {
+  background: #332c42;
+}
+.rpd-handover-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: 0 1px 2px #29263f14;
+}
+.rpd-handover-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.rpd-handover-copy strong {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.rpd-handover > svg {
+  flex: none;
+  color: var(--muted);
+}
+.rpd-handover-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: #237957;
+}
+.dark .rpd-handover-notice {
+  color: #99dfbd;
+}
+.rpd-handover-target {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 22px;
+  color: var(--muted);
+}
+.rpd-handover-target strong {
+  color: var(--ink);
+}
+.rpd-handover-footer {
+  padding-top: 12px;
+}
