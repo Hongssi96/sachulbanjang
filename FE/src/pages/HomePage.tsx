@@ -31,7 +31,8 @@ import {
 } from '../api/handover';
 import type { HandoverNote } from '../api/handover';
 import { fetchCurrentProcess } from '../api/process';
-import { fetchQualitySummary } from '../api/quality';
+import { fetchOperationSummary, fetchQualitySummary } from '../api/quality';
+import { fetchEquipment } from '../api/masterData';
 import { fetchProcessRecords } from '../api/records';
 import type { ProcessRecord } from '../api/records';
 import { fetchReport, fetchReports } from '../api/reports';
@@ -50,6 +51,7 @@ import HomeSectionSkeleton from './HomePage/HomeSectionSkeleton';
 import { useAuth } from '../hooks/useAuth';
 import { useWorkSession } from '../hooks/useWorkSession';
 import { formatDate, formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 type Overlay =
   | { kind: 'report'; reportId: number }
@@ -260,7 +262,7 @@ function HomeProductionChart({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label={`${period === 'today' ? '시간별' : '일별'} 생산 기록: 총 ${total.toLocaleString()}건. ${points
+        aria-label={`${period === 'today' ? '시간별' : '일별'} 생산 기록: 총 ${formatNumber(total)}건. ${points
           .map((point) => `${point.label} ${point.value}건`)
           .join(', ')}`}
       >
@@ -277,7 +279,7 @@ function HomeProductionChart({
                 strokeDasharray="3 5"
               />
               <text x={LEFT - 12} y={y(value) + 4} textAnchor="end" className="chart-axis">
-                {value.toLocaleString()}
+                {formatNumber(value)}
               </text>
             </g>
           );
@@ -301,7 +303,7 @@ function HomeProductionChart({
             strokeWidth="2"
           >
             <title>
-              {point.label} · {point.value.toLocaleString()}건
+              {point.label} · {formatNumber(point.value)}건
             </title>
           </circle>
         ))}
@@ -359,6 +361,12 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const processQuery = useApiQuery('home:process-current', fetchCurrentProcess, {
     pollMs: 30_000,
   });
+  const equipmentQuery = useApiQuery('home:equipment', fetchEquipment, { pollMs: 60_000 });
+  const operationQuery = useApiQuery(
+    `home:operation:${todayKey}`,
+    () => fetchOperationSummary({ from: todayKey, to: todayKey }),
+    { pollMs: 30_000 },
+  );
   const workSession = useWorkSession();
 
   const monthFrom = `${year}-${pad2(month + 1)}-01`;
@@ -396,10 +404,32 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     () => fetchProcessRecords({ from: todayKey, to: todayKey, pageSize: 1 }),
     { pollMs: 60_000 },
   );
+  const yesterday = shiftDateISO(todayKey, -1);
+  const yesterdayQualityQuery = useApiQuery(
+    `home:quality-yesterday:${yesterday}`,
+    () => fetchQualitySummary({ from: yesterday, to: yesterday }),
+    { pollMs: 60_000 },
+  );
+  const previousTo = period === 'today' ? yesterday : shiftDateISO(recordFrom, -1);
+  const previousFrom =
+    period === 'today' ? yesterday : shiftDateISO(previousTo, -(RECENT_DAYS - 1));
+  const previousProductionQuery = useApiQuery(
+    `home:previous-production:${previousFrom}:${previousTo}`,
+    async () => ({
+      from: previousFrom,
+      to: previousTo,
+      summary: await fetchQualitySummary({ from: previousFrom, to: previousTo }),
+    }),
+    { pollMs: 60_000 },
+  );
   const summaryErrors = [
     { label: '공정 현황', query: processQuery },
     { label: '오늘 검사 요약', query: qualityTodayQuery },
     { label: '오늘 생산 기록', query: todayRecordsQuery },
+    { label: '등록 설비', query: equipmentQuery },
+    { label: '오늘 가동률', query: operationQuery },
+    { label: '어제 검사 요약', query: yesterdayQualityQuery },
+    { label: '이전 기간 생산 기록', query: previousProductionQuery },
   ].filter(({ query }) => query.error && !query.data);
 
   const reportId = overlay?.kind === 'report' ? overlay.reportId : null;
@@ -412,6 +442,10 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       qualityTodayQuery,
       recordsQuery,
       todayRecordsQuery,
+      equipmentQuery,
+      operationQuery,
+      yesterdayQualityQuery,
+      previousProductionQuery,
     ].every((query) => query.data !== null || query.error !== null),
   );
   const reportDetailQuery = useApiQuery(
@@ -508,10 +542,25 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const quality = qualityQuery.data;
   const defectRate = quality?.defect_rate ?? null;
   const todayDefectRate = qualityTodayQuery.data?.defect_rate ?? null;
+  const yesterdayDefectRate = yesterdayQualityQuery.data?.defect_rate ?? null;
+  const defectDelta =
+    todayDefectRate !== null && yesterdayDefectRate !== null
+      ? todayDefectRate - yesterdayDefectRate
+      : null;
+  const operationRate = operationQuery.data?.operation_rate ?? null;
 
   const weekTotal = recordsQuery.data?.pagination.total_items ?? null;
   const todayTotal = todayRecordsQuery.data?.pagination.total_items ?? null;
   const chartTotal = period === 'today' ? todayTotal : weekTotal;
+  const previousProduction = previousProductionQuery.data;
+  const previousCount =
+    previousProduction?.from === previousFrom && previousProduction.to === previousTo
+      ? previousProduction.summary.production_record_count
+      : null;
+  const productionDelta =
+    chartTotal !== null && previousCount !== null && previousCount > 0
+      ? ((chartTotal - previousCount) / previousCount) * 100
+      : null;
   const chartPoints = buildChartPoints(recordsQuery.data?.items ?? [], period, todayKey);
   const sampledRecords = recordsQuery.data?.items.length ?? 0;
   const equipmentCount = processQuery.data
@@ -534,7 +583,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     setSelectedDay(1);
   };
   const downloadSummary = () => {
-    const rate = defectRate === null ? '—' : `${defectRate.toFixed(2)}%`;
+    const rate = defectRate === null ? '—' : `${formatDecimal(defectRate)}%`;
     const rows = [
       ['구분', '값', '기준'],
       ['생산 기록', `${weekTotal ?? '—'}건`, `최근 ${RECENT_DAYS}일`],
@@ -675,11 +724,20 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <ShieldCheck size={19} />
             </div>
             <div className="kpi-value">
-              {todayDefectRate === null ? <MissingValue size="lg" /> : todayDefectRate.toFixed(2)}
+              {todayDefectRate === null ? (
+                <MissingValue size="lg" />
+              ) : (
+                formatDecimal(todayDefectRate)
+              )}
               <span>%</span>
             </div>
             <div className="kpi-bottom">
-              <span>어제 대비 —</span>
+              <span>
+                어제 대비{' '}
+                {defectDelta === null
+                  ? '—'
+                  : `${defectDelta > 0 ? '+' : ''}${formatDecimal(defectDelta)}%p`}
+              </span>
               <span>검사 기록 기준</span>
             </div>
             <div className="kpi-spark" aria-hidden="true">
@@ -688,24 +746,31 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
           </article>
           <article className="kpi">
             <div className="kpi-label">
-              설비 가동률
+              오늘 설비 가동률
               <Gauge size={19} />
             </div>
             <div className="kpi-value">
-              <MissingValue size="lg" />
+              {operationRate === null ? <MissingValue size="lg" /> : formatDecimal(operationRate)}
               <span>%</span>
-              <span className="kpi-secondary">
-                {equipmentCount ?? '—'} <small>/ —대</small>
+              <span className="kpi-secondary" title="최근 공정 기록이 있는 설비 / 등록 설비">
+                {equipmentCount ?? '—'} <small>/ {equipmentQuery.data?.length ?? '—'}대</small>
               </span>
             </div>
             <div className="kpi-bottom">
-              <span>정상 —대 · 휴식 —대 · 고장 —대</span>
+              <span>
+                계획 {formatNumber(operationQuery.data?.planned_hours)}시간 · 가동{' '}
+                {formatNumber(operationQuery.data?.actual_hours)}시간
+                {operationQuery.data?.includes_demo ? ' · 시연 포함' : ''}
+              </span>
             </div>
-            <div className="segmented-progress" aria-label="설비 상태 비율 제공되지 않음">
-              <span style={{ width: '0%' }} />
-              <span style={{ width: '0%' }} />
-              <span style={{ width: '0%' }} />
-            </div>
+            {operationRate !== null && (
+              <div
+                className="mini-progress"
+                aria-label={`오늘 가동률 ${formatNumber(operationRate)}%`}
+              >
+                <span style={{ width: `${Math.min(100, Math.max(0, operationRate))}%` }} />
+              </div>
+            )}
           </article>
           <article className="kpi">
             <div className="kpi-label">
@@ -762,7 +827,12 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   <span>건</span>
                 </strong>
                 <span className="positive">
-                  <ArrowUpRight size={15} />—<span className="muted">이전 기간 대비</span>
+                  {productionDelta === null
+                    ? previousCount === 0
+                      ? '비교 기준 기록 없음'
+                      : '—'
+                    : `${productionDelta > 0 ? '+' : ''}${formatDecimal(productionDelta)}%`}
+                  <span className="muted">이전 동일 기간 대비</span>
                 </span>
               </div>
               <div className="chart-legend">
@@ -791,8 +861,8 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   : chartTotal === 0
                     ? '표시할 생산 기록이 없어요.'
                     : chartTotal > sampledRecords
-                      ? `생산 기록 ${chartTotal.toLocaleString()}건 중 최근 ${sampledRecords}건을 기준으로 표시합니다.`
-                      : `생산 기록 ${chartTotal.toLocaleString()}건을 기준으로 표시합니다.`}
+                      ? `생산 기록 ${formatNumber(chartTotal)}건 중 최근 ${sampledRecords}건을 기준으로 표시합니다.`
+                      : `생산 기록 ${formatNumber(chartTotal)}건을 기준으로 표시합니다.`}
               </span>
               <button className="text-link" onClick={() => setOverlay({ kind: 'equipment' })}>
                 공장 한눈에 보기
@@ -969,7 +1039,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <div>
                 <small>검사 기록 중 불량 비율</small>
                 <strong>
-                  {defectRate === null ? <MissingValue /> : defectRate.toFixed(2)}
+                  {defectRate === null ? <MissingValue /> : formatDecimal(defectRate)}
                   <span>%</span>
                 </strong>
               </div>
@@ -1151,6 +1221,14 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                     {reportDetail.report_id} · {reportDetail.author_display_name} ·{' '}
                     {formatDateTime(reportDetail.created_at)}
                   </p>
+                  {Boolean(reportDetail.generation_snapshot?.equipments.length) && (
+                    <p className="muted">
+                      대상 설비{' '}
+                      {reportDetail.generation_snapshot?.equipments
+                        .map((equipment) => `${equipment.code} · ${equipment.name}`)
+                        .join(', ')}
+                    </p>
+                  )}
                   <div className="report-markdown">
                     <ReportMarkdown markdown={reportDetail.body_markdown || '—'} />
                   </div>
@@ -1298,9 +1376,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                         <Factory size={34} />
                         <strong>{item.equipment_name}</strong>
                         <span>{item.product_name ?? '—'}</span>
-                        <span className="pill pill-neutral">—</span>
+                        <span className="pill pill-neutral">{item.equipment_status}</span>
                         <small>
-                          {item.equipment_code} · 주기 {item.cycle_time_seconds ?? '—'}초
+                          {item.equipment_code} · 주기 {formatNumber(item.cycle_time_seconds)}초
                         </small>
                       </div>
                     ))
@@ -1334,7 +1412,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   <p>
                     {quality.inspected_count > 0
                       ? `검사 ${quality.inspected_count}건 중 불량 ${quality.defect_count}건이며 불량률은 ${
-                          quality.defect_rate === null ? '—' : `${quality.defect_rate.toFixed(2)}%`
+                          quality.defect_rate === null
+                            ? '—'
+                            : `${formatDecimal(quality.defect_rate)}%`
                         }입니다. 불량 유형: ${
                           quality.defect_types.length
                             ? quality.defect_types

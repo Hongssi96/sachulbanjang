@@ -50,6 +50,7 @@ import type {
   RecordListParams,
 } from '../../api/records';
 import { formatDateTime, shiftDateISO, todayISO } from '../../utils/dateFormat';
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import './RecordsPage.css';
 
 const PAGE_SIZE = 10;
@@ -66,8 +67,8 @@ type RecordView = 'inspection' | 'production';
 type ListRow =
   { kind: 'production'; record: ProcessRecord } | { kind: 'inspection'; record: InspectionRecord };
 
-const number = (value: number) => value.toLocaleString('ko-KR');
-const rateText = (value: number | null) => (value === null ? null : `${value.toFixed(2)}%`);
+const number = (value: number) => formatNumber(value);
+const rateText = (value: number | null) => (value === null ? null : `${formatDecimal(value)}%`);
 const dateLabel = (value: string) => value.replaceAll('-', '.');
 const positiveInt = (value: string) => (/^\d+$/.test(value) ? Number(value) : undefined);
 const validDate = (value: string) => {
@@ -160,64 +161,55 @@ function VerdictPill({ row }: { row: ListRow }) {
 function listCsv(rows: ListRow[], production: boolean) {
   const header = production
     ? [
-        '생산 완료',
+        '생산 발생',
         '제품',
-        '생산 배치',
+        '생산 기록 번호',
         '설비',
-        '목표 수량',
-        '생산 수량',
-        '달성률',
-        '검사 결과',
-        '담당자',
         '사이클 타임(초)',
-        '시연 여부',
-        '기록 번호',
+        '데이터 반영 시각',
+        '데이터 구분',
+        '기록 버전',
       ]
     : [
         '검사 완료',
         '제품',
         '검사 번호',
         '설비',
-        '검사 수량',
-        '불량 수량',
-        '불량률',
-        '검사 결과',
-        '담당자',
         '불량 유형',
-        '사유',
-        '시연 여부',
-        '기록 번호',
+        '불량 사유',
+        '검사 결과',
+        '연결 생산 기록',
+        '데이터 반영 시각',
+        '데이터 구분',
+        '기록 버전',
       ];
   const body = rows.map((row) => {
-    const [date, time] = splitDateTime(
-      row.kind === 'production' ? row.record.occurred_at : row.record.inspected_at,
-    );
+    const record = row.record;
     const common = [
-      `${date} ${time}`,
-      row.record.product_name ?? row.record.product_code ?? NA,
-      row.kind === 'production' ? NA : String(row.record.record_id),
-      row.record.equipment_name || row.record.equipment_code,
-      NA,
-      NA,
-      NA,
-      row.kind === 'inspection' ? (row.record.verdict === 'good' ? '양품' : '불량') : NA,
-      NA,
+      formatDateTime(row.kind === 'production' ? row.record.occurred_at : row.record.inspected_at),
+      record.product_name ?? record.product_code ?? NA,
+      String(record.record_id),
+      record.equipment_name || record.equipment_code,
     ];
-    if (row.kind === 'production') {
-      common.push(
-        row.record.cycle_time_seconds === null ? NA : String(row.record.cycle_time_seconds),
-        row.record.is_demo ? '예' : '아니요',
-        String(row.record.record_id),
-      );
-    } else {
-      common.push(
-        row.record.defect_type ?? NA,
-        row.record.reason ?? NA,
-        row.record.is_demo ? '예' : '아니요',
-        String(row.record.record_id),
-      );
-    }
-    return common;
+    const metadata = [
+      record.available_at ? formatDateTime(record.available_at) : NA,
+      record.is_demo ? '시연' : '일반',
+      String(record.version),
+    ];
+    return row.kind === 'production'
+      ? [
+          ...common,
+          row.record.cycle_time_seconds === null ? NA : String(row.record.cycle_time_seconds),
+          ...metadata,
+        ]
+      : [
+          ...common,
+          row.record.defect_type ?? NA,
+          row.record.reason ?? NA,
+          row.record.verdict === 'good' ? '양품' : '불량',
+          row.record.process_record_id === null ? NA : String(row.record.process_record_id),
+          ...metadata,
+        ];
   });
   return `\uFEFF${[header, ...body].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
 }
@@ -600,13 +592,13 @@ export default function RecordsPage() {
               <caption className="sr-only">{production ? '생산' : '검사'} 이력 목록</caption>
               <thead>
                 <tr>
-                  <th>{production ? '생산 완료' : '검사 완료'}</th>
-                  <th>제품 / {production ? '생산 배치' : '검사 번호'}</th>
+                  <th>{production ? '생산 발생' : '검사 완료'}</th>
+                  <th>제품 / {production ? '생산 기록 번호' : '검사 번호'}</th>
                   <th>설비</th>
-                  <th>{production ? '목표 / 생산 수량' : '검사 수량'}</th>
-                  <th>{production ? '달성률' : '불량 수량 / 불량률'}</th>
-                  <th>검사 결과</th>
-                  <th>담당자</th>
+                  <th>{production ? '사이클 타임' : '불량 유형'}</th>
+                  <th>{production ? '데이터 반영 시각' : '불량 사유'}</th>
+                  <th>{production ? '데이터 구분' : '검사 결과'}</th>
+                  <th>{production ? '기록 버전' : '연결 생산 기록'}</th>
                   <th>상세</th>
                 </tr>
               </thead>
@@ -625,7 +617,7 @@ export default function RecordsPage() {
                       <td>
                         <strong>{productLabel}</strong>
                         <small>
-                          {row.kind === 'production' ? NA : String(row.record.record_id)}
+                          {row.record.record_id}
                           {row.record.is_demo ? ' · 시연' : ''}
                         </small>
                       </td>
@@ -636,27 +628,52 @@ export default function RecordsPage() {
                       </td>
                       <td>
                         {row.kind === 'production' ? (
-                          <>
-                            <NotAvailable /> / <NotAvailable />
-                          </>
+                          row.record.cycle_time_seconds === null ? (
+                            <NotAvailable />
+                          ) : (
+                            `${formatNumber(row.record.cycle_time_seconds)}초`
+                          )
                         ) : (
-                          <NotAvailable />
+                          (row.record.defect_type ?? <NotAvailable />)
                         )}
                       </td>
                       <td>
                         {row.kind === 'production' ? (
-                          <NotAvailable />
+                          row.record.available_at ? (
+                            formatDateTime(row.record.available_at)
+                          ) : (
+                            <NotAvailable />
+                          )
                         ) : (
-                          <>
-                            <NotAvailable /> / <NotAvailable />
-                          </>
+                          <span className="rd-record-reason" title={row.record.reason ?? undefined}>
+                            {row.record.reason ?? <NotAvailable />}
+                          </span>
                         )}
                       </td>
                       <td>
-                        <VerdictPill row={row} />
+                        {row.kind === 'production' ? (
+                          row.record.is_demo ? (
+                            '시연'
+                          ) : (
+                            '일반'
+                          )
+                        ) : (
+                          <VerdictPill row={row} />
+                        )}
                       </td>
                       <td>
-                        <NotAvailable />
+                        {row.kind === 'production' ? (
+                          `v${row.record.version}`
+                        ) : row.record.process_record_id !== null ? (
+                          <Link
+                            className="rd-detail-link"
+                            to={`/records/${row.record.process_record_id}${viewQuery(params, 'production')}`}
+                          >
+                            {row.record.process_record_id}
+                          </Link>
+                        ) : (
+                          <NotAvailable />
+                        )}
                       </td>
                       <td>
                         <Link
@@ -752,11 +769,29 @@ export function RecordDetailPage() {
     () => fetchProcessRecord(recordIdNumber),
     { enabled: validId && view === 'production' },
   );
+  const linkedProcessId =
+    view === 'inspection' && inspectionDetail.data?.record_id === recordIdNumber
+      ? inspectionDetail.data.process_record_id
+      : null;
+  const linkedProcessQuery = useApiQuery(
+    `record:linked-process:${linkedProcessId ?? 'none'}`,
+    () =>
+      linkedProcessId === null
+        ? Promise.reject(new Error('연결된 생산 기록이 없습니다.'))
+        : fetchProcessRecord(linkedProcessId),
+    { enabled: linkedProcessId !== null },
+  );
   const active = view === 'inspection' ? inspectionDetail : processDetail;
   usePageEntryReady(!validId || !active.loading);
   const inspectionRecord = view === 'inspection' ? inspectionDetail.data : null;
-  const processRecord = view === 'production' ? processDetail.data : null;
-  const record: InspectionRecord | ProcessRecordDetail | null = inspectionRecord ?? processRecord;
+  const processRecord =
+    view === 'production'
+      ? processDetail.data
+      : linkedProcessQuery.data?.record_id === linkedProcessId
+        ? linkedProcessQuery.data
+        : null;
+  const record: InspectionRecord | ProcessRecordDetail | null =
+    view === 'inspection' ? inspectionRecord : processRecord;
   const changesQuery = useApiQuery(
     `record-changes:${view}:${recordId}`,
     () =>
@@ -936,6 +971,15 @@ export function RecordDetailPage() {
         ['제품', productLabel],
         ['설비', equipmentLabel],
         ['검사 일시', formatDateTime(inspectionRecord.inspected_at)],
+        ['연결 생산 기록 번호', linkedProcessId === null ? NA : String(linkedProcessId)],
+        ['연결 생산 시각', processRecord ? formatDateTime(processRecord.occurred_at) : NA],
+        [
+          '사이클 타임(초)',
+          processRecord?.cycle_time_seconds === null ||
+          processRecord?.cycle_time_seconds === undefined
+            ? NA
+            : String(processRecord.cycle_time_seconds),
+        ],
         ['판정', inspectionRecord.verdict === 'good' ? '양품' : '불량'],
         ['불량 유형', inspectionRecord.defect_type ?? NA],
         ['사유', inspectionRecord.reason ?? NA],
@@ -985,12 +1029,19 @@ export function RecordDetailPage() {
 
   const cycleLabel =
     processRecord !== null && processRecord.cycle_time_seconds !== null
-      ? `${processRecord.cycle_time_seconds}초`
+      ? `${formatNumber(processRecord.cycle_time_seconds)}초`
       : NA;
 
   const infoRows: [string, string][] = [
     ['생산 배치', NA],
-    ['생산 기록 번호', processRecord ? String(processRecord.record_id) : NA],
+    [
+      '생산 기록 번호',
+      processRecord
+        ? String(processRecord.record_id)
+        : linkedProcessId !== null
+          ? String(linkedProcessId)
+          : NA,
+    ],
     ['검사 번호', inspectionRecord ? String(inspectionRecord.record_id) : NA],
     ['제품', productLabel],
     ['설비', equipmentLabel],
@@ -1022,6 +1073,16 @@ export function RecordDetailPage() {
       <Link className="rd-back" to={back}>
         <ArrowLeft size={17} /> 생산·검사 기록으로 돌아가기
       </Link>
+      {linkedProcessQuery.loading && linkedProcessId !== null && !processRecord && (
+        <LoadingState compact label="연결된 생산 기록을 불러오는 중이에요" />
+      )}
+      {linkedProcessId !== null && linkedProcessQuery.error && (
+        <ApiErrorState
+          compact
+          error={linkedProcessQuery.error}
+          onRetry={linkedProcessQuery.reload}
+        />
+      )}
       {feedback && (
         <div className="rd-feedback" role="status">
           <Check size={18} />

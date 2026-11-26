@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
@@ -123,7 +124,7 @@ export default function InventoryPage() {
         lowStock: onlyLow,
         page: requestedPage,
         pageSize: PAGE_SIZE,
-      }),
+      }).then((result) => ({ ...result, fetchedAt: new Date().toISOString() })),
   );
   // KPI·부족 알림·품목 선택지는 페이지와 무관한 전체 목록이 필요하다.
   const allStocksQuery = useApiQuery(`inventory-stocks-all:${refreshToken}`, fetchAllStocks);
@@ -190,7 +191,7 @@ export default function InventoryPage() {
     });
     const target = (allStocks ?? []).find((item) => item.product_id === values.productId);
     setFeedback(
-      `${target?.name ?? '품목'} ${Math.abs(result.delta).toLocaleString()}개 ${movementKindLabel(result.kind)} 기록을 저장했어요.`,
+      `${target?.name ?? '품목'} ${formatNumber(Math.abs(result.delta))}개 ${movementKindLabel(result.kind)} 기록을 저장했어요.`,
     );
     refresh();
     setDialog(null);
@@ -385,7 +386,7 @@ export default function InventoryPage() {
               <Boxes size={19} />
             </div>
             <div className="kpi-value">
-              {allStocks === null ? NOT_AVAILABLE : summary.stock.toLocaleString()}
+              {allStocks === null ? NOT_AVAILABLE : formatNumber(summary.stock)}
               {allStocks !== null && <span>개</span>}
             </div>
             <div className="kpi-bottom">
@@ -500,7 +501,10 @@ export default function InventoryPage() {
           <span className="inv-category-future">
             원자재 <small>추후 지원</small>
           </span>
-          <span className="inv-last-update">마지막 갱신 {NOT_AVAILABLE}</span>
+          <span className="inv-last-update">
+            조회 완료{' '}
+            {stocksQuery.data ? formatStockDate(stocksQuery.data.fetchedAt) : NOT_AVAILABLE}
+          </span>
         </div>
         <div className="inv-filter-bar">
           <label className="inv-search">
@@ -653,7 +657,7 @@ export default function InventoryPage() {
                         </span>
                       </button>
                     </td>
-                    <td className="inv-number">{item.quantity.toLocaleString()}</td>
+                    <td className="inv-number">{formatNumber(item.quantity)}</td>
                     <td className="inv-number inv-muted-number">
                       <MissingValue />
                     </td>

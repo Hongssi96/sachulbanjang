@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import LoadingState from '../../components/LoadingState';
 import { errorMessage, text } from '../../api/business';
 import type { Row, Page } from '../../api/business';
+import { formatNumber } from '../../utils/numberFormat';
 import './Connected.css';
 
 export function RemoteState({
@@ -83,7 +84,13 @@ export function Table({
           {rows.map((row, index) => (
             <tr key={index}>
               {columns.map(([key, , render]) => (
-                <td key={key}>{render ? render(row) : text(row[key])}</td>
+                <td key={key}>
+                  {render
+                    ? render(row)
+                    : typeof row[key] === 'number' && !Number.isInteger(row[key])
+                      ? formatNumber(row[key])
+                      : text(row[key])}
+                </td>
               ))}
               {action && <td>{action(row)}</td>}
             </tr>
@@ -101,7 +108,7 @@ export function Metrics({ values }: { values: [string, ReactNode][] }) {
       {values.map(([label, value]) => (
         <div className="live-card live-metric" key={label}>
           <small>{label}</small>
-          <strong>{value}</strong>
+          <strong>{typeof value === 'number' ? formatNumber(value) : value}</strong>
         </div>
       ))}
     </div>

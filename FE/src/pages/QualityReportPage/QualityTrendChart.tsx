@@ -1,3 +1,4 @@
+import { formatDecimal } from '../../utils/numberFormat';
 import { inspectionThreshold } from './qualityReportModel';
 import type { TrendPoint } from './qualityReportModel';
 export default function QualityTrendChart({ points }: { points: TrendPoint[] }) {
@@ -17,7 +18,7 @@ export default function QualityTrendChart({ points }: { points: TrendPoint[] }) 
       className="qr-trend-svg"
       viewBox="0 0 730 250"
       role="img"
-      aria-label={`선택 기간 검사 불량률 추이. 점검 기준 ${inspectionThreshold}%. ${points.map((point) => `${point.date} ${point.rate?.toFixed(2)}%`).join(', ')}`}
+      aria-label={`선택 기간 검사 불량률 추이. 점검 기준 ${inspectionThreshold}%. ${points.map((point) => `${point.date} ${formatDecimal(point.rate)}%`).join(', ')}`}
     >
       {[0, 1, 2, 3, 4].map((index) => (
         <g key={index}>
@@ -62,7 +63,7 @@ export default function QualityTrendChart({ points }: { points: TrendPoint[] }) 
           >
             <title>
               {point.date} · 검사 {point.inspected}건 · 불량 {point.defective}건 ·{' '}
-              {point.rate?.toFixed(2)}%
+              {formatDecimal(point.rate)}%
             </title>
           </circle>
           {(points.length <= 8 || index % 2 === 0 || index === points.length - 1) && (

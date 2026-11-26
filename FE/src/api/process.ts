@@ -18,7 +18,7 @@ export interface CurrentProcessItem {
   equipment_id: number;
   equipment_code: string;
   equipment_name: string;
-  equipment_status: 'unknown';
+  equipment_status: string;
   product_id: number | null;
   product_code: string | null;
   product_name: string | null;
@@ -43,7 +43,7 @@ function parseItem(value: unknown, field: string): CurrentProcessItem {
     equipment_id: asNumber(item.equipment_id, `${field}.equipment_id`),
     equipment_code: asString(item.equipment_code, `${field}.equipment_code`),
     equipment_name: asString(item.equipment_name, `${field}.equipment_name`),
-    equipment_status: 'unknown',
+    equipment_status: asString(item.equipment_status, `${field}.equipment_status`),
     product_id: asNullableNumber(item.product_id, `${field}.product_id`),
     product_code: asNullableString(item.product_code, `${field}.product_code`),
     product_name: asNullableString(item.product_name, `${field}.product_name`),

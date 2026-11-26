@@ -4,6 +4,7 @@ import {
   asBoolean,
   asDecimal,
   asNullableString,
+  asNullableNumber,
   asNumber,
   asRecord,
   toQuery,
@@ -29,6 +30,45 @@ export interface QualitySummaryParams {
   to?: string;
   equipmentId?: number;
   productId?: number;
+}
+
+export interface OperationSummary {
+  equipment_id: number | null;
+  from_date: string | null;
+  to_date: string | null;
+  planned_hours: number;
+  actual_hours: number;
+  operation_rate: number | null;
+  includes_demo: boolean;
+}
+
+export async function fetchOperationSummary(
+  params: Omit<QualitySummaryParams, 'productId'> = {},
+): Promise<OperationSummary> {
+  const payload = asRecord(
+    await apiRequest<unknown>(
+      `/quality/operation${toQuery({
+        from: params.from,
+        to: params.to,
+        equipment_id: params.equipmentId,
+      })}`,
+    ),
+    'operationSummary',
+  );
+  const plannedHours = asDecimal(payload.planned_hours, 'operationSummary.planned_hours');
+  const actualHours = asDecimal(payload.actual_hours, 'operationSummary.actual_hours');
+  if (plannedHours === null || actualHours === null) {
+    throw new Error('가동 시간 응답을 확인해 주세요.');
+  }
+  return {
+    equipment_id: asNullableNumber(payload.equipment_id, 'operationSummary.equipment_id'),
+    from_date: asNullableString(payload.from_date, 'operationSummary.from_date'),
+    to_date: asNullableString(payload.to_date, 'operationSummary.to_date'),
+    planned_hours: plannedHours,
+    actual_hours: actualHours,
+    operation_rate: asDecimal(payload.operation_rate, 'operationSummary.operation_rate'),
+    includes_demo: asBoolean(payload.includes_demo, 'operationSummary.includes_demo'),
+  };
 }
 
 export async function fetchQualitySummary(

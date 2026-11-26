@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import { fetchStocks } from '../../api/inventory';
 import type { MovementKind, StockItem } from '../../api/inventory';
 import { formatDateTime } from '../../utils/dateFormat';
@@ -33,11 +34,11 @@ export function inventorySummary(items: StockItem[]): InventorySummary {
 }
 
 export function formatStockNumber(value: number | null | undefined): string {
-  return value === null || value === undefined ? NOT_AVAILABLE : value.toLocaleString();
+  return value === null || value === undefined ? NOT_AVAILABLE : formatNumber(value);
 }
 
 export function formatMinimumStock(value: number | null): string {
-  return value === null ? '미설정' : value.toLocaleString();
+  return value === null ? '미설정' : formatNumber(value);
 }
 
 export const MOVEMENT_KIND_LABELS: Record<MovementKind, string> = {
@@ -68,7 +69,7 @@ export function movementSymbol(delta: number): '+' | '−' {
 }
 
 export function movementAmount(delta: number): string {
-  return Math.abs(delta).toLocaleString();
+  return formatNumber(Math.abs(delta));
 }
 
 /**
