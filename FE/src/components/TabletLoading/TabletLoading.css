@@ -1,0 +1,111 @@
+.tablet-loading {
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: calc(100dvh - 144px);
+  padding: 24px 20px;
+}
+.tablet-loading.is-full-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  height: 100dvh;
+  min-height: 0;
+}
+.auth-loading:has(> .tablet-loading.is-full-screen) {
+  height: 100dvh;
+  min-height: 0;
+}
+.tablet-loading-content {
+  width: min(100%, 572px);
+}
+.tablet-loading-percentage {
+  position: relative;
+  height: 28px;
+  margin-inline: 16px;
+  color: var(--primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 20px;
+}
+.tablet-loading-percentage > span {
+  position: absolute;
+  transform: translateX(-50%);
+  transition: left 100ms linear;
+}
+.tablet-loading-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--border);
+}
+.tablet-loading-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 100ms linear;
+}
+.tablet-loading-content > p {
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+}
+
+/* 본문 로딩 높이는 헤더·바깥 여백을 제외한 실제 남은 공간으로 제한한다. */
+.tablet-home:has(.page-entry-local-loading > .tablet-loading) {
+  height: calc(100dvh - 32px);
+  min-height: 0;
+}
+.tablet-home:has(.page-entry-local-loading > .tablet-loading) > .th-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.tablet-home:has(.page-entry-local-loading > .tablet-loading) .th-header {
+  flex-shrink: 0;
+}
+.tablet-home:has(.page-entry-local-loading > .tablet-loading) .th-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.tablet-home .page-entry-local-loading:has(> .tablet-loading) {
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-height: 0;
+}
+.tablet-home .page-entry-local-loading > .tablet-loading {
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+.tablet-home .page-entry-local-loading .tablet-loading-content {
+  width: min(50%, 1144px);
+}
+@media (max-width: 1150px) {
+  .tablet-home:has(.page-entry-local-loading > .tablet-loading) {
+    height: calc(100dvh - 24px);
+  }
+}
+@media (max-width: 850px) {
+  .tablet-home:has(.page-entry-local-loading > .tablet-loading) {
+    height: 100dvh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tablet-loading-percentage > span,
+  .tablet-loading-fill {
+    transition: none;
+  }
+}

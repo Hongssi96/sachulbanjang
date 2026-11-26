@@ -232,6 +232,7 @@ export default function InventoryPage() {
         '창고',
         '보관 위치',
         '상태',
+        '잔고 수정 시각 (한국시간)',
       ],
       ...rows.map((item) => [
         item.product_code ?? NOT_AVAILABLE,
@@ -243,6 +244,7 @@ export default function InventoryPage() {
         NOT_AVAILABLE,
         NOT_AVAILABLE,
         stockStatus(item.is_low_stock),
+        formatStockDate(item.balance_updated_at),
       ]),
     ];
     const csv =
@@ -637,6 +639,7 @@ export default function InventoryPage() {
                   </th>
                   <th scope="col">보관 위치</th>
                   <th scope="col">상태</th>
+                  <th scope="col">잔고 수정 시각 (한국시간)</th>
                   <th scope="col">상세</th>
                 </tr>
               </thead>
@@ -681,6 +684,7 @@ export default function InventoryPage() {
                         {stockStatus(item.is_low_stock)}
                       </span>
                     </td>
+                    <td>{formatStockDate(item.balance_updated_at)}</td>
                     <td>
                       <button
                         className="inv-detail-link"

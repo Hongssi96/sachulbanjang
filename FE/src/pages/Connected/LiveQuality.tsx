@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
 import { RefreshCw } from 'lucide-react';
@@ -12,6 +13,7 @@ export default function LiveQuality() {
   const resource = useRemote(
     useCallback(() => read(query('/quality/summary', { from, to })), [from, to]),
   );
+  usePageEntryReady(!resource.loading);
   const summary = resource.data;
   return (
     <div className="live-page">

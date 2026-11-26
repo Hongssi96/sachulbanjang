@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { formatNumber } from '../../utils/numberFormat';
 import { formText } from '../../api/business';
 import { useCallback, useState } from 'react';
@@ -25,6 +26,7 @@ export default function LiveInventory() {
       [page, search, low],
     ),
   );
+  usePageEntryReady(!resource.loading);
   const movements = useRemote(
     useCallback(
       () =>

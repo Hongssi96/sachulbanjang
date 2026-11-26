@@ -78,6 +78,10 @@ export default function StockDetail({
         <MapPin size={16} />
         {NOT_AVAILABLE} · {NOT_AVAILABLE}
       </p>
+      <dl className="inv-detail-balance-time">
+        <dt>잔고 수정 시각 (한국시간)</dt>
+        <dd>{formatStockDate(item.balance_updated_at)}</dd>
+      </dl>
       <form
         className="inv-safety-form"
         onSubmit={async (event) => {

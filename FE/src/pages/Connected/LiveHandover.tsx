@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
@@ -86,6 +87,7 @@ export default function LiveHandover() {
     ),
   );
   const assignments = useRemote(useCallback(() => fetchMyAssignments(), []));
+  usePageEntryReady(!notes.loading && !assignments.loading);
 
   const assignmentTargets = useMemo<HandoverTarget[]>(() => {
     const data = assignments.data;
