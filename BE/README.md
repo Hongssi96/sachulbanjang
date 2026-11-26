@@ -159,6 +159,32 @@ python -m app.commands.seed_accounts `
 기본값은 근무 시작 `09:00`, 종료 `18:00`이고 최초 로그인 시 비밀번호 변경이 필요하다
 (`--no-must-change-password`로 해제).
 
+### 시연 데이터 적재 순서
+
+시연용 DB는 아래 순서로 적재한다. 공정 CSV가 설비·품목을 만들고, 조직·담당 적재가 그 설비를
+라인에 연결하며, 검사 시더는 적재된 공정 기록의 판정값을 사용한다.
+
+```powershell
+python -m app.commands.seed_accounts --employee-no A9001 --display-name "관리자" `
+  --role admin --password "<비밀번호>" --no-must-change-password
+python -m app.commands.seed_accounts --employee-no W9001 --display-name "작업자" `
+  --role worker --password "<비밀번호>" --no-must-change-password
+
+python -m app.commands.import_process_csv "..\previous-workspace\elice_v1.csv" `
+  --spread-over-days 14 --publish-all
+python -m app.commands.seed_master_data --file ..\tmp\master.json
+python -m app.commands.seed_operation_days --days 14
+python -m app.commands.seed_inspection_records --source-namespace molding_csv
+```
+
+`--spread-over-days`는 CSV 원본 시각을 최근 N일(오늘 포함)로 압축하는 시연 전용 옵션이다.
+원본 `TimeStamp`는 `source_payload`에 그대로 남고, 조회·집계에 쓰는 `occurred_at`만 이동한다.
+`--publish-all`은 적재한 기록을 모두 `occurred_at` 시점에 공개된 것으로 표시하고 replay를
+`completed`로 만든다. 실시간 공정 화면에서 최신 값을 바로 보여줄 때 사용하며, 5초 간격 재생을
+시연하려면 이 옵션을 빼고 적재한 뒤 `run_process_replay <import_id>`를 실행한다. 검사 시더는
+`PassOrFail`(True/False, Y/N, 0/1)과 `Reason`을 사용하므로 판정값이 없는 기록은 건너뛴다. 같은
+공정 기록에 이미 검사가 있으면 다시 만들지 않는다.
+
 ### 조직·담당 초기 데이터 적재
 
 부서·라인·설비 연결과 사용자 담당을 JSON 파일로 적재한다. 설비는 CSV 적재 등으로 이미 존재해야 한다.
@@ -195,6 +221,17 @@ python -m app.commands.seed_master_data --file master.json
 ```powershell
 python -m app.commands.seed_operation_days --days 14
 ```
+
+### 검사 시연 데이터 적재
+
+적재된 공정 CSV의 `PassOrFail`·`Reason` 값으로 검사 기록을 만든다. 판정은 양품·불량으로
+저장하고, 불량 유형은 `Reason`을 사용한다. 이미 검사가 연결된 공정 기록은 덮어쓰지 않는다.
+
+```powershell
+python -m app.commands.seed_inspection_records --source-namespace molding_csv
+```
+
+`PassOrFail` 값이 없는 공정 기록은 건너뛰고 건수를 함께 출력한다.
 
 ### 보고서 생성 작업 큐 정리
 
@@ -272,6 +309,15 @@ python -m app.commands.run_chat_worker
 python -m app.commands.import_process_csv `
   "C:\path\to\molding.csv"
 ```
+
+시연처럼 원본 기간 대신 최근 기간으로 조회해야 하면 `--spread-over-days 14`를 추가한다. CSV의
+전체 시각 범위를 오늘을 포함한 최근 N일로 압축해 `occurred_at`에 저장하고, 원본
+`TimeStamp`는 `source_payload`에 유지한다. 파일 내용은 바꾸지 않으므로 같은 파일을 두 번
+적재하면 기존과 같이 중복 적재로 거부된다.
+
+`--publish-all`은 적재한 모든 기록을 `occurred_at` 시점에 공개된 것으로 표시하고 replay를
+`completed`로 만든다. 실시간 값이 바로 보이는 대신 5초 간격 재생 시연은 할 수 없다. 재생
+시연이 필요하면 두 옵션을 빼고 적재하고 `run_process_replay <import_id>`를 사용한다.
 
 DB에 연결하거나 저장하지 않고 전체 행만 검증하려면 `--validate-only`를 추가한다.
 

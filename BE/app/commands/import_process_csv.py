@@ -21,6 +21,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-namespace", default="molding_csv")
     parser.add_argument("--batch-size", type=int, default=1_000)
     parser.add_argument(
+        "--spread-over-days",
+        type=int,
+        metavar="N",
+        help=(
+            "Demo only: compress CSV timestamps into the last N days, including today, "
+            "without changing stored source payloads."
+        ),
+    )
+    parser.add_argument(
+        "--publish-all",
+        action="store_true",
+        help=(
+            "Demo only: mark every imported record as already published at its occurred_at "
+            "and close the replay, so /process/current shows the latest records without replay."
+        ),
+    )
+    parser.add_argument(
         "--validate-only",
         action="store_true",
         help="Validate every row without connecting to the database",
@@ -52,6 +69,8 @@ def main() -> int:
                     args.csv_path,
                     source_timezone=args.source_timezone,
                     source_namespace=args.source_namespace,
+                    spread_over_days=args.spread_over_days,
+                    publish_all=args.publish_all,
                 )
             except ProcessImportError as error:
                 print(f"import rejected: {error}", file=sys.stderr)

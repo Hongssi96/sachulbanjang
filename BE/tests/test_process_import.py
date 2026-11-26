@@ -1,7 +1,8 @@
-from datetime import UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 from app.commands.import_process_csv import build_parser
@@ -10,7 +11,9 @@ from app.services.process_import import (
     ProcessImportError,
     ProcessImportService,
     SourceRecordConflictError,
+    build_recent_transform,
     calculate_sha256,
+    find_timestamp_range,
     read_process_csv,
 )
 from sqlalchemy.orm import Session
@@ -56,6 +59,89 @@ def test_read_process_csv_rejects_missing_headers(tmp_path: Path) -> None:
 
     with pytest.raises(ProcessImportError, match="missing required CSV headers"):
         list(read_process_csv(path, "Asia/Seoul"))
+
+
+def test_find_timestamp_range_returns_earliest_and_latest(tmp_path: Path) -> None:
+    path = write_csv(
+        tmp_path / "process.csv",
+        "record-2,2020-01-02 02:00:00,,SP2 LH,S01,1800TON,60.0\n"
+        "record-1,2020-01-02 01:00:00,,SP2 LH,S01,1800TON,59.5\n",
+    )
+
+    timestamp_range = find_timestamp_range(path, "Asia/Seoul")
+
+    assert timestamp_range is not None
+    earliest, latest = timestamp_range
+    assert earliest.astimezone(UTC).isoformat() == "2020-01-01T16:00:00+00:00"
+    assert latest.astimezone(UTC).isoformat() == "2020-01-01T17:00:00+00:00"
+
+
+def test_build_recent_transform_maps_range_into_recent_days() -> None:
+    timezone = ZoneInfo("Asia/Seoul")
+    start = datetime(2020, 10, 16, 4, 57, 47, tzinfo=timezone)
+    end = datetime(2020, 11, 6, 4, 27, 38, tzinfo=timezone)
+    now = datetime(2026, 11, 26, 12, 0, tzinfo=timezone)
+
+    transform = build_recent_transform(start, end, now=now, spread_days=14)
+
+    assert transform(start) == datetime(2026, 11, 13, 0, 0, tzinfo=timezone)
+    assert transform(end) == now
+    assert transform(start) < transform(start + (end - start) / 2) < transform(end)
+
+
+def test_process_import_spreads_timestamps_when_requested(tmp_path: Path) -> None:
+    path = write_csv(
+        tmp_path / "process.csv",
+        "record-1,2020-01-02 01:01:01,,SP2 LH,S01,1800TON,59.5\n"
+        "record-2,2020-01-02 01:02:02,,SP2 LH,S01,1800TON,60.0\n",
+    )
+    session = MagicMock(spec=Session)
+    repository = MagicMock(spec=ProcessImportRepository)
+    repository.find_import_by_fingerprint.return_value = None
+    repository.find_records_by_source_keys.return_value = {}
+    repository.find_equipment.return_value = None
+    repository.find_product_by_code.return_value = None
+    repository.find_uncoded_products_by_name.return_value = []
+    repository.add_import.side_effect = lambda item: setattr(item, "id", 10)
+    repository.add_equipment.side_effect = lambda item: setattr(item, "id", 20)
+    repository.add_product.side_effect = lambda item: setattr(item, "id", 30)
+    fixed_now = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
+    service = ProcessImportService(session, repository, clock=lambda: fixed_now, batch_size=10)
+
+    service.import_file(path, source_timezone="Asia/Seoul", spread_over_days=14)
+
+    records = repository.add_records.call_args.args[0]
+    assert records[0].occurred_at.astimezone(UTC) == datetime(2026, 11, 12, 15, 0, tzinfo=UTC)
+    assert records[-1].occurred_at.astimezone(UTC) == fixed_now
+    assert records[0].source_payload["TimeStamp"] == "2020-01-02 01:01:01"
+
+
+def test_process_import_publishes_all_records_when_requested(tmp_path: Path) -> None:
+    path = write_csv(
+        tmp_path / "process.csv",
+        "record-1,2020-01-02 01:01:01,,SP2 LH,S01,1800TON,59.5\n"
+        "record-2,2020-01-02 01:02:02,,SP2 LH,S01,1800TON,60.0\n",
+    )
+    session = MagicMock(spec=Session)
+    repository = MagicMock(spec=ProcessImportRepository)
+    repository.find_import_by_fingerprint.return_value = None
+    repository.find_records_by_source_keys.return_value = {}
+    repository.find_equipment.return_value = None
+    repository.find_product_by_code.return_value = None
+    repository.find_uncoded_products_by_name.return_value = []
+    repository.add_import.side_effect = lambda item: setattr(item, "id", 10)
+    repository.add_equipment.side_effect = lambda item: setattr(item, "id", 20)
+    repository.add_product.side_effect = lambda item: setattr(item, "id", 30)
+    service = ProcessImportService(session, repository, batch_size=10)
+
+    service.import_file(path, source_timezone="Asia/Seoul", publish_all=True)
+
+    records = repository.add_records.call_args.args[0]
+    assert all(record.available_at == record.occurred_at for record in records)
+    replay = repository.add_replay.call_args.args[0]
+    assert replay.state == "completed"
+    assert replay.cursor == 2
+    assert replay.data_time == records[-1].occurred_at
 
 
 def test_process_import_is_atomic_and_creates_resolved_records(tmp_path: Path) -> None:
