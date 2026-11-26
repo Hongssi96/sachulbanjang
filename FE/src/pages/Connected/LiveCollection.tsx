@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { formText, localDateTime } from '../../api/business';
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
@@ -115,6 +116,7 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
     [kind, page, search, status, category, tablet],
   );
   const resource = useRemote(load);
+  usePageEntryReady(!resource.loading);
   const reloadList = resource.reload;
   const loadDetail = useCallback(
     () => (selected ? read(`/${kind}/${selected}`) : Promise.resolve<Record<string, unknown>>({})),

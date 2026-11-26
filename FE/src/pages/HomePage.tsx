@@ -19,13 +19,20 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Trash2,
   TriangleAlert,
   Wrench,
 } from 'lucide-react';
-import { confirmHandoverNote, createHandoverNote, fetchHandoverNotes } from '../api/handover';
+import {
+  confirmHandoverNote,
+  createHandoverNote,
+  deleteHandoverNote,
+  fetchHandoverNotes,
+} from '../api/handover';
 import type { HandoverNote } from '../api/handover';
 import { fetchCurrentProcess } from '../api/process';
-import { fetchQualitySummary } from '../api/quality';
+import { fetchOperationSummary, fetchQualitySummary } from '../api/quality';
+import { fetchEquipment } from '../api/masterData';
 import { fetchProcessRecords } from '../api/records';
 import type { ProcessRecord } from '../api/records';
 import { fetchReport, fetchReports } from '../api/reports';
@@ -44,6 +51,7 @@ import HomeSectionSkeleton from './HomePage/HomeSectionSkeleton';
 import { useAuth } from '../hooks/useAuth';
 import { useWorkSession } from '../hooks/useWorkSession';
 import { formatDate, formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 type Overlay =
   | { kind: 'report'; reportId: number }
@@ -73,9 +81,9 @@ interface ChartPoint {
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const RECENT_DAYS = 9;
+const RECENT_DAYS = 7;
 const INSIGHT_DAYS = 30;
-const NOTE_PAGE_SIZE = 5;
+const NOTE_PAGE_SIZE = 20;
 const kindPill: Record<Kind, string> = {
   점검: 'pill-amber',
   납품: 'pill-green',
@@ -254,7 +262,7 @@ function HomeProductionChart({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label={`${period === 'today' ? '시간별' : '일별'} 생산 기록: 총 ${total.toLocaleString()}건. ${points
+        aria-label={`${period === 'today' ? '시간별' : '일별'} 생산 기록: 총 ${formatNumber(total)}건. ${points
           .map((point) => `${point.label} ${point.value}건`)
           .join(', ')}`}
       >
@@ -271,7 +279,7 @@ function HomeProductionChart({
                 strokeDasharray="3 5"
               />
               <text x={LEFT - 12} y={y(value) + 4} textAnchor="end" className="chart-axis">
-                {value.toLocaleString()}
+                {formatNumber(value)}
               </text>
             </g>
           );
@@ -295,7 +303,7 @@ function HomeProductionChart({
             strokeWidth="2"
           >
             <title>
-              {point.label} · {point.value.toLocaleString()}건
+              {point.label} · {formatNumber(point.value)}건
             </title>
           </circle>
         ))}
@@ -338,6 +346,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [confirmingNoteId, setConfirmingNoteId] = useState<number | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
   const [reportFilter, setReportFilter] = useState('전체');
   const [announcementRead, setAnnouncementRead] = useState(false);
 
@@ -352,6 +361,12 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const processQuery = useApiQuery('home:process-current', fetchCurrentProcess, {
     pollMs: 30_000,
   });
+  const equipmentQuery = useApiQuery('home:equipment', fetchEquipment, { pollMs: 60_000 });
+  const operationQuery = useApiQuery(
+    `home:operation:${todayKey}`,
+    () => fetchOperationSummary({ from: todayKey, to: todayKey }),
+    { pollMs: 30_000 },
+  );
   const workSession = useWorkSession();
 
   const monthFrom = `${year}-${pad2(month + 1)}-01`;
@@ -389,10 +404,32 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     () => fetchProcessRecords({ from: todayKey, to: todayKey, pageSize: 1 }),
     { pollMs: 60_000 },
   );
+  const yesterday = shiftDateISO(todayKey, -1);
+  const yesterdayQualityQuery = useApiQuery(
+    `home:quality-yesterday:${yesterday}`,
+    () => fetchQualitySummary({ from: yesterday, to: yesterday }),
+    { pollMs: 60_000 },
+  );
+  const previousTo = period === 'today' ? yesterday : shiftDateISO(recordFrom, -1);
+  const previousFrom =
+    period === 'today' ? yesterday : shiftDateISO(previousTo, -(RECENT_DAYS - 1));
+  const previousProductionQuery = useApiQuery(
+    `home:previous-production:${previousFrom}:${previousTo}`,
+    async () => ({
+      from: previousFrom,
+      to: previousTo,
+      summary: await fetchQualitySummary({ from: previousFrom, to: previousTo }),
+    }),
+    { pollMs: 60_000 },
+  );
   const summaryErrors = [
     { label: '공정 현황', query: processQuery },
     { label: '오늘 검사 요약', query: qualityTodayQuery },
     { label: '오늘 생산 기록', query: todayRecordsQuery },
+    { label: '등록 설비', query: equipmentQuery },
+    { label: '오늘 가동률', query: operationQuery },
+    { label: '어제 검사 요약', query: yesterdayQualityQuery },
+    { label: '이전 기간 생산 기록', query: previousProductionQuery },
   ].filter(({ query }) => query.error && !query.data);
 
   const reportId = overlay?.kind === 'report' ? overlay.reportId : null;
@@ -405,6 +442,10 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       qualityTodayQuery,
       recordsQuery,
       todayRecordsQuery,
+      equipmentQuery,
+      operationQuery,
+      yesterdayQualityQuery,
+      previousProductionQuery,
     ].every((query) => query.data !== null || query.error !== null),
   );
   const reportDetailQuery = useApiQuery(
@@ -494,17 +535,32 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     : null;
 
   const notes = notesQuery.data?.items ?? [];
-  const latestNote = notes.length ? notes[0] : null;
   const noteTotal = notesQuery.data?.pagination.total_items ?? notes.length;
-  const unreadNotes = notes.filter((note) => !note.my_confirmed_at).length;
+  // 홈 카드는 최신 3건만 보여 주고, 나머지는 노트 모달에서 확인한다.
+  const previewNotes = notes.slice(0, 3);
 
   const quality = qualityQuery.data;
   const defectRate = quality?.defect_rate ?? null;
   const todayDefectRate = qualityTodayQuery.data?.defect_rate ?? null;
+  const yesterdayDefectRate = yesterdayQualityQuery.data?.defect_rate ?? null;
+  const defectDelta =
+    todayDefectRate !== null && yesterdayDefectRate !== null
+      ? todayDefectRate - yesterdayDefectRate
+      : null;
+  const operationRate = operationQuery.data?.operation_rate ?? null;
 
   const weekTotal = recordsQuery.data?.pagination.total_items ?? null;
   const todayTotal = todayRecordsQuery.data?.pagination.total_items ?? null;
   const chartTotal = period === 'today' ? todayTotal : weekTotal;
+  const previousProduction = previousProductionQuery.data;
+  const previousCount =
+    previousProduction?.from === previousFrom && previousProduction.to === previousTo
+      ? previousProduction.summary.production_record_count
+      : null;
+  const productionDelta =
+    chartTotal !== null && previousCount !== null && previousCount > 0
+      ? ((chartTotal - previousCount) / previousCount) * 100
+      : null;
   const chartPoints = buildChartPoints(recordsQuery.data?.items ?? [], period, todayKey);
   const sampledRecords = recordsQuery.data?.items.length ?? 0;
   const equipmentCount = processQuery.data
@@ -527,7 +583,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     setSelectedDay(1);
   };
   const downloadSummary = () => {
-    const rate = defectRate === null ? '—' : `${defectRate.toFixed(2)}%`;
+    const rate = defectRate === null ? '—' : `${formatDecimal(defectRate)}%`;
     const rows = [
       ['구분', '값', '기준'],
       ['생산 기록', `${weekTotal ?? '—'}건`, `최근 ${RECENT_DAYS}일`],
@@ -555,6 +611,21 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       onToast(errorMessage(error));
     } finally {
       setConfirmingNoteId(null);
+    }
+  };
+  const canDeleteNote = (note: HandoverNote) =>
+    Boolean(user && (user.role === 'admin' || user.id === note.author_id));
+  const deleteNote = async (note: HandoverNote) => {
+    if (!window.confirm('이 인수인계 노트를 삭제할까요?')) return;
+    setDeletingNoteId(note.note_id);
+    try {
+      await deleteHandoverNote(note.note_id, note.version);
+      onToast('인수인계 노트를 삭제했어요.');
+      notesQuery.reload();
+    } catch (error) {
+      onToast(errorMessage(error));
+    } finally {
+      setDeletingNoteId(null);
     }
   };
   const submitNote = async (event: FormEvent<HTMLFormElement>) => {
@@ -653,11 +724,20 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <ShieldCheck size={19} />
             </div>
             <div className="kpi-value">
-              {todayDefectRate === null ? <MissingValue size="lg" /> : todayDefectRate.toFixed(2)}
+              {todayDefectRate === null ? (
+                <MissingValue size="lg" />
+              ) : (
+                formatDecimal(todayDefectRate)
+              )}
               <span>%</span>
             </div>
             <div className="kpi-bottom">
-              <span>어제 대비 —</span>
+              <span>
+                어제 대비{' '}
+                {defectDelta === null
+                  ? '—'
+                  : `${defectDelta > 0 ? '+' : ''}${formatDecimal(defectDelta)}%p`}
+              </span>
               <span>검사 기록 기준</span>
             </div>
             <div className="kpi-spark" aria-hidden="true">
@@ -666,24 +746,31 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
           </article>
           <article className="kpi">
             <div className="kpi-label">
-              설비 가동률
+              오늘 설비 가동률
               <Gauge size={19} />
             </div>
             <div className="kpi-value">
-              <MissingValue size="lg" />
+              {operationRate === null ? <MissingValue size="lg" /> : formatDecimal(operationRate)}
               <span>%</span>
-              <span className="kpi-secondary">
-                {equipmentCount ?? '—'} <small>/ —대</small>
+              <span className="kpi-secondary" title="최근 공정 기록이 있는 설비 / 등록 설비">
+                {equipmentCount ?? '—'} <small>/ {equipmentQuery.data?.length ?? '—'}대</small>
               </span>
             </div>
             <div className="kpi-bottom">
-              <span>정상 —대 · 휴식 —대 · 고장 —대</span>
+              <span>
+                계획 {formatNumber(operationQuery.data?.planned_hours)}시간 · 가동{' '}
+                {formatNumber(operationQuery.data?.actual_hours)}시간
+                {operationQuery.data?.includes_demo ? ' · 시연 포함' : ''}
+              </span>
             </div>
-            <div className="segmented-progress" aria-label="설비 상태 비율 제공되지 않음">
-              <span style={{ width: '0%' }} />
-              <span style={{ width: '0%' }} />
-              <span style={{ width: '0%' }} />
-            </div>
+            {operationRate !== null && (
+              <div
+                className="mini-progress"
+                aria-label={`오늘 가동률 ${formatNumber(operationRate)}%`}
+              >
+                <span style={{ width: `${Math.min(100, Math.max(0, operationRate))}%` }} />
+              </div>
+            )}
           </article>
           <article className="kpi">
             <div className="kpi-label">
@@ -728,7 +815,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 value={period}
                 options={[
                   { value: 'today', label: '오늘' },
-                  { value: 'week', label: '최근 9일' },
+                  { value: 'week', label: `최근 ${RECENT_DAYS}일` },
                 ]}
                 onChange={setPeriod}
               />
@@ -740,7 +827,12 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   <span>건</span>
                 </strong>
                 <span className="positive">
-                  <ArrowUpRight size={15} />—<span className="muted">이전 기간 대비</span>
+                  {productionDelta === null
+                    ? previousCount === 0
+                      ? '비교 기준 기록 없음'
+                      : '—'
+                    : `${productionDelta > 0 ? '+' : ''}${formatDecimal(productionDelta)}%`}
+                  <span className="muted">이전 동일 기간 대비</span>
                 </span>
               </div>
               <div className="chart-legend">
@@ -769,8 +861,8 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   : chartTotal === 0
                     ? '표시할 생산 기록이 없어요.'
                     : chartTotal > sampledRecords
-                      ? `생산 기록 ${chartTotal.toLocaleString()}건 중 최근 ${sampledRecords}건을 기준으로 표시합니다.`
-                      : `생산 기록 ${chartTotal.toLocaleString()}건을 기준으로 표시합니다.`}
+                      ? `생산 기록 ${formatNumber(chartTotal)}건 중 최근 ${sampledRecords}건을 기준으로 표시합니다.`
+                      : `생산 기록 ${formatNumber(chartTotal)}건을 기준으로 표시합니다.`}
               </span>
               <button className="text-link" onClick={() => setOverlay({ kind: 'equipment' })}>
                 공장 한눈에 보기
@@ -849,7 +941,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
             <div className="card-heading">
               <div className="heading-inline">
                 <h2>인수인계 노트</h2>
-                {unreadNotes > 0 && <span className="count-dot">{unreadNotes}</span>}
+                {noteTotal > 0 && <span className="count-dot">{noteTotal}</span>}
               </div>
               <button
                 className="icon-button"
@@ -863,41 +955,53 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <HomeSectionSkeleton label="인수인계 노트를 불러오는 중이에요" />
             ) : notesQuery.error && !notesQuery.data ? (
               <ApiErrorState compact error={notesQuery.error} onRetry={notesQuery.reload} />
-            ) : latestNote ? (
+            ) : previewNotes.length ? (
               <>
-                <div className="note-preview">
-                  <span
-                    className={`pill ${latestNote.my_confirmed_at ? 'pill-green' : 'pill-amber'}`}
-                  >
-                    {latestNote.my_confirmed_at ? '확인 완료' : '미확인'}
-                  </span>
-                  <p>{latestNote.body}</p>
-                  <small>
-                    {latestNote.author_display_name} · {formatDateTime(latestNote.created_at)}
-                  </small>
+                <div className="note-list">
+                  {previewNotes.map((note) => (
+                    <article className="note-preview" key={note.note_id}>
+                      {canDeleteNote(note) && (
+                        <button
+                          className="note-delete"
+                          aria-label="인수인계 노트 삭제"
+                          title="삭제"
+                          onClick={() => {
+                            void deleteNote(note);
+                          }}
+                          disabled={deletingNoteId === note.note_id}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                      <p>{note.body}</p>
+                      <small>
+                        {note.author_display_name} · {formatDateTime(note.created_at)}
+                      </small>
+                      <button
+                        className={`note-action note-confirm-side${note.my_confirmed_at ? ' is-done' : ''}`}
+                        onClick={() => {
+                          void confirmNote(note);
+                        }}
+                        disabled={
+                          Boolean(note.my_confirmed_at) || confirmingNoteId === note.note_id
+                        }
+                      >
+                        <Check size={15} />
+                        {note.my_confirmed_at
+                          ? '확인 완료'
+                          : confirmingNoteId === note.note_id
+                            ? '확인 중...'
+                            : '확인'}
+                      </button>
+                    </article>
+                  ))}
                 </div>
-                <button
-                  className="note-confirm"
-                  onClick={() => {
-                    void confirmNote(latestNote);
-                  }}
-                  disabled={
-                    Boolean(latestNote.my_confirmed_at) || confirmingNoteId === latestNote.note_id
-                  }
-                >
-                  <Check size={16} />
-                  {latestNote.my_confirmed_at
-                    ? '확인 완료'
-                    : confirmingNoteId === latestNote.note_id
-                      ? '확인 중...'
-                      : '내용 확인했어요'}
-                </button>
-                {noteTotal > 1 && (
+                {noteTotal > previewNotes.length && (
                   <button
                     className="text-link note-more"
                     onClick={() => setOverlay({ kind: 'note' })}
                   >
-                    전체 노트 {noteTotal}건 보기
+                    노트 더 보기
                     <ArrowRight size={14} />
                   </button>
                 )}
@@ -935,7 +1039,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <div>
                 <small>검사 기록 중 불량 비율</small>
                 <strong>
-                  {defectRate === null ? <MissingValue /> : defectRate.toFixed(2)}
+                  {defectRate === null ? <MissingValue /> : formatDecimal(defectRate)}
                   <span>%</span>
                 </strong>
               </div>
@@ -1117,6 +1221,14 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                     {reportDetail.report_id} · {reportDetail.author_display_name} ·{' '}
                     {formatDateTime(reportDetail.created_at)}
                   </p>
+                  {Boolean(reportDetail.generation_snapshot?.equipments.length) && (
+                    <p className="muted">
+                      대상 설비{' '}
+                      {reportDetail.generation_snapshot?.equipments
+                        .map((equipment) => `${equipment.code} · ${equipment.name}`)
+                        .join(', ')}
+                    </p>
+                  )}
                   <div className="report-markdown">
                     <ReportMarkdown markdown={reportDetail.body_markdown || '—'} />
                   </div>
@@ -1186,7 +1298,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 <div className="form-footer">
                   <small>{noteText.length} / 1,000</small>
                   <button
-                    className="button button-primary"
+                    className="button button-primary button-sm"
                     type="submit"
                     disabled={!noteText.trim() || savingNote}
                   >
@@ -1205,18 +1317,28 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   {notes.map((note) => (
                     <article key={note.note_id}>
                       <div>
-                        <span
-                          className={`pill ${note.my_confirmed_at ? 'pill-green' : 'pill-amber'}`}
-                        >
-                          {note.my_confirmed_at ? '확인 완료' : '미확인'}
-                        </span>
-                        <small>
-                          {note.author_display_name} · {formatDateTime(note.created_at)}
-                        </small>
+                        <div className="all-note-meta">
+                          <small>
+                            {note.author_display_name} · {formatDateTime(note.created_at)}
+                          </small>
+                        </div>
+                        {canDeleteNote(note) && (
+                          <button
+                            className="note-delete"
+                            aria-label="인수인계 노트 삭제"
+                            title="삭제"
+                            onClick={() => {
+                              void deleteNote(note);
+                            }}
+                            disabled={deletingNoteId === note.note_id}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                       <p>{note.body}</p>
                       <button
-                        className="text-link"
+                        className={`note-action note-confirm-side${note.my_confirmed_at ? ' is-done' : ''}`}
                         onClick={() => {
                           void confirmNote(note);
                         }}
@@ -1224,12 +1346,12 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                           Boolean(note.my_confirmed_at) || confirmingNoteId === note.note_id
                         }
                       >
-                        <Check size={15} />
+                        <Check size={12} />
                         {note.my_confirmed_at
                           ? '확인 완료'
                           : confirmingNoteId === note.note_id
                             ? '확인 중...'
-                            : '내용 확인'}
+                            : '확인'}
                       </button>
                     </article>
                   ))}
@@ -1254,9 +1376,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                         <Factory size={34} />
                         <strong>{item.equipment_name}</strong>
                         <span>{item.product_name ?? '—'}</span>
-                        <span className="pill pill-neutral">—</span>
+                        <span className="pill pill-neutral">{item.equipment_status}</span>
                         <small>
-                          {item.equipment_code} · 주기 {item.cycle_time_seconds ?? '—'}초
+                          {item.equipment_code} · 주기 {formatNumber(item.cycle_time_seconds)}초
                         </small>
                       </div>
                     ))
@@ -1290,7 +1412,9 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                   <p>
                     {quality.inspected_count > 0
                       ? `검사 ${quality.inspected_count}건 중 불량 ${quality.defect_count}건이며 불량률은 ${
-                          quality.defect_rate === null ? '—' : `${quality.defect_rate.toFixed(2)}%`
+                          quality.defect_rate === null
+                            ? '—'
+                            : `${formatDecimal(quality.defect_rate)}%`
                         }입니다. 불량 유형: ${
                           quality.defect_types.length
                             ? quality.defect_types

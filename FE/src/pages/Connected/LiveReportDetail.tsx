@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { Fragment, useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
@@ -14,6 +15,7 @@ import useRemote from '../../hooks/useRemote';
 import { useAuth } from '../../hooks/useAuth';
 import { setReportChecklist, useReportChecklist } from '../../services/reportChecklist';
 import { RemoteState } from './LiveShared';
+import ReportDetailSkeleton from '../ReportsPage/ReportDetailSkeleton';
 
 const categoryLabels: Record<ReportCategory, string> = {
   equipment_issue: '설비 이상',
@@ -205,6 +207,7 @@ export default function LiveReportDetail() {
   const [actionError, setActionError] = useState('');
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  usePageEntryReady(!detail.loading);
   const report = detail.data;
   const checklist = useMemo(() => (report ? checklistOf(report.body_markdown) : []), [report]);
   const storedChecklist = useReportChecklist(reportId ?? '');
@@ -252,6 +255,8 @@ export default function LiveReportDetail() {
       setDownloading(false);
     }
   }
+
+  if (detail.loading && !report) return <ReportDetailSkeleton />;
 
   return (
     <div className="live-page live-report-detail-page">

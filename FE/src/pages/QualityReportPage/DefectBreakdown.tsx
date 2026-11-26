@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import { ShieldCheck } from 'lucide-react';
 // 불량 유형별 색: 가스(주의) · 찍힘(고장) · 휘어짐(Primary) · 미성형(미가동)
 const colors = ['#F2BB69', '#D95F70', '#635B85', '#A9AAB5'];
@@ -43,7 +44,7 @@ export default function DefectBreakdown({ items }: { items: { type: string; coun
           </circle>
         ))}
         <text x="82" y="82" textAnchor="middle" className="qr-donut-value">
-          {total.toLocaleString()}
+          {formatNumber(total)}
         </text>
         <text x="82" y="105" textAnchor="middle" className="qr-donut-label">
           불량 수량
@@ -60,7 +61,7 @@ export default function DefectBreakdown({ items }: { items: { type: string; coun
               {item.count}
               <small>건</small>
             </strong>
-            <span>{((item.count / total) * 100).toFixed(1)}%</span>
+            <span>{formatDecimal((item.count / total) * 100)}%</span>
           </div>
         ))}
       </div>

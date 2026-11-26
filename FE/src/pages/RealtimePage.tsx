@@ -12,12 +12,14 @@ import SegmentedControl from '../components/SegmentedControl';
 import { fetchEquipment, fetchProducts } from '../api/masterData';
 import { fetchCurrentProcess } from '../api/process';
 import type { CurrentProcessItem } from '../api/process';
-import { fetchQualitySummary } from '../api/quality';
+import { fetchOperationSummary, fetchQualitySummary } from '../api/quality';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useAuth } from '../hooks/useAuth';
-import { formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
+import { formatDateTime, shiftDateISO, todayISO, todaySeoulISO } from '../utils/dateFormat';
+import { formatDecimal, formatNumber } from '../utils/numberFormat';
+import MachineProductionRecords from './RealtimePage/MachineProductionRecords';
 
-/** 설비 상태 라벨. BE에 설비 상태 API가 없어 현재는 값이 없으면 '—'로 표시한다. */
+/** 색상과 상태 그룹이 정의된 설비 상태 라벨. */
 type EquipmentState = '정상' | '주의' | '고장' | '휴식';
 
 const NA = '—';
@@ -38,8 +40,8 @@ const stateColor: Record<EquipmentState, string> = {
   휴식: '#A9AAB5',
 };
 
-// 설비 상태·진행률·생산량은 현재 공정 API가 제공하지 않는다. 값이 없는 항목은
-// 가짜 수치 대신 '—'로 두고, 상태가 확인되지 않은 설비는 강조 색을 쓰지 않는다.
+// 상태 라벨은 서버 값을 표시하고, 정의된 상태에만 강조 색을 적용한다.
+// 공정 값이 없는 설비나 미제공 수치는 '—'로 표시한다.
 interface MachineView {
   equipmentId: number;
   code: string;
@@ -49,6 +51,7 @@ interface MachineView {
   occurredAt: string | null;
   availableAt: string | null;
   isDemo: boolean;
+  statusLabel: string | null;
   status: EquipmentState | null;
 }
 
@@ -74,7 +77,7 @@ const statusGroupMachines = (rows: MachineView[], label: '정상' | '휴식' | '
     ? rows.filter((machine) => machine.status === '정상' || machine.status === '주의')
     : rows.filter((machine) => machine.status === label);
 
-const signed = (value: number, digits = 1) => `${value > 0 ? '+' : ''}${value.toFixed(digits)}`;
+const signed = (value: number) => `${value > 0 ? '+' : ''}${formatDecimal(value)}`;
 
 const clockLabel = (value: string | null) => {
   if (!value) return NA;
@@ -88,10 +91,10 @@ const clockLabel = (value: string | null) => {
   }).format(date);
 };
 
-const countLabel = (value: number | null) => (value === null ? NA : value.toLocaleString());
-const percentLabel = (value: number | null) => (value === null ? NA : `${value.toFixed(2)}%`);
+const countLabel = (value: number | null) => (value === null ? NA : formatNumber(value));
+const percentLabel = (value: number | null) => (value === null ? NA : `${formatDecimal(value)}%`);
 const cycleLabel = (value: number | null) =>
-  value === null ? NA : `${Number.isInteger(value) ? value : value.toFixed(1)}초`;
+  value === null ? NA : `${Number.isInteger(value) ? value : formatDecimal(value)}초`;
 
 const shiftMonthStart = (value: string, months: number) => {
   const [year, month] = value.split('-').map(Number);
@@ -127,9 +130,6 @@ const dateList = (from: string, to: string) => {
 
 const DONUT_RADIUS = 46;
 const DONUT_STROKE = 24;
-// 각 세그먼트의 시작을 0.5% 앞당겨 경계 이음새를 덮는다. 12시 방향의 마지막
-// 경계는 첫 세그먼트가 뒤에서 받아쳐 고장색이 초록 시작 위로 겹쳐 보이지 않게 한다.
-const DONUT_OVERLAP = 0.5;
 
 // 네이티브 select는 펼쳐지는 목록을 꾸밀 수 없어 목록을 직접 그리는 드롭다운을 쓴다.
 function FilterDropdown({
@@ -264,6 +264,11 @@ export default function RealtimePage() {
   });
   const equipmentQuery = useApiQuery('realtime:equipment', () => fetchEquipment());
   const productsQuery = useApiQuery('realtime:products', () => fetchProducts());
+  const operationQuery = useApiQuery(
+    `realtime:operation:${monthStart}:${today}`,
+    () => fetchOperationSummary({ from: monthStart, to: today }),
+    { pollMs: 30_000 },
+  );
   const monthQuery = useApiQuery(`realtime:month:${monthStart}:${today}`, () =>
     fetchQualitySummary({ from: monthStart, to: today }),
   );
@@ -291,6 +296,7 @@ export default function RealtimePage() {
       currentQuery,
       equipmentQuery,
       productsQuery,
+      operationQuery,
       monthQuery,
       previousMonthQuery,
       dailyQuery,
@@ -338,7 +344,8 @@ export default function RealtimePage() {
         occurredAt: item?.occurred_at ?? null,
         availableAt: item?.available_at ?? null,
         isDemo: item?.is_demo ?? false,
-        status: null,
+        statusLabel: item?.equipment_status ?? null,
+        status: stateOrder.find((state) => state === item?.equipment_status) ?? null,
       };
     });
     for (const item of items.values()) {
@@ -351,7 +358,8 @@ export default function RealtimePage() {
         occurredAt: item.occurred_at,
         availableAt: item.available_at,
         isDemo: item.is_demo,
-        status: null,
+        statusLabel: item.equipment_status,
+        status: stateOrder.find((state) => state === item.equipment_status) ?? null,
       });
     }
     return rows;
@@ -435,33 +443,15 @@ export default function RealtimePage() {
   const machinesError = equipmentQuery.error ?? currentQuery.error;
   const qualityError = productsQuery.error ?? productQualityQuery.error;
 
-  // 설비 상태는 공정 API에 없어 집계할 수 없다. 값이 없을 때 0%로 단정하지 않는다.
+  // 현재 BE는 상태를 unknown으로 제공하므로 상태별 집계는 표시하지 않는다.
   const statusCounts: Record<EquipmentState, number | null> = {
     정상: null,
     주의: null,
     휴식: null,
     고장: null,
   };
-  const operatingRate: number | null = null;
+  const operatingRate = operationQuery.data?.operation_rate ?? null;
   const statusTotal = machines.length;
-
-  const donutSegments: {
-    label: '정상' | '휴식' | '고장';
-    count: number | null;
-    color: string;
-  }[] = [
-    { label: '정상', count: statusCounts.정상, color: '#61E2A6' },
-    { label: '휴식', count: statusCounts.휴식, color: '#A9AAB5' },
-    { label: '고장', count: statusCounts.고장, color: '#D95F70' },
-  ];
-  let donutOffset = 0;
-  const donutCircles = donutSegments.map((segment) => {
-    const length =
-      segment.count === null || statusTotal === 0 ? 0 : (segment.count / statusTotal) * 100;
-    const circle = { ...segment, length, offset: donutOffset };
-    donutOffset += length;
-    return circle;
-  });
 
   const productionTrendQuery = useApiQuery(
     `realtime:productionTrend:${productionTrendStart}:${today}`,
@@ -496,6 +486,7 @@ export default function RealtimePage() {
   );
 
   const machineDetail = panel?.kind === 'machine' ? panel.machine : null;
+  const machineRecordsDate = todaySeoulISO();
   const statusPanel = panel?.kind === 'status' ? panel : null;
   const statusPanelMachines = statusPanel ? statusGroupMachines(machines, statusPanel.label) : [];
   const qualityPanel = panel?.kind === 'quality' ? panel.quality : null;
@@ -610,7 +601,7 @@ export default function RealtimePage() {
           ) : (
             <>
               <div className="kpi-value">
-                {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
+                {monthCount === null ? <MissingValue size="lg" /> : formatNumber(monthCount)}
                 <span className="unit-lift">건</span>
                 {productionDelta === null ? (
                   <span className="pill pill-neutral">저번 달 대비 {NA}</span>
@@ -637,7 +628,7 @@ export default function RealtimePage() {
                         }}
                       />
                     </div>
-                    <strong>{bar.value === null ? NA : `${bar.value.toLocaleString()}건`}</strong>
+                    <strong>{bar.value === null ? NA : `${formatNumber(bar.value)}건`}</strong>
                   </div>
                 ))}
               </div>
@@ -652,10 +643,10 @@ export default function RealtimePage() {
 
         <article className="card rt-donut-card">
           <div className="card-heading">
-            <h2>설비 가동률</h2>
+            <h2>이번 달 설비 가동률</h2>
           </div>
-          {equipmentQuery.error && !equipmentData ? (
-            <ApiErrorState error={equipmentQuery.error} onRetry={equipmentQuery.reload} compact />
+          {operationQuery.error && !operationQuery.data ? (
+            <ApiErrorState error={operationQuery.error} onRetry={operationQuery.reload} compact />
           ) : (
             <>
               <div className="rt-donut-body">
@@ -663,65 +654,54 @@ export default function RealtimePage() {
                   <svg
                     viewBox="0 0 120 120"
                     role="img"
-                    aria-label={`가동률 ${operatingRate === null ? NA : `${operatingRate}%`}`}
+                    aria-label={`이번 달 가동률 ${operatingRate === null ? '계획 시간 없음' : `${formatDecimal(operatingRate)}%`}`}
                   >
-                    {donutCircles.map((circle) =>
-                      circle.length === 0 ? null : (
-                        <circle
-                          key={circle.label}
-                          cx="60"
-                          cy="60"
-                          r={DONUT_RADIUS}
-                          fill="none"
-                          stroke={circle.color}
-                          strokeWidth={DONUT_STROKE}
-                          pathLength={100}
-                          strokeDasharray={`${circle.length + DONUT_OVERLAP} ${
-                            100 - circle.length - DONUT_OVERLAP
-                          }`}
-                          strokeDashoffset={DONUT_OVERLAP - circle.offset}
-                          transform="rotate(-90 60 60)"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => setPanel({ kind: 'status', label: circle.label })}
-                        />
-                      ),
-                    )}
                     <circle
-                      className="rt-donut-reveal"
                       cx="60"
                       cy="60"
                       r={DONUT_RADIUS}
                       fill="none"
-                      stroke="var(--surface)"
-                      strokeWidth={DONUT_STROKE + 2}
-                      pathLength={100}
-                      strokeDasharray="100 100"
-                      pointerEvents="none"
-                      transform="rotate(-90 60 60)"
+                      stroke="var(--border)"
+                      strokeWidth={DONUT_STROKE}
                     />
+                    {operatingRate !== null && (
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={DONUT_RADIUS}
+                        fill="none"
+                        stroke="var(--mint)"
+                        strokeWidth={DONUT_STROKE}
+                        pathLength={100}
+                        strokeDasharray={`${Math.min(100, Math.max(0, operatingRate))} 100`}
+                        transform="rotate(-90 60 60)"
+                      />
+                    )}
                   </svg>
                   <div className="rt-donut-center">
                     <strong>
-                      {operatingRate === null ? <MissingValue size="lg" /> : `${operatingRate}%`}
+                      {operatingRate === null ? (
+                        <MissingValue size="lg" />
+                      ) : (
+                        `${formatDecimal(operatingRate)}%`
+                      )}
                     </strong>
-                    <span>가동률</span>
+                    <span>기간 가동률</span>
                   </div>
                 </div>
                 <ul className="rt-legend">
-                  {donutCircles.map((circle) => (
-                    <li key={circle.label}>
-                      <button
-                        type="button"
-                        onClick={() => setPanel({ kind: 'status', label: circle.label })}
-                      >
-                        <i style={{ background: circle.color }} />
-                        {circle.label} {circle.count === null ? NA : `${circle.count}대`}
-                      </button>
-                    </li>
-                  ))}
+                  <li>계획 {formatNumber(operationQuery.data?.planned_hours)}시간</li>
+                  <li>가동 {formatNumber(operationQuery.data?.actual_hours)}시간</li>
+                  <li>등록 설비 {equipmentData?.length ?? NA}대</li>
                 </ul>
               </div>
-              <p className="rt-note">설비 상태·가동률은 API 미제공이에요.</p>
+              <p className="rt-note">
+                {monthStart}–{today} · 실제 가동 시간 ÷ 계획 시간
+                {operationQuery.data?.includes_demo ? ' · 시연 데이터 포함' : ''}
+                {operationQuery.data && operatingRate === null
+                  ? ' · 계획 시간이 없어 가동률을 계산할 수 없어요.'
+                  : ''}
+              </p>
             </>
           )}
         </article>
@@ -739,14 +719,14 @@ export default function RealtimePage() {
           ) : (
             <>
               <div className="kpi-value">
-                {todayRate === null ? <MissingValue size="lg" /> : todayRate.toFixed(2)}
+                {todayRate === null ? <MissingValue size="lg" /> : formatDecimal(todayRate)}
                 <span>%</span>
                 {defectDelta === null ? (
                   <span className="pill pill-neutral">어제 대비 {NA}</span>
                 ) : (
                   <span className={`pill ${defectDelta <= 0 ? 'pill-green' : 'pill-red'}`}>
                     {defectDelta <= 0 ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
-                    어제 대비 {signed(defectDelta, 2)}%p
+                    어제 대비 {signed(defectDelta)}%p
                   </span>
                 )}
               </div>
@@ -759,7 +739,9 @@ export default function RealtimePage() {
                       style={{ width: `${rateBarWidth(yesterdayRate)}%` }}
                     />
                   </div>
-                  <strong>{yesterdayRate === null ? NA : `${yesterdayRate.toFixed(2)}%`}</strong>
+                  <strong>
+                    {yesterdayRate === null ? NA : `${formatDecimal(yesterdayRate)}%`}
+                  </strong>
                 </div>
                 <div className="rt-bar-row">
                   <span>오늘</span>
@@ -769,7 +751,7 @@ export default function RealtimePage() {
                       style={{ width: `${rateBarWidth(todayRate)}%` }}
                     />
                   </div>
-                  <strong>{todayRate === null ? NA : `${todayRate.toFixed(2)}%`}</strong>
+                  <strong>{todayRate === null ? NA : `${formatDecimal(todayRate)}%`}</strong>
                 </div>
               </div>
               <div className="kpi-bottom">
@@ -828,11 +810,15 @@ export default function RealtimePage() {
                       <strong>{quality.product}</strong>
                       {quality.focus && <span className="pill pill-red">우선 확인</span>}
                     </td>
-                    <td>{quality.inspections.toLocaleString()}</td>
+                    <td>{formatNumber(quality.inspections)}</td>
                     <td>{quality.defects}</td>
                     <td>
                       <strong>
-                        {quality.rate === null ? <MissingValue /> : `${quality.rate.toFixed(1)}%`}
+                        {quality.rate === null ? (
+                          <MissingValue />
+                        ) : (
+                          `${formatDecimal(quality.rate)}%`
+                        )}
                       </strong>
                     </td>
                   </tr>
@@ -943,7 +929,7 @@ export default function RealtimePage() {
                       <span
                         className={`pill ${machine.status ? statePill[machine.status] : 'pill-neutral'}`}
                       >
-                        {machine.status ?? NA}
+                        {machine.statusLabel ?? NA}
                       </span>
                     </div>
                     <span className="rt-product">
@@ -1036,15 +1022,10 @@ export default function RealtimePage() {
               <span
                 className={`pill ${machineDetail.status ? statePill[machineDetail.status] : 'pill-neutral'}`}
               >
-                {machineDetail.status ?? NA}
+                {machineDetail.statusLabel ?? NA}
               </span>
             </div>
-            <p className="metric-sub">
-              오늘 생산 기록은 API 미제공이에요
-              {machineDetail.cycleSeconds !== null
-                ? ` · 사이클 ${cycleLabel(machineDetail.cycleSeconds)}`
-                : ''}
-            </p>
+            <p className="metric-sub">생산 수량·목표는 API에서 제공되지 않아요.</p>
           </section>
           <div
             className="metric-progress"
@@ -1070,32 +1051,18 @@ export default function RealtimePage() {
           {machineDetail.status === '휴식' && (
             <p className="metric-state-note">현재 가동하지 않는 설비예요.</p>
           )}
-          <dl className="metric-stats">
-            <div>
-              <dt>오늘 생산</dt>
-              <dd>{NA}</dd>
-            </div>
-            <div>
-              <dt>사이클 타임</dt>
-              <dd>{cycleLabel(machineDetail.cycleSeconds)}</dd>
-            </div>
-            <div>
-              <dt>마지막 점검</dt>
-              <dd>{NA}</dd>
-            </div>
-          </dl>
-          <section className="metric-section" aria-label="최근 실시간 기록">
-            <div className="metric-section-head">
-              <h3>최근 실시간 기록</h3>
-            </div>
-            <p className="metric-empty">실시간 기록은 API 미제공이에요.</p>
-          </section>
+          <MachineProductionRecords
+            key={`${machineDetail.equipmentId}:${machineRecordsDate}`}
+            equipmentId={machineDetail.equipmentId}
+            date={machineRecordsDate}
+            cycleTimeLabel={cycleLabel(machineDetail.cycleSeconds)}
+          />
           <p className="metric-basis">
             발생 {formatDateTime(machineDetail.occurredAt ?? '')} · 반영{' '}
             {formatDateTime(machineDetail.availableAt ?? '')} ·{' '}
             {machineDetail.isDemo ? '시연 데이터' : '실데이터'}
             <br />
-            설비 상태·생산량·점검 기록은 API 미제공입니다.
+            설비 상태는 서버 응답 기준이며, 생산량·점검 기록은 API 미제공입니다.
           </p>
           <button
             type="button"
@@ -1126,7 +1093,7 @@ export default function RealtimePage() {
             <p className="metric-eyebrow">라벨 검사 기준</p>
             <div className="metric-value">
               <strong>
-                {qualityRate === null ? <MissingValue size="lg" /> : qualityRate.toFixed(2)}
+                {qualityRate === null ? <MissingValue size="lg" /> : formatDecimal(qualityRate)}
               </strong>
               <span className="metric-unit">%</span>
               <span
@@ -1161,7 +1128,7 @@ export default function RealtimePage() {
               className="metric-gauge"
               role="img"
               aria-label={`검사 불량률 ${
-                qualityRate === null ? NA : `${qualityRate.toFixed(2)}%`
+                qualityRate === null ? NA : `${formatDecimal(qualityRate)}%`
               }, 점검 기준 ${INSPECTION_THRESHOLD}%`}
             >
               <span
@@ -1182,17 +1149,17 @@ export default function RealtimePage() {
             <p className="metric-gauge-note">
               {qualityRate === null
                 ? `${NA} (검사 기록 없음)`
-                : `기준보다 ${signed(qualityRate - INSPECTION_THRESHOLD, 2)}%p`}
+                : `기준보다 ${signed(qualityRate - INSPECTION_THRESHOLD)}%p`}
             </p>
           </section>
           <dl className="metric-stats">
             <div>
               <dt>검사 기록수</dt>
-              <dd>{qualityPanel.inspections.toLocaleString()}건</dd>
+              <dd>{formatNumber(qualityPanel.inspections)}건</dd>
             </div>
             <div>
               <dt>불량 수</dt>
-              <dd>{qualityPanel.defects.toLocaleString()}건</dd>
+              <dd>{formatNumber(qualityPanel.defects)}건</dd>
             </div>
             <div>
               <dt>전체 불량 비중</dt>
@@ -1304,7 +1271,7 @@ export default function RealtimePage() {
                       <span
                         className={`pill ${machine.status ? statePill[machine.status] : 'pill-neutral'}`}
                       >
-                        {machine.status ?? NA}
+                        {machine.statusLabel ?? NA}
                       </span>
                       <span className="metric-machine-progress">{NA}</span>
                       <ChevronRight size={16} />
@@ -1324,7 +1291,7 @@ export default function RealtimePage() {
             <p className="metric-eyebrow">이번 달 누계</p>
             <div className="metric-value">
               <strong>
-                {monthCount === null ? <MissingValue size="lg" /> : monthCount.toLocaleString()}
+                {monthCount === null ? <MissingValue size="lg" /> : formatNumber(monthCount)}
               </strong>
               <span className="metric-unit unit-lift">건</span>
               {productionDelta === null ? (
@@ -1348,7 +1315,7 @@ export default function RealtimePage() {
               points={productionTrendPoints}
               reference={{ value: 0, label: '목표 API 미제공' }}
               seriesLabel="누계"
-              formatValue={(value) => `${value.toLocaleString()}건`}
+              formatValue={(value) => `${formatNumber(value)}건`}
             />
           )}
           <dl className="metric-stats">
@@ -1388,7 +1355,7 @@ export default function RealtimePage() {
             <p className="metric-eyebrow">이번주 · 라벨 검사 기준</p>
             <div className="metric-value">
               <strong>
-                {weeklyRate === null ? <MissingValue size="lg" /> : weeklyRate.toFixed(2)}
+                {weeklyRate === null ? <MissingValue size="lg" /> : formatDecimal(weeklyRate)}
               </strong>
               <span className="metric-unit">%</span>
               {defectDelta === null ? (
@@ -1396,7 +1363,7 @@ export default function RealtimePage() {
               ) : (
                 <span className={`pill ${defectDelta <= 0 ? 'pill-green' : 'pill-red'}`}>
                   {defectDelta <= 0 ? <ArrowDownRight size={13} /> : <ArrowUpRight size={13} />}
-                  어제 대비 {signed(defectDelta, 2)}%p
+                  어제 대비 {signed(defectDelta)}%p
                 </span>
               )}
             </div>
@@ -1413,7 +1380,7 @@ export default function RealtimePage() {
                 label: `점검 기준 ${INSPECTION_THRESHOLD}%`,
               }}
               seriesLabel="불량률"
-              formatValue={(value) => `${value}%`}
+              formatValue={percentLabel}
             />
           )}
           <dl className="metric-stats">
@@ -1422,15 +1389,13 @@ export default function RealtimePage() {
               <dd>
                 {thisWeekSummary === null
                   ? NA
-                  : `${thisWeekSummary.inspected_count.toLocaleString()}건`}
+                  : `${formatNumber(thisWeekSummary.inspected_count)}건`}
               </dd>
             </div>
             <div>
               <dt>불량 수</dt>
               <dd>
-                {thisWeekSummary === null
-                  ? NA
-                  : `${thisWeekSummary.defect_count.toLocaleString()}건`}
+                {thisWeekSummary === null ? NA : `${formatNumber(thisWeekSummary.defect_count)}건`}
               </dd>
             </div>
             <div>

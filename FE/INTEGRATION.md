@@ -3,10 +3,10 @@
 현재 Vite 개발 서버와 미리보기의 `/api` 프록시는 공용 VM 백엔드
 `http://61.107.196.157`로 연결됩니다. FE 요청 경로는 `/api/v1`을 유지하며,
 `VITE_API_BASE_URL`을 지정한다면 `/api/v1`로 설정합니다. 설정 변경 후에는 FE 서버를 재시작합니다.
-아래 로컬 백엔드 실행 절차를 사용할 때는 `vite.config.ts`와 `vite.tablet.config.ts`의
-프록시 `target`을 `http://127.0.0.1:8000`으로 변경합니다.
+데스크톱과 태블릿은 `vite.proxy.ts`의 프록시 설정을 공유합니다. 아래 로컬 백엔드 실행 절차를
+사용할 때는 이 파일의 `target`을 `http://127.0.0.1:8000`으로 변경합니다.
 
-데스크톱(5174)과 태블릿(5175)은 각자 화면을 실행하고 동일한 FastAPI(8000)와 PostgreSQL을 사용합니다.
+데스크톱(5173)과 태블릿(5174)은 각자 화면을 실행하고 동일한 FastAPI(8000)와 PostgreSQL을 사용합니다.
 프런트엔드는 `/api`를 Vite 프록시로 전달합니다. `VITE_API_BASE_URL`을 설정하면 해당 주소가 우선합니다.
 실제 배포 서버에도 `/api` 리버스 프록시 또는 적절한 CORS·쿠키 구성이 필요합니다.
 
@@ -27,7 +27,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ```bash
 cd FE
-pnpm exec vite --host 127.0.0.1 --port 5174 --strictPort --configLoader runner
+pnpm dev
 ```
 
 ```bash
@@ -41,19 +41,19 @@ pnpm dev:tablet
 
 ## 연결 범위
 
-| 화면                  | 실제 API와 동작                                                                                     |
-| --------------------- | --------------------------------------------------------------------------------------------------- |
-| 로그인·프로필         | `/auth/login`, `/auth/me`, `/auth/refresh`, `/auth/logout`, `/auth/password`                        |
-| 근무 시간             | `/work-session`, `/work-session/extensions`; 서버 시간 기준 남은 시간과 연장                        |
-| 홈                    | 품질 요약·설비 수·최근 보고·인수인계 조회                                                           |
-| 인수인계              | `/handover-notes`; 태블릿 전용 화면에서 목록·상세·작성·본인 수정·확인·권한에 따른 삭제              |
-| 실시간 공정·설비      | `/equipment`, `/process/current`; 30초 갱신                                                         |
-| 생산·검사 이력        | `/process-records`, `/inspection-records`; 필터·페이지·상세·관리자 정정                             |
-| 재고                  | `/stocks`, `/stock-movements`, `/products/{id}/minimum-stock`; 목록·원장·입출고·조정·안전 재고 변경 |
-| 품질                  | `/quality/summary`; 실제 검사 건수·불량률·유형 분포                                                 |
-| 올라온 보고·이상 보고 | `/reports`; 수동 작성·목록·상세·수정·삭제·관리자 처리 상태 변경                                     |
-| 일정·태블릿 작업 지시 | `/schedules`; 일정 목록·상세·등록·수정·삭제                                                         |
-| 계정 발급             | `/users`; 관리자 목록·사번 계정 생성                                                                |
+| 화면                  | 실제 API와 동작                                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 로그인·프로필         | `/auth/login`, `/auth/me`, `/auth/refresh`, `/auth/logout`, `/auth/password`                                      |
+| 근무 시간             | `/work-session`, `/work-session/extensions`; 서버 시간 기준 남은 시간과 연장                                      |
+| 홈                    | 품질 요약·설비 수·최근 보고·인수인계 조회                                                                         |
+| 인수인계              | `/handover-notes`; 태블릿 전용 화면에서 목록·상세·작성·본인 수정·확인·권한에 따른 삭제                            |
+| 실시간 공정·설비      | `/equipment`, `/process/current`; 30초 갱신                                                                       |
+| 생산·검사 이력        | `/process-records`, `/inspection-records`; 필터·페이지·상세·관리자 정정                                           |
+| 재고                  | `/stocks`, `/stock-movements`, `/products/{id}/minimum-stock`; 목록·원장·입출고·조정·안전 재고 변경               |
+| 품질                  | `/quality/summary`; 실제 검사 건수·불량률·유형 분포                                                               |
+| 올라온 보고·이상 보고 | `/reports`; 수동 작성·목록·상세·수정·삭제·관리자 처리 상태 변경                                                   |
+| 일정·태블릿 작업 지시 | `/schedules`; 일정 목록·상세·등록·수정·삭제                                                                       |
+| 계정 발급             | `/users`; 관리자 목록·사번 계정 생성                                                                              |
 | 현장 파트너 대화      | `/conversations`; 계정별 대화 목록·검색·상세·삭제, 질문 접수·상태 확인·실패 재시도·최신 자료 갱신, 답변 근거 표시 |
 
 기존 예시 화면 파일은 참고용으로 남겨두었으며 실행 경로는 `src/pages/Connected/LiveRoutes.tsx`입니다.

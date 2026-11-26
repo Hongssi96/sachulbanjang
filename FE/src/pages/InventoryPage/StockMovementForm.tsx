@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import FilterSelect from '../../components/FilterSelect';
 import { useState } from 'react';
 import {
@@ -39,7 +40,7 @@ function movementError(
     return '수량은 1~999,999 사이의 정수로 입력해 주세요.';
   }
   if (kind === 'issue' && quantity > item.quantity)
-    return `출고 가능한 수량은 ${item.quantity.toLocaleString()}개입니다.`;
+    return `출고 가능한 수량은 ${formatNumber(item.quantity)}개입니다.`;
   if (kind === 'initial' && item.quantity > 0)
     return '이미 재고가 있는 품목에는 초기 재고를 등록할 수 없습니다.';
   if (kind === 'adjustment') {
@@ -179,7 +180,7 @@ export default function StockMovementForm({ items, initialItemId, isAdmin, onSav
       {item && (
         <div className="inv-form-stock">
           <span>
-            현재고 <b>{item.quantity.toLocaleString()}개</b>
+            현재고 <b>{formatNumber(item.quantity)}개</b>
           </span>
           <span>
             출고 가능 <b>{NOT_AVAILABLE}</b>
@@ -224,7 +225,7 @@ export default function StockMovementForm({ items, initialItemId, isAdmin, onSav
         <div className="inv-form-preview">
           <span>처리 후 현재고</span>
           <strong>
-            {preview.toLocaleString()}
+            {formatNumber(preview)}
             <small>개</small>
           </strong>
         </div>

@@ -1,8 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel, Field
 
 
 class CurrentProcessItem(BaseModel):
@@ -10,10 +10,13 @@ class CurrentProcessItem(BaseModel):
     equipment_code: str
     equipment_name: str
     equipment_status: Literal["unknown"] = "unknown"
+    equipment_status_observed_at: AwareDatetime | None = None
     product_id: int | None
     product_code: str | None
     product_name: str | None
     cycle_time_seconds: Decimal | None
+    produced_quantity: Annotated[int, Field(ge=0)] | None = None
+    target_quantity: Annotated[int, Field(ge=0)] | None = None
     occurred_at: datetime
     available_at: datetime
     is_demo: bool

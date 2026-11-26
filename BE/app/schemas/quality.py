@@ -1,7 +1,8 @@
 from datetime import date
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DefectTypeCount(BaseModel):
@@ -16,6 +17,11 @@ class QualitySummaryResponse(BaseModel):
     defect_rate: Decimal | None
     defect_types: list[DefectTypeCount]
     production_record_count: int
+    produced_quantity: Annotated[int, Field(ge=0)] | None = None
+    target_quantity: Annotated[int, Field(ge=0)] | None = None
+    inspected_quantity: Annotated[int, Field(ge=0)] | None = None
+    good_quantity: Annotated[int, Field(ge=0)] | None = None
+    defect_quantity: Annotated[int, Field(ge=0)] | None = None
     includes_demo: bool
 
 

@@ -1,8 +1,10 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router';
 import { RefreshCw } from 'lucide-react';
 import useRemote from '../../hooks/useRemote';
 import { number, query, read, text } from '../../api/business';
+import { formatNumber } from '../../utils/numberFormat';
 import { Metrics, RemoteState } from './LiveShared';
 
 export default function LiveQuality() {
@@ -11,6 +13,7 @@ export default function LiveQuality() {
   const resource = useRemote(
     useCallback(() => read(query('/quality/summary', { from, to })), [from, to]),
   );
+  usePageEntryReady(!resource.loading);
   const summary = resource.data;
   return (
     <div className="live-page">
@@ -47,7 +50,12 @@ export default function LiveQuality() {
               ['검사 기록', text(summary.inspected_count)],
               ['검사 양품', text(summary.good_count)],
               ['검사 불량', text(summary.defect_count)],
-              ['검사 불량률', summary.defect_rate === null ? '—' : `${text(summary.defect_rate)}%`],
+              [
+                '검사 불량률',
+                summary.defect_rate === null || summary.defect_rate === undefined
+                  ? '—'
+                  : `${formatNumber(number(summary.defect_rate))}%`,
+              ],
             ]}
           />
           <section className="live-card">

@@ -12,6 +12,7 @@ from app.models.stock import StockBalance, StockMovement
 class StockRow:
     product: Product
     quantity: int
+    balance_updated_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -180,11 +181,14 @@ class InventoryRepository:
     ) -> list[StockRow]:
         conditions = self._stock_conditions(query=query, low_stock_only=low_stock_only)
         rows = self._session.execute(
-            select(Product, func.coalesce(StockBalance.quantity, 0))
+            select(Product, func.coalesce(StockBalance.quantity, 0), StockBalance.updated_at)
             .outerjoin(StockBalance, StockBalance.product_id == Product.id)
             .where(*conditions)
             .order_by(Product.name.asc(), Product.id.asc())
             .offset(offset)
             .limit(limit)
         )
-        return [StockRow(product=product, quantity=int(quantity)) for product, quantity in rows]
+        return [
+            StockRow(product=product, quantity=int(quantity), balance_updated_at=updated_at)
+            for product, quantity, updated_at in rows
+        ]

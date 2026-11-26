@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -81,6 +82,7 @@ export default function LiveChat() {
     conversation?.turns.some((turn) => turn.job && activeStates.includes(turn.job.state)),
   );
   const busy = sending || hasPendingTurns;
+  usePageEntryReady(!loadingList && !loadingThread);
 
   const loadList = useCallback(async (query: string) => {
     const request = ++listRequest.current;

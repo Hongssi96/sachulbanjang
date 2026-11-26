@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { formText } from '../../api/business';
 import { useCallback, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
@@ -5,6 +6,7 @@ import useRemote from '../../hooks/useRemote';
 import { date, list, number, query, read, text, write } from '../../api/business';
 import { Field, MutationDialog, Pager, RemoteState, Select, Table } from './LiveShared';
 import { useAuth } from '../../hooks/useAuth';
+import { formatNumber } from '../../utils/numberFormat';
 
 export default function LiveRecords({
   detail = false,
@@ -56,6 +58,7 @@ export default function LiveRecords({
       [detail, recordId, endpoint],
     ),
   );
+  usePageEntryReady(detail ? !item.loading : !resource.loading && !masters.loading);
   if (detail)
     return (
       <div className="live-page">
@@ -86,7 +89,13 @@ export default function LiveRecords({
               ].map(([key, label]) => (
                 <div key={key}>
                   <dt>{label}</dt>
-                  <dd>{key.endsWith('_at') ? date(item.data?.[key]) : text(item.data?.[key])}</dd>
+                  <dd>
+                    {key.endsWith('_at')
+                      ? date(item.data?.[key])
+                      : typeof item.data?.[key] === 'number' && !Number.isInteger(item.data[key])
+                        ? formatNumber(item.data[key])
+                        : text(item.data?.[key])}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -288,8 +297,10 @@ export default function LiveRecords({
                       <span className={`live-badge ${row.verdict === 'defect' ? 'bad' : ''}`}>
                         {row.verdict === 'defect' ? '불량' : '양품'}
                       </span>
+                    ) : row.cycle_time_seconds === null || row.cycle_time_seconds === undefined ? (
+                      '—'
                     ) : (
-                      text(row.cycle_time_seconds)
+                      formatNumber(number(row.cycle_time_seconds))
                     ),
                 ],
               ]}

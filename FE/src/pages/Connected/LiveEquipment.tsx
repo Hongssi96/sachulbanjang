@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import useRemote from '../../hooks/useRemote';
@@ -17,6 +18,7 @@ export default function LiveEquipment({ tablet = false }: { tablet?: boolean }) 
       [],
     ),
   );
+  usePageEntryReady(!resource.loading);
   useEffect(() => {
     const timer = window.setInterval(resource.reload, 30000);
     return () => window.clearInterval(timer);

@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, CalendarDays, UserRound } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function LiveScheduleDetail() {
       [validId, id],
     ),
   );
+  usePageEntryReady(!schedule.loading);
   const item = schedule.data;
 
   return (

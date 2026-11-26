@@ -1,3 +1,5 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
+import { formatNumber } from '../../utils/numberFormat';
 import { formText } from '../../api/business';
 import { useCallback, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
@@ -24,6 +26,7 @@ export default function LiveInventory() {
       [page, search, low],
     ),
   );
+  usePageEntryReady(!resource.loading);
   const movements = useRemote(
     useCallback(
       () =>
@@ -84,9 +87,9 @@ export default function LiveInventory() {
               ['조회 품목', `${resource.data.total}종`],
               [
                 '현재 페이지 재고 합계',
-                resource.data.items
-                  .reduce((sum, row) => sum + number(row.quantity), 0)
-                  .toLocaleString(),
+                formatNumber(
+                  resource.data.items.reduce((sum, row) => sum + number(row.quantity), 0),
+                ),
               ],
             ]}
           />

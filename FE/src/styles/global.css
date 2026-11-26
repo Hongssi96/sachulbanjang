@@ -1491,9 +1491,10 @@ main {
   margin-bottom: 12px;
 }
 .count-dot {
-  width: 18px;
+  min-width: 18px;
   height: 18px;
-  border-radius: 50%;
+  padding: 0 5px;
+  border-radius: 999px;
   background: #eeeaf5;
   color: var(--primary);
   font-size: var(--fs-xs);
@@ -1502,10 +1503,28 @@ main {
   font-weight: 600;
 }
 .note-preview {
+  position: relative;
+  min-height: 112px;
   background: #faf8f2;
   border: 1px solid #efeadf;
   border-radius: var(--radius-control);
-  padding: 16px;
+  padding: 14px;
+}
+.note-preview > p,
+.note-preview > small {
+  padding-right: 96px;
+}
+.note-confirm-side {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+}
+/* 홈 카드의 확인 버튼은 모달보다 크게 쓴다. */
+.note-preview .note-confirm-side {
+  padding: 6px 12px;
+  gap: 5px;
+  font-size: var(--fs-sm);
 }
 .note-preview > p {
   font-size: var(--fs-sm);
@@ -1515,31 +1534,72 @@ main {
   overflow-wrap: anywhere;
 }
 .note-preview > small {
+  display: block;
   font-size: var(--fs-xs);
   color: #948c82;
 }
-.note-confirm {
+.note-list {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+}
+.note-top-actions {
+  display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--border);
-  width: 100%;
-  border-radius: var(--radius-control);
-  padding: 12px;
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  margin-top: 12px;
-  background: var(--surface);
 }
-.note-confirm:hover {
+.note-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: var(--radius-small);
+  color: var(--muted);
+}
+/* 노트 카드의 삭제 아이콘은 오른쪽 위 모서리에서 같은 간격으로 띄운다. */
+.note-preview .note-delete,
+.all-notes article .note-delete {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+.note-delete:hover:not(:disabled) {
+  background: var(--soft);
+  color: var(--danger);
+}
+.note-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.note-action:hover:not(:disabled) {
   border-color: var(--primary);
   color: var(--primary);
-  background: var(--soft);
+}
+.note-action.is-done:disabled {
+  opacity: 1;
+  color: #226348;
+  border-color: #c9ecda;
+  background: #e5f8ee;
 }
 .note-more {
-  margin-top: 12px;
   width: 100%;
+  margin-top: 12px;
+}
+.all-note-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
 }
 .shift-card {
   display: flex;
@@ -1742,14 +1802,16 @@ textarea {
 .all-notes {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   margin-top: 24px;
 }
 .all-notes article {
+  position: relative;
+  min-height: 104px;
   background: var(--soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  padding: 16px;
+  padding: 14px;
 }
 .all-notes article > div {
   display: flex;
@@ -1765,6 +1827,7 @@ textarea {
   font-size: var(--fs-sm);
   line-height: 24px;
   margin: 12px 0;
+  padding-right: 76px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1985,6 +2048,11 @@ textarea {
 }
 .dark .note-preview > small {
   color: #b0a591;
+}
+.dark .note-action.is-done:disabled {
+  color: #99dfbd;
+  border-color: #254b3c;
+  background: #254b3c;
 }
 .dark .avatar {
   background: #4a3d5d;
@@ -2704,9 +2772,6 @@ textarea {
   }
   .note-preview > small {
     font-size: var(--fs-xs);
-  }
-  .note-confirm {
-    font-size: var(--fs-lg);
   }
   .shift-card strong {
     font-size: var(--fs-sm);
@@ -3873,7 +3938,6 @@ textarea {
   .home-dashboard > .side-column {
     height: 100%;
   }
-  .home-dashboard > .main-column > .handover-card,
   .home-dashboard > .side-column > .calendar-card {
     flex: 1;
   }
