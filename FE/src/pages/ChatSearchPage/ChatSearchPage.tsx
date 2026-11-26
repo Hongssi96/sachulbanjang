@@ -21,7 +21,6 @@ import {
   Plus,
   RotateCcw,
   Search,
-  ChevronsUp,
   LoaderCircle,
   Trash2,
   UserRound,
@@ -43,6 +42,7 @@ import { fetchReports } from '../../api/reports';
 import type { ReportStatus } from '../../api/reports';
 import { formatDateTime } from '../../utils/dateFormat';
 import { NA, isJobRunning, isRetryableTurn, turnAnswer, turnSources } from './chatModel';
+import ConversationSearchResult from './ConversationSearchResult/ConversationSearchResult';
 import '../RecordsPage/RecordsPage.css';
 import './ChatSearchPage.css';
 
@@ -75,7 +75,11 @@ function requestKey(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export default function ChatSearchPage() {
+interface ChatSearchPageProps {
+  onToast: (message: string) => void;
+}
+
+export default function ChatSearchPage({ onToast }: ChatSearchPageProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const handledIncoming = useRef<string | null>(null);
@@ -88,13 +92,6 @@ export default function ChatSearchPage() {
   const messageList = useRef<HTMLDivElement>(null);
   const composerInput = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState('');
-  // 입력창은 한 줄로 시작해 내용만큼 늘어난다(최대 COMPOSER_MAX_HEIGHT, 그 이상은 안에서 스크롤).
-  useLayoutEffect(() => {
-    const input = composerInput.current;
-    if (!input) return;
-    input.style.height = 'auto';
-    input.style.height = `${Math.min(input.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
-  }, [draft]);
   const [historyQuery, setHistoryQuery] = useState('');
   const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -110,6 +107,29 @@ export default function ChatSearchPage() {
   const [deleting, setDeleting] = useState(false);
 
   const searching = params.get('view') === 'search';
+  // 입력·삭제뿐 아니라 로딩 해제와 폭 변경으로 줄바꿈이 달라질 때도 높이를 맞춘다.
+  useLayoutEffect(() => {
+    const input = composerInput.current;
+    if (!input) return;
+    const resize = () => {
+      if (input.clientWidth === 0) return;
+      input.style.overflowY = 'hidden';
+      input.style.height = 'auto';
+      const contentHeight = input.scrollHeight;
+      input.style.height = `${Math.min(contentHeight, COMPOSER_MAX_HEIGHT)}px`;
+      input.style.overflowY = contentHeight > COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden';
+    };
+    resize();
+    let previousWidth = input.clientWidth;
+    const observer = new ResizeObserver(() => {
+      const width = input.clientWidth;
+      if (width === previousWidth) return;
+      previousWidth = width;
+      resize();
+    });
+    observer.observe(input);
+    return () => observer.disconnect();
+  }, [draft, searching]);
   const query = params.get('q') ?? '';
   const periodFrom = dateParam(params.get('from'));
   const periodTo = dateParam(params.get('to'));
@@ -359,21 +379,21 @@ export default function ChatSearchPage() {
       setFallbackId(null);
       update({ chat: 'new' });
       reloadList();
-      setNotice('대화를 삭제했어요.');
+      onToast('대화를 삭제했어요.');
     } catch (error) {
       setNotice(errorMessage(error, '대화를 삭제하지 못했어요.'));
     } finally {
       setDeleting(false);
     }
-  }, [activeId, deleting, reloadList, update]);
+  }, [activeId, deleting, onToast, reloadList, update]);
 
   return (
     <section className="records-page chat-page">
       <h1 className="sr-only">대화·검색</h1>
       {/* 탭·검색어 전환 중에는 로더를 끼워 넣지 않는다(높이가 바뀌며 화면이 덜컹거림).
           진행 상태는 aria-busy로만 알린다. */}
-      <div className="cs-layout" aria-busy={isPending}>
-        <aside className="rd-panel cs-history">
+      <div className="rd-panel cs-layout" aria-busy={isPending}>
+        <aside className="cs-history">
           <div className="cs-history-heading">
             <strong>
               <History size={17} /> 대화 이력
@@ -431,7 +451,7 @@ export default function ChatSearchPage() {
             )}
           </div>
         </aside>
-        <div className="rd-panel cs-main">
+        <div className="cs-main">
           <div className="rd-tabs">
             <button
               className={!searching ? 'active' : ''}
@@ -555,18 +575,12 @@ export default function ChatSearchPage() {
                         저장된 대화 <span>{chatResults.length}</span>
                       </h3>
                       {chatResults.map((item) => (
-                        <button
-                          className="cs-result"
+                        <ConversationSearchResult
                           key={item.conversation_id}
-                          onClick={() => update({ chat: String(item.conversation_id), view: '' })}
-                        >
-                          <MessageSquare size={18} />
-                          <div>
-                            <strong>{item.title}</strong>
-                            <p>{NA}</p>
-                          </div>
-                          <ArrowUpRight size={16} />
-                        </button>
+                          conversation={item}
+                          query={searchQuery}
+                          onOpen={() => update({ chat: String(item.conversation_id), view: '' })}
+                        />
                       ))}
                     </section>
                   )}
@@ -576,12 +590,8 @@ export default function ChatSearchPage() {
           ) : (
             <>
               <div className="cs-chat-heading">
-                <span className="cs-ai-mark">
-                  <ChevronsUp size={21} />
-                </span>
                 <div>
                   <strong>{activeTitle}</strong>
-                  <p>사출반장 · 검사 기록 조회 도우미</p>
                 </div>
                 <span className="rd-pill good">AI</span>
                 {activeId !== null && (
@@ -607,7 +617,6 @@ export default function ChatSearchPage() {
                 )}
                 {!activeId && !waitingForDefault && !defaultListError && (
                   <div className="cs-welcome">
-                    <ChevronsUp size={36} />
                     <h2>안녕하세요, 사출반장이에요.</h2>
                     <p>검사 기록을 물어보거나 필요한 정보를 검색해 보세요.</p>
                     <div className="cs-suggestions">
@@ -657,7 +666,16 @@ export default function ChatSearchPage() {
                               answer.kind === 'failed' ? ' cs-bubble-error' : ''
                             }`}
                           >
-                            <p>{answer.text}</p>
+                            {answer.kind === 'pending' ? (
+                              <div className="cs-typing">
+                                <span className="sr-only">답변을 준비하는 중이에요.</span>
+                                <span className="cs-typing-dot" aria-hidden="true" />
+                                <span className="cs-typing-dot" aria-hidden="true" />
+                                <span className="cs-typing-dot" aria-hidden="true" />
+                              </div>
+                            ) : (
+                              <p>{answer.text}</p>
+                            )}
                             {answer.kind === 'answer' && answer.note && (
                               <p className="cs-answer-note">{answer.note}</p>
                             )}
@@ -690,7 +708,6 @@ export default function ChatSearchPage() {
                   );
                 })}
               </div>
-              {submitting && <LoadingState compact label="검사 기록을 확인하는 중이에요" />}
               <form
                 className="cs-composer"
                 onSubmit={(e) => {
@@ -731,7 +748,7 @@ export default function ChatSearchPage() {
                 </button>
               </form>
               <p className="cs-composer-hint">
-                {draft.length}/1,000 · Enter 전송 · Shift+Enter 줄바꿈
+                Enter 전송 · Shift+Enter 줄바꿈 · {draft.length}/1,000
               </p>
             </>
           )}
