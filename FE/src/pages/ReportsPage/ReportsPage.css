@@ -52,7 +52,7 @@
 /* 게시판: 머리 줄과 행이 같은 열 격자를 쓴다. */
 .rp-board {
   --rp-cols: 84px minmax(0, 1fr) 64px 72px 92px 72px;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-card);
   background: var(--surface);
   overflow: hidden;

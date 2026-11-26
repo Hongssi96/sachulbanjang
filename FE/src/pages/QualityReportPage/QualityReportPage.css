@@ -1395,3 +1395,25 @@
   gap: 16px;
   flex-wrap: wrap;
 }
+.quality-report-page > .query-filter-card,
+.quality-report-page > section > .kpi-grid > .kpi,
+.quality-report-page > .qr-analysis-grid > .card,
+.quality-report-page > .qr-observation {
+  border: 0;
+  padding: 16px;
+}
+.quality-report-page > .qr-history-card {
+  border: 0;
+}
+.quality-report-page > .qr-history-card > :is(.qr-history-header, .qr-table-footer) {
+  padding: 16px;
+}
+.quality-report-page > .qr-history-card > .qr-table-toolbar {
+  padding: 0 16px 16px;
+}
+.quality-report-page > .qr-history-card :is(th, td):first-child {
+  padding-left: 16px;
+}
+.quality-report-page > .qr-history-card :is(th, td):last-child {
+  padding-right: 16px;
+}
