@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -35,15 +36,14 @@ import { fetchOperationSummary, fetchQualitySummary } from '../api/quality';
 import { fetchEquipment } from '../api/masterData';
 import { fetchProcessRecords } from '../api/records';
 import type { ProcessRecord } from '../api/records';
-import { fetchReport, fetchReports } from '../api/reports';
-import type { ReportCategory, ReportStatus } from '../api/reports';
+import { fetchReports } from '../api/reports';
+import type { ReportStatus } from '../api/reports';
 import { fetchSchedules } from '../api/schedules';
 import type { ScheduleCategory, ScheduleItem } from '../api/schedules';
 import ApiErrorState from '../components/ApiErrorState';
 import LoadingState from '../components/LoadingState';
 import Modal from '../components/Modal';
 import MissingValue from '../components/MissingValue';
-import ReportMarkdown from '../components/ReportMarkdown';
 import SegmentedControl from '../components/SegmentedControl';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { usePageEntryReady } from '../components/PageEntry/PageEntryContext';
@@ -54,7 +54,6 @@ import { formatDate, formatDateTime, shiftDateISO, todayISO } from '../utils/dat
 import { formatDecimal, formatNumber } from '../utils/numberFormat';
 
 type Overlay =
-  | { kind: 'report'; reportId: number }
   | { kind: 'schedule'; day: number }
   | { kind: 'note' }
   | { kind: 'equipment' }
@@ -104,15 +103,6 @@ const reportStatusPill: Record<ReportStatus, string> = {
   in_progress: 'pill-violet',
   completed: 'pill-green',
 };
-const reportCategoryLabel: Record<ReportCategory, string> = {
-  equipment_issue: '설비 이상',
-  quality_report: '품질 보고',
-  inspection_done: '점검 완료',
-  periodic_weekly: '주간 보고',
-  periodic_monthly: '월간 보고',
-  other: '기타',
-};
-
 const pad2 = (value: number) => String(value).padStart(2, '0');
 
 /** ISO 시각을 Asia/Seoul 기준 연·월·일·시·분으로 나눈다. */
@@ -432,7 +422,6 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     { label: '이전 기간 생산 기록', query: previousProductionQuery },
   ].filter(({ query }) => query.error && !query.data);
 
-  const reportId = overlay?.kind === 'report' ? overlay.reportId : null;
   // 첫 화면의 KPI·생산 차트·보고·품질 요약만 기다리고 부가 영역은 독립적으로 표시한다.
   usePageEntryReady(
     [
@@ -448,15 +437,6 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       previousProductionQuery,
     ].every((query) => query.data !== null || query.error !== null),
   );
-  const reportDetailQuery = useApiQuery(
-    `home:report:${reportId ?? 'none'}`,
-    () => {
-      if (reportId === null) return Promise.reject(new Error('선택된 보고가 없습니다.'));
-      return fetchReport(reportId);
-    },
-    { enabled: reportId !== null },
-  );
-
   const monthEvents = (schedulesQuery.data?.items ?? [])
     .map(toEventView)
     .filter((event): event is EventView => event !== null);
@@ -536,8 +516,6 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
 
   const notes = notesQuery.data?.items ?? [];
   const noteTotal = notesQuery.data?.pagination.total_items ?? notes.length;
-  // 홈 카드는 최신 3건만 보여 주고, 나머지는 노트 모달에서 확인한다.
-  const previewNotes = notes.slice(0, 3);
 
   const quality = qualityQuery.data;
   const defectRate = quality?.defect_rate ?? null;
@@ -570,11 +548,6 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
   const shiftText = workSession.error
     ? '근무 정보를 불러오지 못했어요.'
     : `주간 근무 · 종료 ${workEnds}`;
-
-  const reportDetail =
-    reportDetailQuery.data && reportDetailQuery.data.report_id === reportId
-      ? reportDetailQuery.data
-      : null;
 
   const changeMonth = (direction: number) => {
     const date = new Date(year, month + direction, 1);
@@ -897,10 +870,10 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 visibleReports.map((report) => {
                   const status = report.business_status;
                   return (
-                    <button
+                    <Link
                       className="report-row"
                       key={report.report_id}
-                      onClick={() => setOverlay({ kind: 'report', reportId: report.report_id })}
+                      to={`/reports/${report.report_id}`}
                     >
                       <span
                         className={`report-icon ${status === 'pending' ? 'report-icon-alert' : ''}`}
@@ -925,7 +898,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                         {reportStatusLabel[status]}
                       </span>
                       <ChevronRight className="row-arrow" size={17} />
-                    </button>
+                    </Link>
                   );
                 })
               ) : (
@@ -955,11 +928,17 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <HomeSectionSkeleton label="인수인계 노트를 불러오는 중이에요" />
             ) : notesQuery.error && !notesQuery.data ? (
               <ApiErrorState compact error={notesQuery.error} onRetry={notesQuery.reload} />
-            ) : previewNotes.length ? (
-              <>
-                <div className="note-list">
-                  {previewNotes.map((note) => (
-                    <article className="note-preview" key={note.note_id}>
+            ) : notes.length ? (
+              <div className="note-list">
+                {notes.map((note) => (
+                  <article className="note-preview" key={note.note_id}>
+                    <div className="note-main">
+                      <p>{note.body}</p>
+                      <small>
+                        {note.author_display_name} · {formatDateTime(note.created_at)}
+                      </small>
+                    </div>
+                    <div className="note-side">
                       {canDeleteNote(note) && (
                         <button
                           className="note-delete"
@@ -973,10 +952,6 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                           <Trash2 size={15} />
                         </button>
                       )}
-                      <p>{note.body}</p>
-                      <small>
-                        {note.author_display_name} · {formatDateTime(note.created_at)}
-                      </small>
                       <button
                         className={`note-action note-confirm-side${note.my_confirmed_at ? ' is-done' : ''}`}
                         onClick={() => {
@@ -993,19 +968,10 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                             ? '확인 중...'
                             : '확인'}
                       </button>
-                    </article>
-                  ))}
-                </div>
-                {noteTotal > previewNotes.length && (
-                  <button
-                    className="text-link note-more"
-                    onClick={() => setOverlay({ kind: 'note' })}
-                  >
-                    노트 더 보기
-                    <ArrowRight size={14} />
-                  </button>
-                )}
-              </>
+                    </div>
+                  </article>
+                ))}
+              </div>
             ) : (
               <p className="empty-text">아직 작성된 인수인계가 없어요.</p>
             )}
@@ -1193,68 +1159,17 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       {overlay && (
         <Modal
           title={
-            overlay.kind === 'report'
-              ? '현장 보고 상세'
-              : overlay.kind === 'schedule'
-                ? `${formatDate(`${year}-${String(month + 1).padStart(2, '0')}-${String(overlay.day).padStart(2, '0')}`)} 일정`
-                : overlay.kind === 'note'
-                  ? '인수인계 노트'
-                  : overlay.kind === 'equipment'
-                    ? '공장 한눈에 보기'
-                    : '품질 인사이트 · 분석 근거'
+            overlay.kind === 'schedule'
+              ? `${formatDate(`${year}-${String(month + 1).padStart(2, '0')}-${String(overlay.day).padStart(2, '0')}`)} 일정`
+              : overlay.kind === 'note'
+                ? '인수인계 노트'
+                : overlay.kind === 'equipment'
+                  ? '공장 한눈에 보기'
+                  : '품질 인사이트 · 분석 근거'
           }
           onClose={() => setOverlay(null)}
           wide={overlay.kind === 'equipment'}
         >
-          {overlay.kind === 'report' && (
-            <>
-              {reportDetailQuery.error && !reportDetail ? (
-                <ApiErrorState error={reportDetailQuery.error} onRetry={reportDetailQuery.reload} />
-              ) : reportDetail ? (
-                <>
-                  <span className="pill pill-violet">
-                    {reportCategoryLabel[reportDetail.category]} ·{' '}
-                    {reportStatusLabel[reportDetail.business_status]}
-                  </span>
-                  <h3>{reportDetail.title}</h3>
-                  <p className="muted">
-                    {reportDetail.report_id} · {reportDetail.author_display_name} ·{' '}
-                    {formatDateTime(reportDetail.created_at)}
-                  </p>
-                  {Boolean(reportDetail.generation_snapshot?.equipments.length) && (
-                    <p className="muted">
-                      대상 설비{' '}
-                      {reportDetail.generation_snapshot?.equipments
-                        .map((equipment) => `${equipment.code} · ${equipment.name}`)
-                        .join(', ')}
-                    </p>
-                  )}
-                  <div className="report-markdown">
-                    <ReportMarkdown markdown={reportDetail.body_markdown || '—'} />
-                  </div>
-                  <div className="modal-callout">
-                    <strong>다음 확인 사항</strong>
-                    <p>
-                      설비 점검 기록과 검사 이력을 확인하고, 현장 조치 결과를 인수인계 노트에 남겨
-                      주세요.
-                    </p>
-                  </div>
-                  <button
-                    className="button button-primary"
-                    onClick={() => {
-                      setNoteText(`${reportDetail.title}: 조치 결과 확인 필요`);
-                      setOverlay({ kind: 'note' });
-                    }}
-                  >
-                    인수인계 노트에 기록
-                    <ArrowRight size={16} />
-                  </button>
-                </>
-              ) : (
-                <LoadingState label="보고를 불러오는 중이에요" />
-              )}
-            </>
-          )}
           {overlay.kind === 'schedule' && (
             <>
               {schedulesQuery.loading && !schedulesQuery.data ? (
@@ -1288,6 +1203,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 </label>
                 <textarea
                   id="note"
+                  className="note-input"
                   value={noteText}
                   onChange={(event) => setNoteText(event.target.value)}
                   placeholder="설비, 조치 내용, 다음 확인 사항을 남겨 주세요."

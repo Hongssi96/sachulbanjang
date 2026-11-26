@@ -1,7 +1,18 @@
 import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
-import { ArrowLeft, ClipboardList, Download, Eye, FileText, Pencil } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ClipboardList,
+  Download,
+  Eye,
+  FileText,
+  Pencil,
+  X,
+} from 'lucide-react';
 import {
   changeReportStatus,
   fetchReport,
@@ -11,7 +22,9 @@ import {
   type ReportStatus,
 } from '../../api/reports';
 import { ApiError, apiRequestBlob } from '../../api/client';
+import { createHandoverNote } from '../../api/handover';
 import ApiErrorState from '../../components/ApiErrorState';
+import Modal from '../../components/Modal';
 import ReportDetailSkeleton from './ReportDetailSkeleton';
 import { setReportChecklist, useReportChecklist } from '../../services/reportChecklist';
 import { notifyReportsChanged } from '../../services/reportSignals';
@@ -81,6 +94,11 @@ export default function ReportDetailPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const [draft, setDraft] = useState({ title: '', bodyMarkdown: '' });
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const [handoverText, setHandoverText] = useState('');
+  const [handoverSaving, setHandoverSaving] = useState(false);
+  const [handoverError, setHandoverError] = useState('');
+  const [handoverNotice, setHandoverNotice] = useState('');
   const [bodyMode, setBodyMode] = useState<'blocks' | 'markdown'>('blocks');
   // 본문을 텍스트 구간과 표 구간으로 나눠, 표는 본문에 있던 위치에서 그리드로 보여 준다.
   const draftBlocks = useMemo(() => parseMarkdownBlocks(draft.bodyMarkdown), [draft.bodyMarkdown]);
@@ -140,7 +158,7 @@ export default function ReportDetailPage() {
     });
   };
   const changeStatus = async (option: StatusLabel) => {
-    if (!post) return;
+    if (!post || saving) return;
     const ok = await saveStatus(post.report_id, post.version, option);
     // 처리 상태를 직접 바꾸면 체크 상태도 그에 맞춘다.
     if (ok) setReportChecklist(String(post.report_id), defaultChecklist(option, checklist.length));
@@ -198,9 +216,8 @@ export default function ReportDetailPage() {
     user &&
     (user.role === 'admin' || (user.id === post.author_id && post.business_status !== 'completed')),
   );
-  // AI가 집계한 대상 설비를 오른쪽 요약 카드에 그대로 보여 준다.
-  const equipmentNames =
-    post.generation_snapshot?.equipments.map((equipment) => equipment.name || equipment.code) ?? [];
+  // BE가 내려주는 작성자 담당 설비를 오른쪽 요약 카드에 보여 준다.
+  const equipmentNames = post.author_equipment.map((equipment) => equipment.name || equipment.code);
   const equipmentLabel =
     equipmentNames.length > 3
       ? `${equipmentNames.slice(0, 3).join(', ')} 외 ${equipmentNames.length - 3}대`
@@ -243,6 +260,34 @@ export default function ReportDetailPage() {
       if (error instanceof ApiError && error.status === 409) detailQuery.reload();
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const openHandover = () => {
+    setHandoverText(`${post.title}: 조치 결과 확인 필요`);
+    setHandoverError('');
+    setHandoverNotice('');
+    setHandoverOpen(true);
+  };
+  const submitHandover = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const body = handoverText.trim();
+    if (!body) {
+      setHandoverError('전달할 내용을 입력해 주세요.');
+      return;
+    }
+    setHandoverSaving(true);
+    setHandoverError('');
+    try {
+      await createHandoverNote({ body });
+      setHandoverOpen(false);
+      setHandoverNotice('인수인계 노트에 기록했어요.');
+    } catch (error: unknown) {
+      setHandoverError(
+        error instanceof Error ? error.message : '인수인계 노트를 저장하지 못했어요.',
+      );
+    } finally {
+      setHandoverSaving(false);
     }
   };
 
@@ -493,7 +538,6 @@ export default function ReportDetailPage() {
                               <input
                                 type="checkbox"
                                 checked={checked[itemIndex]}
-                                disabled={saving}
                                 onChange={() => toggleItem(itemIndex)}
                               />
                               <span>{item}</span>
@@ -541,7 +585,7 @@ export default function ReportDetailPage() {
             </section>
             <section className="rpd-status-card" aria-label="처리 상태 변경">
               <span className="rpd-status-label">처리 상태</span>
-              <div className="rpd-status-group" role="group">
+              <div className="rpd-status-group" role="group" aria-busy={saving}>
                 {statusOptions.map((option) => (
                   <button
                     key={option}
@@ -549,7 +593,7 @@ export default function ReportDetailPage() {
                     data-status={option}
                     className={option === currentStatus ? 'current' : undefined}
                     aria-pressed={option === currentStatus}
-                    disabled={saving || editing}
+                    disabled={editing}
                     onClick={() => void changeStatus(option)}
                   >
                     {option}
@@ -570,6 +614,26 @@ export default function ReportDetailPage() {
                 </p>
               )}
             </section>
+            <button
+              type="button"
+              className="rpd-handover"
+              disabled={editing}
+              aria-haspopup="dialog"
+              onClick={openHandover}
+            >
+              <span className="rpd-handover-icon">
+                <ClipboardList size={18} />
+              </span>
+              <span className="rpd-handover-copy">
+                <strong>인수인계로 기록</strong>
+              </span>
+              <ArrowRight size={16} />
+            </button>
+            {handoverNotice && (
+              <p className="rpd-handover-notice" role="status">
+                <Check size={14} /> {handoverNotice}
+              </p>
+            )}
           </aside>
         </div>
       </article>
@@ -591,6 +655,58 @@ export default function ReportDetailPage() {
           <span />
         )}
       </nav>
+      {handoverOpen && (
+        <Modal
+          title="인수인계로 기록"
+          onClose={() => {
+            if (!handoverSaving) setHandoverOpen(false);
+          }}
+        >
+          <form className="rpd-edit-form" onSubmit={submitHandover}>
+            <p className="rpd-handover-target">
+              <strong>{post.title}</strong> 보고의 조치 결과를 다음 근무자에게 전달합니다.
+            </p>
+            <label className="field-label" htmlFor="rpd-handover-body">
+              전달할 내용
+            </label>
+            <textarea
+              id="rpd-handover-body"
+              className="note-input"
+              value={handoverText}
+              rows={6}
+              onChange={(event) => setHandoverText(event.target.value)}
+              required
+            />
+            {handoverError && (
+              <p className="rpd-edit-error" role="alert">
+                {handoverError}
+              </p>
+            )}
+            <div className="form-footer rpd-handover-footer">
+              <small>{handoverText.length.toLocaleString('ko-KR')}자</small>
+              <div className="rpd-edit-actions">
+                <button
+                  type="button"
+                  className="button button-white button-sm"
+                  disabled={handoverSaving}
+                  onClick={() => setHandoverOpen(false)}
+                >
+                  <X size={14} />
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="button button-primary button-sm"
+                  disabled={handoverSaving || !handoverText.trim()}
+                >
+                  <Check size={15} />
+                  {handoverSaving ? '저장 중…' : '노트 저장'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      )}
     </section>
   );
 }
