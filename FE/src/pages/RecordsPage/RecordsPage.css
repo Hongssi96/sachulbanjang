@@ -89,6 +89,23 @@
   border: 1px solid var(--rd-border);
   border-radius: var(--radius-card);
 }
+.records-list-page > .query-filter-card,
+.records-list-page > .rd-summary > .rd-panel {
+  border: 0;
+  padding: 16px;
+}
+.records-list-page > .rd-list {
+  border: 0;
+}
+.records-list-page > .rd-list > :is(.rd-list-heading, .rd-toolbar, .rd-pagination) {
+  padding: 16px;
+}
+.records-list-page > .rd-list > :is(.rd-tabs, .rd-table-caption) {
+  padding-inline: 16px;
+}
+.records-list-page .rd-list :is(th, td):first-child {
+  padding-left: 16px;
+}
 .records-page input,
 .records-page select {
   min-width: 0;
