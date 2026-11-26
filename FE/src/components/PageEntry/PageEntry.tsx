@@ -23,17 +23,21 @@ export default function PageEntry({ children }: { children: ReactNode }) {
   const [readyIdentity, setReadyIdentity] = useState<EntryIdentity | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
   const onReady = useCallback(() => setReadyIdentity(identity), [identity]);
+  // 앱 내부에서 보고 상세로 이동할 때는 페이지 전용 스켈레톤이 로딩을 담당한다.
+  const reportDetailLoading =
+    bootstrapped && status === 'authenticated' && /^\/reports\/[^/]+$/.test(pathname);
 
   useEffect(() => {
-    if (!managed) return;
+    if (!managed || reportDetailLoading) return;
     const timer = window.setTimeout(() => setMinimumComplete(identity), MIN_PAGE_LOADING_MS);
     return () => window.clearTimeout(timer);
-  }, [identity, managed]);
+  }, [identity, managed, reportDetailLoading]);
 
   const minimumPassed = minimumComplete === identity;
   const needsData = status === 'authenticated' && !user?.must_change_password;
   const pending =
     managed &&
+    !reportDetailLoading &&
     (status === 'checking' || !minimumPassed || (needsData && readyIdentity !== identity));
   const fullScreen = !bootstrapped || status !== 'authenticated';
   useEffect(() => {

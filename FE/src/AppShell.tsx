@@ -1,4 +1,5 @@
 import PageContent from './components/PageEntry/PageContent';
+import ReportDetailSkeleton from './pages/ReportsPage/ReportDetailSkeleton';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router';
 import { Bell, Check, ChevronLeft, ChevronRight, Factory } from 'lucide-react';
@@ -293,8 +294,15 @@ export default function AppShell() {
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/quality-reports" element={<QualityReportPage />} />
               <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/reports/:reportId" element={<ReportDetailPage />} />
-              <Route path="/chat" element={<ChatSearchPage />} />
+              <Route
+                path="/reports/:reportId"
+                element={
+                  <Suspense fallback={<ReportDetailSkeleton />}>
+                    <ReportDetailPage />
+                  </Suspense>
+                }
+              />
+              <Route path="/chat" element={<ChatSearchPage onToast={setToast} />} />
               <Route
                 path="/mypage"
                 element={

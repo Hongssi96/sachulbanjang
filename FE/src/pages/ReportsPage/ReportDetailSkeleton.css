@@ -1,0 +1,66 @@
+.rpd-skeleton .rpd-skeleton-block {
+  display: block;
+  height: 14px;
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--border) 45%, var(--surface));
+  animation: report-detail-skeleton-pulse 1.6s ease-in-out infinite;
+}
+.rpd-skeleton .rpd-skeleton-tag {
+  width: 76px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+}
+.rpd-skeleton .rpd-skeleton-title {
+  width: 70%;
+  height: 38px;
+  margin-bottom: 12px;
+}
+.rpd-skeleton-date {
+  width: 144px;
+}
+.rpd-skeleton-views {
+  width: 40px;
+}
+.rpd-skeleton-lines {
+  display: grid;
+  gap: 14px;
+}
+.rpd-skeleton-lines > :last-child {
+  width: 65%;
+}
+.rpd-skeleton-body {
+  padding: 6px 0;
+  gap: 18px;
+}
+.rpd-skeleton-body > :nth-child(3) {
+  width: 85%;
+}
+.rpd-skeleton .rpd-skeleton-request {
+  gap: 20px;
+  border-color: var(--border);
+  background: var(--soft);
+}
+.rpd-skeleton-label {
+  width: 104px;
+}
+.rpd-skeleton .rpd-skeleton-button {
+  height: 34px;
+}
+.rpd-skeleton .rpd-skeleton-neighbor {
+  height: 68px;
+  border-radius: var(--radius-card);
+}
+@keyframes report-detail-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rpd-skeleton .rpd-skeleton-block {
+    animation: none;
+  }
+}

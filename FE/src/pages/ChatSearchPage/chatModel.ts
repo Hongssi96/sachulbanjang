@@ -3,6 +3,24 @@ import type { ChatTurn, ChatTurnJob } from '../../api/conversations';
 /** API에 값이 없을 때 화면에 표시하는 문자. */
 export const NA = '—';
 
+/** 검색어 주변의 실제 대화 내용만 미리 보여 준다. 권한으로 숨긴 답변은 제외한다. */
+export function conversationPreview(turns: ChatTurn[], query: string): string {
+  const keyword = query.trim().toLowerCase();
+  const contents = turns.flatMap((turn) => [
+    turn.question,
+    ...(turn.answer_status !== 'hidden_permission' && turn.answer ? [turn.answer] : []),
+  ]);
+  const matched = keyword
+    ? contents.find((text) => text.toLowerCase().includes(keyword))
+    : undefined;
+  const text = (matched ?? turns.at(-1)?.question ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return '아직 주고받은 내용이 없어요.';
+  const matchIndex = keyword ? text.toLowerCase().indexOf(keyword) : -1;
+  const start = Math.max(0, matchIndex - 40);
+  const end = start + 180;
+  return `${start > 0 ? '…' : ''}${text.slice(start, end)}${text.length > end ? '…' : ''}`;
+}
+
 const RUNNING_JOB_STATES: readonly ChatTurnJob['state'][] = ['accepted', 'querying', 'writing'];
 
 const PROGRESS_LABELS: Partial<Record<ChatTurnJob['state'], string>> = {

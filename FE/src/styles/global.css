@@ -720,6 +720,10 @@ main {
   padding: 24px 24px 16px;
   min-height: 168px;
 }
+.overview > .kpi-grid > .kpi {
+  border: 0;
+  padding: 16px;
+}
 .kpi-label {
   display: flex;
   align-items: center;
@@ -852,6 +856,11 @@ main {
   border-radius: var(--radius-card);
   padding: 24px;
   min-width: 0;
+}
+.home-dashboard > .main-column > .card,
+.home-dashboard > .side-column > :is(.card, .insight-card) {
+  border: 0;
+  padding: 16px;
 }
 .card-heading {
   display: flex;
