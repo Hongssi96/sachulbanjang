@@ -224,6 +224,26 @@
   overflow: auto;
   position: relative;
 }
+.rd-table-fixed {
+  /* 현재 페이지의 행 수만큼 높이를 고정해(RecordsPage에서 지정) 검색으로 행이 줄어도 목록이 튀지 않게 한다. */
+  --rd-list-row-height: 67px;
+  --rd-list-head-height: 48px;
+  display: flex;
+  flex-direction: column;
+}
+.rd-table-fixed > .rd-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+@media (min-width: 1700px) {
+  .rd-table-fixed {
+    --rd-list-row-height: 69px;
+    --rd-list-head-height: 50px;
+  }
+}
 .records-page table {
   width: 100%;
   border-collapse: collapse;
@@ -842,6 +862,8 @@
   font-size: var(--fs-xs);
   line-height: 1.7;
   color: var(--rd-muted);
+  /* 안내 문구가 생기고 사라질 때 표가 위아래로 움직이지 않게 한 줄 높이를 유지한다. */
+  min-height: calc(1.7em + 14px);
 }
 .rd-feedback {
   display: flex;
