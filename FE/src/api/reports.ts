@@ -64,6 +64,15 @@ export interface ReportSnapshot {
   includesDemo: boolean;
   targetCount: number;
   equipmentCount: number;
+  /** 집계 대상으로 확정된 설비. 상세 화면의 대상 설비 표시에 쓴다. */
+  equipments: ReportEquipment[];
+}
+
+export interface ReportEquipment {
+  id: number;
+  code: string;
+  name: string;
+  productionLine: string | null;
 }
 
 export interface ReportListParams {
@@ -135,11 +144,31 @@ function readIdCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
+// resolved_equipment 항목 중 화면에 표시할 수 있는 값만 남긴다.
+function readEquipments(value: unknown): ReportEquipment[] {
+  if (!Array.isArray(value)) return [];
+  const equipments: ReportEquipment[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readNumber(item.id);
+    const code = readString(item.code);
+    if (id === null || code === null) continue;
+    equipments.push({
+      id,
+      code,
+      name: readString(item.name) ?? code,
+      productionLine: readString(item.production_line),
+    });
+  }
+  return equipments;
+}
+
 function parseReportSnapshot(value: unknown): ReportSnapshot | null {
   if (!isRecord(value)) return null;
   const summary = isRecord(value.summary) ? value.summary : {};
   const period = isRecord(value.period) ? value.period : {};
   const targets = isRecord(value.requested_targets) ? value.requested_targets : {};
+  const equipments = readEquipments(value.resolved_equipment);
   return {
     periodFrom: readString(period.from),
     periodTo: readString(period.to),
@@ -156,7 +185,8 @@ function parseReportSnapshot(value: unknown): ReportSnapshot | null {
       readIdCount(targets.department_ids) +
       readIdCount(targets.production_line_ids) +
       readIdCount(targets.equipment_ids),
-    equipmentCount: readIdCount(value.resolved_equipment),
+    equipmentCount: equipments.length,
+    equipments,
   };
 }
 
