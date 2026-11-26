@@ -51,17 +51,11 @@ be:validate:
 build:images:
   stage: build
   image: docker:27
-  services: [docker:27-dind]
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
   rules:
     - if: '$CI_COMMIT_BRANCH == "prod"'
   script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - docker build -f BE/Dockerfile -t "$CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA" BE
-    - docker build -f deploy/Dockerfile.web -t "$CI_REGISTRY_IMAGE/web:$CI_COMMIT_SHA" .
-    - docker push "$CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA"
-    - docker push "$CI_REGISTRY_IMAGE/web:$CI_COMMIT_SHA"
+    - docker build -f BE/Dockerfile -t "imleader/api:$CI_COMMIT_SHA" BE
+    - docker build -f deploy/Dockerfile.web -t "imleader/web:$CI_COMMIT_SHA" .
 
 deploy:prod:
   stage: deploy
@@ -71,8 +65,6 @@ deploy:prod:
   resource_group: production
   rules:
     - if: '$CI_COMMIT_BRANCH == "prod"'
-      when: manual
-      allow_failure: false
   environment:
     name: production
     url: $PUBLIC_URL
@@ -84,4 +76,4 @@ deploy:prod:
     - printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
     - chmod 600 ~/.ssh/known_hosts
   script:
-    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && git fetch --quiet origin && git checkout --quiet prod && git pull --quiet --ff-only origin prod && REGISTRY_IMAGE=$CI_REGISTRY_IMAGE ./deploy/deploy.sh $CI_COMMIT_SHA"
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd $DEPLOY_PATH && git fetch --quiet origin && git checkout --quiet prod && git pull --quiet --ff-only origin prod && REGISTRY_IMAGE=imleader ./deploy/deploy.sh $CI_COMMIT_SHA"
