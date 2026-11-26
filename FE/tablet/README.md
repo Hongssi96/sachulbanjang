@@ -3,10 +3,10 @@
 데스크톱과 다른 React 진입점과 메뉴를 사용하지만, 업무 데이터와 인증은 동일한 백엔드에 연결합니다.
 
 - 가로 기준: 1366×1024, 세로 기준: 1024×1366 CSS px
-- 실행: `pnpm dev:tablet` (5175 포트 고정)
+- 실행: `pnpm dev:tablet` (5174 포트 고정)
 - 빌드: `pnpm build:tablet`
 - 미리보기: `pnpm preview:tablet`
-- API 프록시: `/api` → `http://127.0.0.1:8000`
+- API 프록시: `/api` → `http://61.107.196.157` (데스크톱과 `vite.proxy.ts` 설정 공유)
 - 결과물: `dist-tablet/`
 - 실제 라우트와 제한: [INTEGRATION.md](../INTEGRATION.md)
 

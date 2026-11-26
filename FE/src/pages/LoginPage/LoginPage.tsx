@@ -6,7 +6,6 @@ import {
   ArrowRightLeft,
   Eye,
   EyeOff,
-  Factory,
   FileChartColumn,
   LoaderCircle,
   LogIn,
@@ -184,9 +183,6 @@ export default function LoginPage() {
       <main className="login-panel">
         <div className="login-card">
           <div className="login-card-heading">
-            <span className="login-mark">
-              <Factory size={22} aria-hidden="true" />
-            </span>
             <h2>로그인</h2>
             <p>사번과 비밀번호를 입력해 주세요.</p>
           </div>

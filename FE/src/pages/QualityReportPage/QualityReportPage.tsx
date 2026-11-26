@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
@@ -222,7 +223,7 @@ export default function QualityReportPage() {
     ? pageRows.filter((record) => recordSearchText(record).includes(searchTerm))
     : pageRows;
   const historyCount =
-    rangeError || (recordsQuery.loading && !recordsQuery.data) ? NA : totalItems.toLocaleString();
+    rangeError || (recordsQuery.loading && !recordsQuery.data) ? NA : formatNumber(totalItems);
   const listNotes: string[] = [];
   if (searchTerm) listNotes.push('검색은 현재 페이지 안에서만 적용됩니다.');
   if (verdict === 'above') listNotes.push('‘기준 초과’는 검사 수량 정보가 없어 적용되지 않습니다.');
@@ -323,11 +324,11 @@ export default function QualityReportPage() {
     setFeedback(`표의 조회 결과 ${rows.length}건을 CSV로 내려받았어요.`);
   };
   const metric = (value: number | null | undefined) =>
-    rangeError || value === null || value === undefined ? NA : value.toLocaleString();
+    rangeError || value === null || value === undefined ? NA : formatNumber(value);
   const focusValue =
     rangeError || sampleQuery.error || (sampleQuery.loading && !sampleQuery.data)
       ? NA
-      : focusItems.length.toLocaleString();
+      : formatNumber(focusItems.length);
   const focusPill =
     rangeError || sampleQuery.error
       ? '조회 실패'
@@ -352,7 +353,7 @@ export default function QualityReportPage() {
     : sampleQuery.loading && !sampleQuery.data
       ? '선택한 조건의 검사 기록을 불러오고 있어요.'
       : focus
-        ? `검사 ${focus.inspected.toLocaleString()}건 중 불량 ${focus.defective}건(${formatRate(
+        ? `검사 ${formatNumber(focus.inspected)}건 중 불량 ${focus.defective}건(${formatRate(
             focus.rate,
           )})가 기록됐어요. 해당 기간의 공정 조건과 조치 이력을 함께 살펴보세요. 최근 ${SAMPLE_SIZE}건 기준입니다.`
         : sampleItems.length
@@ -514,7 +515,7 @@ export default function QualityReportPage() {
               {summary?.defect_rate === null || summary?.defect_rate === undefined ? (
                 <MissingValue size="lg" />
               ) : (
-                summary.defect_rate.toFixed(2)
+                formatDecimal(summary.defect_rate)
               )}
               <span>%</span>
             </div>
@@ -540,7 +541,7 @@ export default function QualityReportPage() {
                   ) : null}
                   {difference === 0
                     ? '직전 기간과 동일'
-                    : `직전 기간 대비 ${Math.abs(difference).toFixed(2)}%p`}
+                    : `직전 기간 대비 ${formatDecimal(Math.abs(difference))}%p`}
                 </span>
               )}
             </div>
@@ -637,7 +638,7 @@ export default function QualityReportPage() {
               <h2>불량 유형 분포</h2>
               <p>
                 {summary?.inspected_count
-                  ? `불량 ${summary.defect_count.toLocaleString()}건 기준`
+                  ? `불량 ${formatNumber(summary.defect_count)}건 기준`
                   : '선택 기간 검사 기록 기준'}
               </p>
             </div>
@@ -920,7 +921,7 @@ export default function QualityReportPage() {
                     <div key={product.key}>
                       <strong>{product.label}</strong>
                       <span>
-                        검사 {product.inspected.toLocaleString()}건 · 불량 {product.defective}건
+                        검사 {formatNumber(product.inspected)}건 · 불량 {product.defective}건
                       </span>
                       <b>{formatRate(product.rate)}</b>
                     </div>
@@ -983,7 +984,7 @@ export default function QualityReportPage() {
                 <div className="qr-basis-product" key={product.key}>
                   <strong>{product.label}</strong>
                   <p>
-                    검사 {product.inspected.toLocaleString()}건 · 불량 {product.defective}건 ·{' '}
+                    검사 {formatNumber(product.inspected)}건 · 불량 {product.defective}건 ·{' '}
                     {formatRate(product.rate)}
                   </p>
                   <button

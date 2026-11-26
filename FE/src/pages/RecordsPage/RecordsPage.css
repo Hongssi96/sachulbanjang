@@ -106,6 +106,12 @@
 .records-list-page .rd-list :is(th, td):first-child {
   padding-left: 16px;
 }
+.records-list-page .rd-record-reason {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .records-page input,
 .records-page select {
   min-width: 0;

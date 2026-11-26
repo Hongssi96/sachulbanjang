@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from '../../utils/numberFormat';
 import type { QualitySummary } from '../../api/quality';
 import type { InspectionRecord } from '../../api/records';
 import { formatDateTime, shiftDateISO, todayISO } from '../../utils/dateFormat';
@@ -62,7 +63,8 @@ export function previousQualityPeriod(
 
 export const qualityDateLabel = (date: string) => date.replaceAll('-', '.');
 
-export const formatRate = (value: number | null) => (value === null ? NA : `${value.toFixed(2)}%`);
+export const formatRate = (value: number | null) =>
+  value === null ? NA : `${formatDecimal(value)}%`;
 
 export const percentage = (part: number, total: number) =>
   total > 0 ? (part / total) * 100 : null;
@@ -204,17 +206,17 @@ export function buildQualityReportText({
 조회 기간: ${filters.from} ~ ${filters.to}
 제품: ${productLabel} / 설비: ${equipmentLabel}
 
-검사 건수: ${summary ? `${summary.inspected_count.toLocaleString()}건` : NA}
-양품: ${summary ? `${summary.good_count.toLocaleString()}건` : NA}
-불량: ${summary ? `${summary.defect_count.toLocaleString()}건` : NA}
+검사 건수: ${summary ? `${formatNumber(summary.inspected_count)}건` : NA}
+양품: ${summary ? `${formatNumber(summary.good_count)}건` : NA}
+불량: ${summary ? `${formatNumber(summary.defect_count)}건` : NA}
 검사 불량률: ${summary ? formatRate(summary.defect_rate) : NA}
-생산 기록: ${summary ? `${summary.production_record_count.toLocaleString()}건` : NA}
+생산 기록: ${summary ? `${formatNumber(summary.production_record_count)}건` : NA}
 
 불량 유형
 ${defectTypes}
 
 제품별 현황 (최근 100건 기준)
-${products.length ? products.map((product) => `${product.label}: 검사 ${product.inspected.toLocaleString()}건 / 불량 ${product.defective}건 / ${formatRate(product.rate)}`).join('\n') : '기록 없음'}
+${products.length ? products.map((product) => `${product.label}: 검사 ${formatNumber(product.inspected)}건 / 불량 ${product.defective}건 / ${formatRate(product.rate)}`).join('\n') : '기록 없음'}
 
 확인할 품목
 ${focus.length ? focus.map((product) => `${product.label}: 검사 불량률 ${formatRate(product.rate)}로 점검 기준 ${inspectionThreshold}%를 초과합니다. 해당 기간의 검사 기록과 공정 조건·현장 조치 이력을 함께 확인해 주세요.`).join('\n') : products.length ? '선택 범위에 점검 기준을 초과한 품목이 없습니다.' : '기록 없음'}

@@ -3,7 +3,8 @@ import { Link } from 'react-router';
 import { ArrowRight, NotebookPen, RefreshCw } from 'lucide-react';
 import useRemote from '../../hooks/useRemote';
 import { useAuth } from '../../hooks/useAuth';
-import { date, list, read, text } from '../../api/business';
+import { date, list, number, read, text } from '../../api/business';
+import { formatNumber } from '../../utils/numberFormat';
 import { Metrics, RemoteState, Table } from './LiveShared';
 import LiveCollection from './LiveCollection';
 
@@ -42,9 +43,10 @@ export default function LiveDashboard({ tablet = false }: { tablet?: boolean }) 
               ['검사 불량', text(resource.data.quality.defect_count)],
               [
                 '검사 불량률',
-                resource.data.quality.defect_rate === null
+                resource.data.quality.defect_rate === null ||
+                resource.data.quality.defect_rate === undefined
                   ? '—'
-                  : `${text(resource.data.quality.defect_rate)}%`,
+                  : `${formatNumber(number(resource.data.quality.defect_rate))}%`,
               ],
               ['등록 설비', `${resource.data.equipment.total}대`],
             ]}

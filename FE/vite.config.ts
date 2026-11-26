@@ -1,13 +1,7 @@
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-
-const proxy = {
-  '/api': {
-    target: 'http://61.107.196.157',
-    changeOrigin: true,
-  },
-};
+import { proxy } from './vite.proxy';
 
 // 시연 모드(`pnpm dev:demo`) 전용 가짜 로그인. 백엔드·DB 없이 화면을 보기 위한 것으로,
 // 개발 서버에서만 동작하고 빌드 결과물에는 들어가지 않는다. 비밀번호가 'wrong'이 아니면 모두 통과한다.
@@ -89,6 +83,6 @@ function demoAuth(): Plugin {
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), ...(mode === 'demo' ? [demoAuth()] : [])],
-  server: { proxy },
-  preview: { proxy },
+  server: { port: 5173, strictPort: true, proxy },
+  preview: { port: 5173, strictPort: true, proxy },
 }));

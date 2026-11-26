@@ -1,3 +1,4 @@
+import { formatNumber } from '../utils/numberFormat';
 interface ProductionChartProps {
   period: 'today' | 'week';
 }
@@ -41,7 +42,7 @@ export default function ProductionChart({ period }: ProductionChartProps) {
                 textAnchor="end"
                 className="chart-axis"
               >
-                {value.toLocaleString()}
+                {formatNumber(value)}
               </text>
             </g>
           ),
@@ -66,7 +67,7 @@ export default function ProductionChart({ period }: ProductionChartProps) {
             strokeWidth="2"
           >
             <title>
-              {labels[i]} · {value.toLocaleString()}개
+              {labels[i]} · {formatNumber(value)}개
             </title>
           </circle>
         ))}

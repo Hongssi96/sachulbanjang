@@ -1,3 +1,4 @@
+import { formatNumber } from '../../utils/numberFormat';
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, MapPin, Package } from 'lucide-react';
 import type { MovementItem, StockItem } from '../../api/inventory';
@@ -60,7 +61,7 @@ export default function StockDetail({
         <div>
           <span>현재고</span>
           <strong>
-            {item.quantity.toLocaleString()}
+            {formatNumber(item.quantity)}
             <small>개</small>
           </strong>
         </div>
