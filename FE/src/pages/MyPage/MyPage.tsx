@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useEffect, useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -212,6 +213,7 @@ export default function MyPage({ onToast, onLogout, loggingOut, dark, onToggleDa
     enabled: isAdmin,
   });
   const workSession = useWorkSession();
+  usePageEntryReady([selfQuery, employeeQuery, workSession].every((query) => !query.loading));
   const auditEmployeeId = dialog?.kind === 'edit' ? dialog.employee.id : 0;
   const auditQuery = useApiQuery(
     `audit:${auditEmployeeId}`,

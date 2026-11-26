@@ -1,4 +1,4 @@
-import LoadingState from './components/LoadingState';
+import PageContent from './components/PageEntry/PageContent';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router';
 import { Bell, Check, ChevronLeft, ChevronRight, Factory } from 'lucide-react';
@@ -255,7 +255,7 @@ export default function AppShell() {
           loggingOut={loggingOut}
         />
         <main id="main-content">
-          <Suspense fallback={<LoadingState skeleton={false} />}>
+          <PageContent>
             <Routes>
               <Route
                 path="/"
@@ -312,7 +312,7 @@ export default function AppShell() {
               />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
-          </Suspense>
+          </PageContent>
         </main>
       </div>
       {toast && (

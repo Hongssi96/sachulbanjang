@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import LoadingState from '../../components/LoadingState';
 import ApiErrorState from '../../components/ApiErrorState';
 import Modal from '../../components/Modal';
@@ -65,6 +66,13 @@ function dateParam(value: string | null): string | undefined {
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+// crypto.randomUUID는 HTTPS·localhost 같은 보안 컨텍스트에서만 제공된다.
+function requestKey(): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export default function ChatSearchPage() {
@@ -177,6 +185,16 @@ export default function ChatSearchPage() {
   const detail =
     detailQuery.data && detailQuery.data.conversation_id === activeId ? detailQuery.data : null;
   const activeTurns = detail?.turns ?? [];
+  const selectingDefault =
+    !chatParam &&
+    fallbackId === null &&
+    !historyQuery.trim() &&
+    Boolean(listQuery.data?.items.length);
+  usePageEntryReady(
+    !listQuery.loading &&
+      !selectingDefault &&
+      (activeId === null || detail !== null || detailQuery.error !== null),
+  );
   const turnCount = activeTurns.length;
   const detailRunning = detail?.turns.some((turn) => isJobRunning(turn.job)) ?? false;
   const pendingTurnId =
@@ -274,7 +292,7 @@ export default function ChatSearchPage() {
         }
         const accepted = await submitTurn(targetId, {
           question: message,
-          clientRequestKey: crypto.randomUUID(),
+          clientRequestKey: requestKey(),
         });
         setPendingTurn({ conversationId: targetId, turnId: accepted.turn_id });
         update({ chat: String(targetId), view: '' });
@@ -317,7 +335,7 @@ export default function ChatSearchPage() {
       setRetryingTurnId(turn.turn_id);
       setNotice('');
       try {
-        const accepted = await retryTurn(activeId, turn.turn_id, crypto.randomUUID());
+        const accepted = await retryTurn(activeId, turn.turn_id, requestKey());
         setPendingTurn({ conversationId: activeId, turnId: accepted.turn_id });
         reloadDetail();
         reloadList();

@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import FilterSelect from '../../components/FilterSelect';
 import LoadingState from '../../components/LoadingState';
 import QueryFilterCard from '../../components/QueryFilterCard';
@@ -195,6 +196,11 @@ export default function QualityReportPage() {
         pageSize: PAGE_SIZE,
       }),
     { enabled: !rangeError },
+  );
+  usePageEntryReady(
+    [productsQuery, equipmentQuery, summaryQuery, previousQuery, sampleQuery, recordsQuery].every(
+      (query) => !query.loading,
+    ),
   );
   const totalItems = rangeError ? 0 : (recordsQuery.data?.pagination.total_items ?? 0);
   const totalPages = rangeError ? 0 : (recordsQuery.data?.pagination.total_pages ?? 0);

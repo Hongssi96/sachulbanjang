@@ -1,3 +1,4 @@
+import { usePageEntryReady } from '../../components/PageEntry/PageEntryContext';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
@@ -316,6 +317,11 @@ export default function RecordsPage() {
   const activeData = production ? processQuery.data : inspectionQuery.data;
   const activeError = production ? processQuery.error : inspectionQuery.error;
   const activeLoading = production ? processQuery.loading : inspectionQuery.loading;
+  usePageEntryReady(
+    !equipmentQuery.loading &&
+      !productsQuery.loading &&
+      (Boolean(rangeError) || (!summaryQuery.loading && !activeLoading)),
+  );
   const activeReload = production ? processQuery.reload : inspectionQuery.reload;
   const totalItems = activeData?.pagination.total_items ?? 0;
   const totalPages = activeData?.pagination.total_pages ?? 0;
@@ -396,6 +402,12 @@ export default function RecordsPage() {
   const filterCaption =
     equipmentQuery.error || productsQuery.error ? ' · 설비·품목 목록을 불러오지 못했습니다.' : '';
   const firstRow = visibleRows[0] ?? rows[0];
+  // 검색으로 행이 줄어도 목록 높이가 바뀌지 않도록 현재 페이지의 행 수만큼 높이를 잡는다.
+  // 이력 종류를 바꿔 데이터가 아직 없을 때는 한 페이지 분량을 미리 확보한다.
+  const listRowCount = rows.length || (activeLoading ? PAGE_SIZE : 0);
+  const listMinHeight = listRowCount
+    ? `calc(var(--rd-list-head-height) + var(--rd-list-row-height) * ${listRowCount})`
+    : undefined;
 
   return (
     <section className="records-page" aria-busy={isPending}>
@@ -579,89 +591,87 @@ export default function RecordsPage() {
             ]}
           />
         </div>
-        {listCaption && <p className="rd-table-caption">{listCaption}</p>}
+        <p className="rd-table-caption">{listCaption}</p>
         {activeError ? (
           <ApiErrorState compact error={activeError} onRetry={activeReload} />
         ) : (
-          <>
-            <div className="rd-table-wrap">
-              <table>
-                <caption className="sr-only">{production ? '생산' : '검사'} 이력 목록</caption>
-                <thead>
-                  <tr>
-                    <th>{production ? '생산 완료' : '검사 완료'}</th>
-                    <th>제품 / {production ? '생산 배치' : '검사 번호'}</th>
-                    <th>설비</th>
-                    <th>{production ? '목표 / 생산 수량' : '검사 수량'}</th>
-                    <th>{production ? '달성률' : '불량 수량 / 불량률'}</th>
-                    <th>검사 결과</th>
-                    <th>담당자</th>
-                    <th>상세</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleRows.map((row) => {
-                    const [date, time] = splitDateTime(
-                      row.kind === 'production' ? row.record.occurred_at : row.record.inspected_at,
-                    );
-                    const productLabel = row.record.product_name ?? row.record.product_code ?? NA;
-                    return (
-                      <tr key={`${row.kind}-${row.record.record_id}`}>
-                        <td className="rd-completed-at">
-                          <span>{date}</span>
-                          <small>{time}</small>
-                        </td>
-                        <td>
-                          <strong>{productLabel}</strong>
-                          <small>
-                            {row.kind === 'production' ? NA : String(row.record.record_id)}
-                            {row.record.is_demo ? ' · 시연' : ''}
-                          </small>
-                        </td>
-                        <td>
-                          <span className="rd-equipment">
-                            {row.record.equipment_name || row.record.equipment_code}
-                          </span>
-                        </td>
-                        <td>
-                          {row.kind === 'production' ? (
-                            <>
-                              <NotAvailable /> / <NotAvailable />
-                            </>
-                          ) : (
-                            <NotAvailable />
-                          )}
-                        </td>
-                        <td>
-                          {row.kind === 'production' ? (
-                            <NotAvailable />
-                          ) : (
-                            <>
-                              <NotAvailable /> / <NotAvailable />
-                            </>
-                          )}
-                        </td>
-                        <td>
-                          <VerdictPill row={row} />
-                        </td>
-                        <td>
+          <div className="rd-table-wrap rd-table-fixed" style={{ minHeight: listMinHeight }}>
+            <table>
+              <caption className="sr-only">{production ? '생산' : '검사'} 이력 목록</caption>
+              <thead>
+                <tr>
+                  <th>{production ? '생산 완료' : '검사 완료'}</th>
+                  <th>제품 / {production ? '생산 배치' : '검사 번호'}</th>
+                  <th>설비</th>
+                  <th>{production ? '목표 / 생산 수량' : '검사 수량'}</th>
+                  <th>{production ? '달성률' : '불량 수량 / 불량률'}</th>
+                  <th>검사 결과</th>
+                  <th>담당자</th>
+                  <th>상세</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => {
+                  const [date, time] = splitDateTime(
+                    row.kind === 'production' ? row.record.occurred_at : row.record.inspected_at,
+                  );
+                  const productLabel = row.record.product_name ?? row.record.product_code ?? NA;
+                  return (
+                    <tr key={`${row.kind}-${row.record.record_id}`}>
+                      <td className="rd-completed-at">
+                        <span>{date}</span>
+                        <small>{time}</small>
+                      </td>
+                      <td>
+                        <strong>{productLabel}</strong>
+                        <small>
+                          {row.kind === 'production' ? NA : String(row.record.record_id)}
+                          {row.record.is_demo ? ' · 시연' : ''}
+                        </small>
+                      </td>
+                      <td>
+                        <span className="rd-equipment">
+                          {row.record.equipment_name || row.record.equipment_code}
+                        </span>
+                      </td>
+                      <td>
+                        {row.kind === 'production' ? (
+                          <>
+                            <NotAvailable /> / <NotAvailable />
+                          </>
+                        ) : (
                           <NotAvailable />
-                        </td>
-                        <td>
-                          <Link
-                            className="rd-detail-link"
-                            aria-label={`${row.record.record_id} 상세 보기`}
-                            to={`/records/${row.record.record_id}${viewQuery(params, row.kind)}`}
-                          >
-                            상세 보기 <ArrowUpRight size={15} />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        )}
+                      </td>
+                      <td>
+                        {row.kind === 'production' ? (
+                          <NotAvailable />
+                        ) : (
+                          <>
+                            <NotAvailable /> / <NotAvailable />
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        <VerdictPill row={row} />
+                      </td>
+                      <td>
+                        <NotAvailable />
+                      </td>
+                      <td>
+                        <Link
+                          className="rd-detail-link"
+                          aria-label={`${row.record.record_id} 상세 보기`}
+                          to={`/records/${row.record.record_id}${viewQuery(params, row.kind)}`}
+                        >
+                          상세 보기 <ArrowUpRight size={15} />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
             {!activeLoading && !visibleRows.length && (
               <div className="rd-empty">
                 <Search size={30} />
@@ -678,7 +688,7 @@ export default function RecordsPage() {
                 </button>
               </div>
             )}
-          </>
+          </div>
         )}
         <div className="rd-pagination">
           <span>
@@ -743,6 +753,7 @@ export function RecordDetailPage() {
     { enabled: validId && view === 'production' },
   );
   const active = view === 'inspection' ? inspectionDetail : processDetail;
+  usePageEntryReady(!validId || !active.loading);
   const inspectionRecord = view === 'inspection' ? inspectionDetail.data : null;
   const processRecord = view === 'production' ? processDetail.data : null;
   const record: InspectionRecord | ProcessRecordDetail | null = inspectionRecord ?? processRecord;

@@ -39,6 +39,8 @@ import MissingValue from '../components/MissingValue';
 import ReportMarkdown from '../components/ReportMarkdown';
 import SegmentedControl from '../components/SegmentedControl';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { usePageEntryReady } from '../components/PageEntry/PageEntryContext';
+import HomeSectionSkeleton from './HomePage/HomeSectionSkeleton';
 import { useAuth } from '../hooks/useAuth';
 import { useWorkSession } from '../hooks/useWorkSession';
 import { formatDate, formatDateTime, shiftDateISO, todayISO } from '../utils/dateFormat';
@@ -348,7 +350,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     { pollMs: 60_000 },
   );
   const processQuery = useApiQuery('home:process-current', fetchCurrentProcess, {
-    pollMs: 5_000,
+    pollMs: 30_000,
   });
   const workSession = useWorkSession();
 
@@ -387,8 +389,24 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
     () => fetchProcessRecords({ from: todayKey, to: todayKey, pageSize: 1 }),
     { pollMs: 60_000 },
   );
+  const summaryErrors = [
+    { label: '공정 현황', query: processQuery },
+    { label: '오늘 검사 요약', query: qualityTodayQuery },
+    { label: '오늘 생산 기록', query: todayRecordsQuery },
+  ].filter(({ query }) => query.error && !query.data);
 
   const reportId = overlay?.kind === 'report' ? overlay.reportId : null;
+  // 첫 화면의 KPI·생산 차트·보고·품질 요약만 기다리고 부가 영역은 독립적으로 표시한다.
+  usePageEntryReady(
+    [
+      reportsQuery,
+      processQuery,
+      qualityQuery,
+      qualityTodayQuery,
+      recordsQuery,
+      todayRecordsQuery,
+    ].every((query) => query.data !== null || query.error !== null),
+  );
   const reportDetailQuery = useApiQuery(
     `home:report:${reportId ?? 'none'}`,
     () => {
@@ -574,6 +592,16 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
           </button>
         </div>
       </section>
+      {summaryErrors.length > 0 && (
+        <div className="home-initial-errors">
+          {summaryErrors.map(({ label, query }) => (
+            <section key={label} aria-label={`${label} 조회 오류`}>
+              <p className="muted">{label}</p>
+              {query.error && <ApiErrorState compact error={query.error} onRetry={query.reload} />}
+            </section>
+          ))}
+        </div>
+      )}
       <div className="notice-strip">
         <span className="notice-tag">
           <ShieldCheck size={16} />{' '}
@@ -832,7 +860,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               </button>
             </div>
             {notesQuery.loading && !notesQuery.data ? (
-              <LoadingState compact label="인수인계 노트를 불러오는 중이에요" />
+              <HomeSectionSkeleton label="인수인계 노트를 불러오는 중이에요" />
             ) : notesQuery.error && !notesQuery.data ? (
               <ApiErrorState compact error={notesQuery.error} onRetry={notesQuery.reload} />
             ) : latestNote ? (
@@ -1014,7 +1042,7 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
                 </span>
               </div>
               {schedulesQuery.loading && !schedulesQuery.data ? (
-                <LoadingState compact label="일정을 불러오는 중이에요" />
+                <HomeSectionSkeleton label="일정을 불러오는 중이에요" />
               ) : schedulesQuery.error && !schedulesQuery.data ? (
                 <ApiErrorState
                   compact
