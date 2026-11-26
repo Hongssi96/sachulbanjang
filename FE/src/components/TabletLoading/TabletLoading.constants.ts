@@ -1,0 +1,2 @@
+export const TABLET_LOADING_FINISH_MS = 200;
+export const TABLET_LOADING_PROGRESS_PER_MS = 95 / 1000;

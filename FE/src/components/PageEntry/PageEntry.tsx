@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
+import { useLoadingCompletion } from '../../hooks/useLoadingCompletion';
 import AuthLoading from '../AuthLoading/AuthLoading';
 import { PageEntryContext } from './PageEntryContext';
 import './PageEntry.css';
@@ -12,11 +13,23 @@ interface EntryIdentity {
 
 const MIN_PAGE_LOADING_MS = 1_000;
 
-export default function PageEntry({ children }: { children: ReactNode }) {
+interface PageEntryProps {
+  children: ReactNode;
+  loading?: ReactNode;
+  manageTablet?: boolean;
+  finishDelayMs?: number;
+}
+
+export default function PageEntry({
+  children,
+  loading,
+  manageTablet = false,
+  finishDelayMs = 0,
+}: PageEntryProps) {
   const { status, user } = useAuth();
   const location = useLocation();
   const pathname = location.pathname.replace(/\/$/, '') || '/';
-  const managed = pathname !== '/login' && user?.employee_no !== 'IPAD001';
+  const managed = pathname !== '/login' && (manageTablet || user?.employee_no !== 'IPAD001');
   // 검색·필터 변경은 제외하고, 다른 화면에 갔다 돌아온 경우에는 새로운 진입으로 취급한다.
   const identity = useMemo<EntryIdentity>(() => ({ pathname }), [pathname]);
   const [minimumComplete, setMinimumComplete] = useState<EntryIdentity | null>(null);
@@ -39,26 +52,29 @@ export default function PageEntry({ children }: { children: ReactNode }) {
     managed &&
     !reportDetailLoading &&
     (status === 'checking' || !minimumPassed || (needsData && readyIdentity !== identity));
+  const completing = useLoadingCompletion(pending, finishDelayMs);
+  const showLoading = managed && !reportDetailLoading && completing;
   const fullScreen = !bootstrapped || status !== 'authenticated';
   useEffect(() => {
-    if (!pending) setBootstrapped(true);
-  }, [pending]);
+    if (!showLoading) setBootstrapped(true);
+  }, [showLoading]);
 
   const context = useMemo(
-    () => (managed ? { onReady, contentLoading: pending && !fullScreen } : null),
-    [managed, onReady, pending, fullScreen],
+    () =>
+      managed ? { onReady, contentLoading: showLoading && !fullScreen, preparing: pending } : null,
+    [managed, onReady, showLoading, fullScreen, pending],
   );
   const canMountPage =
     !managed || status === 'authenticated' || (status === 'unauthenticated' && minimumPassed);
 
   return (
     <PageEntryContext.Provider value={context}>
-      <div className="page-entry-content" hidden={pending && fullScreen}>
+      <div className="page-entry-content" hidden={showLoading && fullScreen}>
         {canMountPage ? children : null}
       </div>
-      {pending && fullScreen && (
+      {showLoading && fullScreen && (
         <div className="auth-loading">
-          <AuthLoading label="화면을 준비하고 있어요" />
+          {loading ?? <AuthLoading label="화면을 준비하고 있어요" />}
         </div>
       )}
     </PageEntryContext.Provider>

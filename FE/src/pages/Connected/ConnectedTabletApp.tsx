@@ -1,7 +1,11 @@
 import { Navigate, NavLink, useLocation } from 'react-router';
 import { ClipboardList, Factory, House, NotebookPen, TriangleAlert, Wrench } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import LoadingState from '../../components/LoadingState';
+import PageContent from '../../components/PageEntry/PageContent';
+import TabletLoading from '../../components/TabletLoading/TabletLoading';
+import { useMinimumAuthLoading } from '../../hooks/useMinimumAuthLoading';
+import { useLoadingCompletion } from '../../hooks/useLoadingCompletion';
+import { TABLET_LOADING_FINISH_MS } from '../../components/TabletLoading/TabletLoading.constants';
 import TabletAccountDialog from '../TabletHomePage/TabletAccountDialog';
 import logo from '../../assets/logo.png';
 import LiveRoutes from './LiveRoutes';
@@ -14,7 +18,12 @@ import './Connected.css';
 export default function ConnectedTabletApp() {
   const { user, status, refreshUser } = useAuth();
   const location = useLocation();
-  if (status === 'checking') return <LoadingState label="로그인 상태를 확인하고 있어요" />;
+  const authLoading = useMinimumAuthLoading(status);
+  const showAuthLoading = useLoadingCompletion(authLoading, TABLET_LOADING_FINISH_MS);
+  if (showAuthLoading)
+    return (
+      <TabletLoading fullScreen complete={!authLoading} label="로그인 상태를 확인하고 있어요" />
+    );
   if (location.pathname === '/login')
     return user && !user.must_change_password ? (
       <Navigate to="/" replace />
@@ -92,7 +101,9 @@ export default function ConnectedTabletApp() {
       <div className="th-workspace">
         <LiveHeader title={headerTitle} tablet />
         <section className="th-content">
-          <LiveRoutes tablet />
+          <PageContent loading={<TabletLoading />}>
+            <LiveRoutes tablet />
+          </PageContent>
         </section>
       </div>
     </div>
