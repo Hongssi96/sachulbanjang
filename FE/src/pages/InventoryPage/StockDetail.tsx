@@ -77,14 +77,6 @@ export default function StockDetail({
         <MapPin size={16} />
         {NOT_AVAILABLE} · {NOT_AVAILABLE}
       </p>
-      <p className="inv-location">
-        잔고 수정 시각{' '}
-        {item.balance_updated_at ? (
-          <time dateTime={item.balance_updated_at}>{formatStockDate(item.balance_updated_at)}</time>
-        ) : (
-          NOT_AVAILABLE
-        )}
-      </p>
       <form
         className="inv-safety-form"
         onSubmit={async (event) => {
