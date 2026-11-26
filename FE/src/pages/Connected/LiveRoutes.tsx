@@ -16,8 +16,8 @@ export default function LiveRoutes({ tablet = false }: { tablet?: boolean }) {
   return (
     <Routes>
       <Route path="/" element={<LiveDashboard tablet={tablet} />} />
-      <Route path="/realtime" element={<LiveEquipment />} />
-      <Route path="/equipment" element={<LiveEquipment />} />
+      <Route path="/realtime" element={<LiveEquipment tablet={tablet} />} />
+      <Route path="/equipment" element={<LiveEquipment tablet={tablet} />} />
       <Route path="/schedule" element={<LiveCollection kind="schedules" />} />
       <Route path="/tasks" element={<LiveCollection kind="schedules" tablet />} />
       <Route

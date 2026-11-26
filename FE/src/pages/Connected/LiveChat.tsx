@@ -27,6 +27,7 @@ import {
 } from '../../api/conversations';
 import type { JobState } from '../../api/reportJobs';
 import { date, errorMessage } from '../../api/business';
+import ReportMarkdown from '../../components/ReportMarkdown';
 
 const suggestions = [
   '최근 검사 불량 현황을 알려줘',
@@ -318,7 +319,9 @@ export default function LiveChat() {
                         </span>
                         <div className="live-chat-message-body">
                           <strong>{user?.display_name ?? '나'}</strong>
-                          <p>{turn.question}</p>
+                          <div className="live-chat-markdown live-report-markdown">
+                            <ReportMarkdown markdown={turn.question} />
+                          </div>
                           <small>{date(turn.created_at)}</small>
                         </div>
                       </article>
@@ -328,7 +331,11 @@ export default function LiveChat() {
                         </span>
                         <div className="live-chat-message-body">
                           <strong>사출반장</strong>
-                          {showAnswer ? <p>{turn.answer}</p> : null}
+                          {showAnswer ? (
+                            <div className="live-chat-markdown live-report-markdown">
+                              <ReportMarkdown markdown={turn.answer ?? ''} />
+                            </div>
+                          ) : null}
                           {pending ? (
                             <div className="live-chat-job-state">
                               <LoaderCircle className="is-spinning" size={16} />

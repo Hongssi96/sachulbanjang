@@ -53,7 +53,7 @@ export default function ConnectedTabletApp() {
     '/chat': '든든한 현장 파트너',
   };
   const hideHeaderTitle =
-    ['/tasks', '/equipment', '/reports', '/handover', '/chat'].includes(location.pathname) ||
+    location.pathname === '/chat' ||
     location.pathname.startsWith('/reports/') ||
     location.pathname.startsWith('/tasks/');
   const headerTitle = hideHeaderTitle ? undefined : (names[location.pathname] ?? '현장 정보');

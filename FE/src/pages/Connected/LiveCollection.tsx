@@ -187,7 +187,7 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
   return (
     <div className="live-page">
       <div className="live-toolbar">
-        <h1>{title}</h1>
+        {!tablet && <h1>{title}</h1>}
         {kind === 'reports' ? (
           <div className="live-toolbar-actions">
             <button
@@ -240,57 +240,51 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           {notice}
         </p>
       ) : null}
-      {kind === 'schedules' && tablet && (
-        <p className="live-muted">
-          서버에 등록된 작업·점검 일정입니다. 작업 시작·완료 상태를 저장하는 API는 아직 제공되지
-          않습니다.
-        </p>
-      )}
-      <div className="live-filters">
-        {kind !== 'schedules' && (
-          <label>
-            검색
-            <input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="제목 또는 내용 검색"
-            />
-          </label>
-        )}
-        {kind === 'reports' && tablet && (
-          <div className="live-filter-field">
-            <span>분류</span>
-            <FilterSelect
-              label="분류"
-              value={category}
-              options={reportCategoryFilters.map(([value, label]) => ({ value, label }))}
-              onChange={(value) => {
-                setCategory(value);
-                setPage(1);
-              }}
-            />
-          </div>
-        )}
-        {kind === 'reports' && (
-          <div className="live-tabs">
-            {[['', '전체'], ...statuses].map(([key, label]) => (
-              <button
-                key={key}
-                aria-pressed={status === key}
-                onClick={() => {
-                  setStatus(key);
+      {!(kind === 'schedules' && tablet) && (
+        <div className="live-filters">
+          {kind !== 'schedules' && (
+            <label>
+              검색
+              <input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
                   setPage(1);
                 }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-        {!(kind === 'schedules' && tablet) && (
+                placeholder="제목 또는 내용 검색"
+              />
+            </label>
+          )}
+          {kind === 'reports' && tablet && (
+            <div className="live-filter-field">
+              <span>분류</span>
+              <FilterSelect
+                label="분류"
+                value={category}
+                options={reportCategoryFilters.map(([value, label]) => ({ value, label }))}
+                onChange={(value) => {
+                  setCategory(value);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
+          {kind === 'reports' && (
+            <div className="live-tabs">
+              {[['', '전체'], ...statuses].map(([key, label]) => (
+                <button
+                  key={key}
+                  aria-pressed={status === key}
+                  onClick={() => {
+                    setStatus(key);
+                    setPage(1);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             className="button button-white live-refresh-button"
             type="button"
@@ -300,12 +294,12 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           >
             <RefreshCw size={16} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <RemoteState {...resource} retry={resource.reload} />
       {resource.data && (
         <>
-          <section className="live-card">
+          <section className="live-card live-table-card">
             <Table
               rows={resource.data.items}
               columns={
@@ -334,7 +328,22 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
                         ['created_at', '작성 일시', (item) => date(item.created_at)],
                       ]
                     : [
-                        ['title', '일정'],
+                        [
+                          'title',
+                          '일정',
+                          (item) => {
+                            if (!tablet) return text(item.title);
+                            const rowIndex = resource.data?.items.indexOf(item) ?? -1;
+                            return (
+                              <span className="live-table-ordinal">
+                                <span className="live-table-ordinal-number">
+                                  {(page - 1) * 10 + rowIndex + 1}
+                                </span>
+                                {text(item.title)}
+                              </span>
+                            );
+                          },
+                        ],
                         [
                           'starts_at',
                           '시작',
@@ -351,14 +360,14 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
               action={(item) =>
                 kind === 'reports' ? (
                   <button
-                    className="button button-white"
+                    className="button button-white live-table-detail-button"
                     onClick={() => navigate(`/reports/${number(item.report_id)}`)}
                   >
                     상세 보기
                   </button>
                 ) : kind === 'schedules' && tablet ? (
                   <button
-                    className="button button-white"
+                    className="button button-white live-table-detail-button"
                     onClick={() => navigate(`/tasks/${number(item.schedule_id)}`)}
                   >
                     상세 보기
