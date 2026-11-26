@@ -633,6 +633,7 @@ export default function InventoryPage() {
                   </th>
                   <th scope="col">보관 위치</th>
                   <th scope="col">상태</th>
+                  <th scope="col">잔고 수정 시각</th>
                   <th scope="col">상세</th>
                 </tr>
               </thead>
@@ -676,6 +677,15 @@ export default function InventoryPage() {
                         {item.is_low_stock ? <TriangleAlert size={12} /> : <Check size={12} />}
                         {stockStatus(item.is_low_stock)}
                       </span>
+                    </td>
+                    <td>
+                      {item.balance_updated_at ? (
+                        <time dateTime={item.balance_updated_at}>
+                          {formatStockDate(item.balance_updated_at)}
+                        </time>
+                      ) : (
+                        NOT_AVAILABLE
+                      )}
                     </td>
                     <td>
                       <button

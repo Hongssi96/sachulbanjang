@@ -58,6 +58,7 @@ def _movement_result(result: MovementOutcome) -> MovementResult:
 
 def _stock_item(row: StockRow) -> StockItem:
     minimum = row.product.minimum_stock
+    updated_at = row.balance_updated_at
     return StockItem(
         product_id=row.product.id,
         product_code=row.product.product_code,
@@ -65,6 +66,9 @@ def _stock_item(row: StockRow) -> StockItem:
         quantity=row.quantity,
         minimum_stock=minimum,
         is_low_stock=minimum is not None and row.quantity < minimum,
+        balance_updated_at=(
+            updated_at if updated_at is not None and updated_at.utcoffset() is not None else None
+        ),
     )
 
 

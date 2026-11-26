@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { ApiError, apiRequest } from './client';
 import {
   asArray,
   asBoolean,
@@ -31,6 +31,7 @@ export interface StockItem {
   quantity: number;
   minimum_stock: number | null;
   is_low_stock: boolean;
+  balance_updated_at: string | null;
 }
 
 export interface MovementItem {
@@ -60,6 +61,20 @@ export interface MovementResult {
 
 function parseStock(value: unknown, field: string): StockItem {
   const item = asRecord(value, field);
+  const updatedAt = asNullableString(
+    item.balance_updated_at ?? null,
+    `${field}.balance_updated_at`,
+  );
+  if (
+    updatedAt !== null &&
+    (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(updatedAt) ||
+      !Number.isFinite(Date.parse(updatedAt)))
+  ) {
+    throw new ApiError(`서버 응답 형식이 올바르지 않습니다. (${field}.balance_updated_at)`, {
+      status: 500,
+      code: 'INVALID_RESPONSE',
+    });
+  }
   return {
     product_id: asNumber(item.product_id, `${field}.product_id`),
     product_code: asNullableString(item.product_code, `${field}.product_code`),
@@ -67,6 +82,7 @@ function parseStock(value: unknown, field: string): StockItem {
     quantity: asNumber(item.quantity, `${field}.quantity`),
     minimum_stock: asNullableNumber(item.minimum_stock, `${field}.minimum_stock`),
     is_low_stock: asBoolean(item.is_low_stock, `${field}.is_low_stock`),
+    balance_updated_at: updatedAt,
   };
 }
 

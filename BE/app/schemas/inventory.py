@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 
 StockMovementKind = Literal["initial", "receipt", "issue", "adjustment", "correction"]
 CreatableMovementKind = Literal["initial", "receipt", "issue", "adjustment"]
@@ -21,6 +21,7 @@ class StockItem(BaseModel):
     quantity: int
     minimum_stock: int | None
     is_low_stock: bool
+    balance_updated_at: AwareDatetime | None
 
 
 class StockListResponse(BaseModel):
