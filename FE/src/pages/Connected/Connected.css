@@ -282,6 +282,13 @@
   padding: 8px;
   overflow-y: auto;
 }
+.tablet-home .modal:has(.live-report-date-start),
+.tablet-home .modal:has(.live-report-create-category) {
+  width: min(460px, calc(100% - 32px));
+}
+.tablet-home .modal .live-report-date-start {
+  margin-top: 28px;
+}
 .tablet-home .modal .live-report-date-start .date-picker-popover,
 .tablet-home .modal .live-report-date-end .date-picker-popover {
   top: auto;

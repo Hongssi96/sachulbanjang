@@ -512,7 +512,7 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           {kind !== 'handover-notes' &&
             (editing === 'new' || kind === 'schedules') &&
             (kind === 'reports' ? (
-              <div className="live-form-field">
+              <div className="live-form-field live-report-create-category">
                 <span>분류</span>
                 <FilterSelect
                   label="분류"
