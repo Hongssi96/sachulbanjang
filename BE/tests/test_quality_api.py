@@ -94,6 +94,11 @@ def test_worker_reads_quality_summary() -> None:
         "defect_rate": "33.33",
         "defect_types": [{"type": "scratch", "count": 1}, {"type": None, "count": 0}],
         "production_record_count": 9,
+        "produced_quantity": None,
+        "target_quantity": None,
+        "inspected_quantity": None,
+        "good_quantity": None,
+        "defect_quantity": None,
         "includes_demo": True,
     }
     service.get_summary.assert_called_once_with(

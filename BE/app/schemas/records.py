@@ -1,8 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Pagination(BaseModel):
@@ -35,6 +35,7 @@ class ProcessRecordListResponse(BaseModel):
 class ProcessRecordDetail(ProcessRecordItem):
     source_import_id: int
     source_row_number: int
+    produced_quantity: Annotated[int, Field(ge=0)] | None = None
 
 
 class InspectionRecordItem(BaseModel):
@@ -51,6 +52,10 @@ class InspectionRecordItem(BaseModel):
     verdict: Literal["good", "defect"]
     defect_type: str | None
     reason: str | None
+    inspected_quantity: Annotated[int, Field(ge=0)] | None = None
+    good_quantity: Annotated[int, Field(ge=0)] | None = None
+    defect_quantity: Annotated[int, Field(ge=0)] | None = None
+    inspector_id: Annotated[int, Field(gt=0)] | None = None
     is_demo: bool
     version: int
 
