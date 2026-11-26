@@ -17,6 +17,7 @@ import {
 } from '../../api/business';
 import type { Row } from '../../api/business';
 import FilterSelect from '../../components/FilterSelect';
+import DatePicker from '../../components/DatePicker';
 import { fetchReportJob, submitReportJob } from '../../api/reportJobs';
 import type { ReportCategory } from '../../api/reports';
 import { Field, MutationDialog, Pager, RemoteState, Select, Table } from './LiveShared';
@@ -84,6 +85,10 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
   const [busy, setBusy] = useState(false);
   const [reportJobOpen, setReportJobOpen] = useState(false);
   const [pendingReportJob, setPendingReportJob] = useState<number | null>(null);
+  const [reportJobCategory, setReportJobCategory] = useState('equipment_issue');
+  const [reportJobFrom, setReportJobFrom] = useState(daysAgo(6));
+  const [reportJobTo, setReportJobTo] = useState(today());
+  const [reportCategory, setReportCategory] = useState('equipment_issue');
   const [notice, setNotice] = useState('');
   const title =
     kind === 'reports'
@@ -185,13 +190,21 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           <div className="live-toolbar-actions">
             <button
               className="button button-white live-report-action-button"
-              onClick={() => setReportJobOpen(true)}
+              onClick={() => {
+                setReportJobCategory('equipment_issue');
+                setReportJobFrom(daysAgo(6));
+                setReportJobTo(today());
+                setReportJobOpen(true);
+              }}
             >
               자동 보고서 생성
             </button>
             <button
               className="button button-primary live-report-action-button"
-              onClick={() => setEditing('new')}
+              onClick={() => {
+                setReportCategory('equipment_issue');
+                setEditing('new');
+              }}
             >
               이상 보고 작성
             </button>
@@ -496,23 +509,32 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
           {kind !== 'handover-notes' && (
             <Field name="title" label="제목" value={editing === 'new' ? '' : text(editing.title)} />
           )}
-          {kind !== 'handover-notes' && (editing === 'new' || kind === 'schedules') && (
-            <Select
-              name="category"
-              label="분류"
-              value={editing === 'new' ? undefined : text(editing.category)}
-              options={
-                kind === 'reports'
-                  ? reportCategories
-                  : [
-                      ['inspection', '점검'],
-                      ['production', '생산'],
-                      ['meeting', '회의'],
-                      ['other', '기타'],
-                    ]
-              }
-            />
-          )}
+          {kind !== 'handover-notes' &&
+            (editing === 'new' || kind === 'schedules') &&
+            (kind === 'reports' ? (
+              <div className="live-form-field">
+                <span>분류</span>
+                <FilterSelect
+                  label="분류"
+                  value={reportCategory}
+                  options={reportCategories.map(([value, label]) => ({ value, label }))}
+                  onChange={setReportCategory}
+                />
+                <input type="hidden" name="category" value={reportCategory} />
+              </div>
+            ) : (
+              <Select
+                name="category"
+                label="분류"
+                value={editing === 'new' ? undefined : text(editing.category)}
+                options={[
+                  ['inspection', '점검'],
+                  ['production', '생산'],
+                  ['meeting', '회의'],
+                  ['other', '기타'],
+                ]}
+              />
+            ))}
           {kind === 'schedules' && editing !== 'new' && Boolean(editing.all_day) ? (
             <>
               <Field
@@ -580,9 +602,34 @@ export default function LiveCollection({ kind, tablet = false }: { kind: Kind; t
             resource.reload();
           }}
         >
-          <Select name="category" label="보고서 종류" options={reportJobCategories} />
-          <Field name="from" label="시작일" type="date" value={daysAgo(6)} />
-          <Field name="to" label="종료일" type="date" value={today()} />
+          <div className="live-form-field">
+            <span>보고서 종류</span>
+            <FilterSelect
+              label="보고서 종류"
+              value={reportJobCategory}
+              options={reportJobCategories.map(([value, label]) => ({ value, label }))}
+              onChange={setReportJobCategory}
+            />
+            <input type="hidden" name="category" value={reportJobCategory} />
+          </div>
+          <div className="live-form-field live-report-date-start">
+            <span>시작일</span>
+            <DatePicker
+              value={reportJobFrom}
+              onChange={(event) => setReportJobFrom(event.target.value)}
+              aria-label="시작일"
+            />
+            <input type="hidden" name="from" value={reportJobFrom} />
+          </div>
+          <div className="live-form-field live-report-date-end">
+            <span>종료일</span>
+            <DatePicker
+              value={reportJobTo}
+              onChange={(event) => setReportJobTo(event.target.value)}
+              aria-label="종료일"
+            />
+            <input type="hidden" name="to" value={reportJobTo} />
+          </div>
         </MutationDialog>
       )}
     </div>
