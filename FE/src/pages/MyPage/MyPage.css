@@ -229,7 +229,7 @@
 }
 .my-table {
   width: 100%;
-  min-width: 680px;
+  min-width: 560px;
   border-collapse: collapse;
   font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
@@ -469,7 +469,8 @@
   background: #3d2a30;
   border-color: #66323d;
 }
-@media (max-width: 1100px) {
+/* 직원 관리 표가 잘리지 않도록, 표가 들어갈 폭이 확보되지 않는 구간부터 한 열로 쌓는다. */
+@media (max-width: 1300px) {
   .my-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
@@ -481,7 +482,7 @@
     line-height: 26px;
   }
   .my-table {
-    min-width: 600px;
+    min-width: 520px;
     font-size: var(--fs-xs);
   }
   .my-table td {
