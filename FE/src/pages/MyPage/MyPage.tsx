@@ -115,6 +115,37 @@ const toAuthUser = (detail: UserDetail): AuthenticatedUser => ({
   must_change_password: detail.must_change_password,
 });
 
+// Clipboard API는 보안 컨텍스트(HTTPS)에서만 동작한다. HTTP 환경에서는 execCommand로 대체한다.
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // 권한이 없거나 보안 컨텍스트가 아니면 아래 대체 방법을 쓴다.
+    }
+  }
+  const previous = document.activeElement;
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '-9999px';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  }
+  document.body.removeChild(textarea);
+  if (previous instanceof HTMLElement) previous.focus();
+  return copied;
+}
+
 const describeError = (error: unknown) =>
   error instanceof ApiError
     ? error.message
@@ -263,11 +294,11 @@ export default function MyPage({ onToast, onLogout, loggingOut, dark, onToggleDa
   };
   const copyText = async (text: string) => {
     setCredError('');
-    try {
-      await navigator.clipboard.writeText(text);
+    setCredNotice('');
+    const copied = await copyToClipboard(text);
+    if (copied) {
       setCredNotice('임시 비밀번호를 복사했어요.');
-    } catch {
-      setCredNotice('');
+    } else {
       setCredError('복사하지 못했어요. 값을 직접 선택해 복사해 주세요.');
     }
   };
@@ -872,13 +903,6 @@ export default function MyPage({ onToast, onLogout, loggingOut, dark, onToggleDa
                             <div className="my-row-actions">
                               <button
                                 className="my-row-button"
-                                aria-label={`${employee.name} 아이디·비밀번호 설정`}
-                                onClick={() => openCredentials(employee, 'setup')}
-                              >
-                                아이디·비번
-                              </button>
-                              <button
-                                className="my-row-button"
                                 aria-label={`${employee.name} 비밀번호 초기화`}
                                 title={
                                   employee.id === user.id
@@ -888,7 +912,7 @@ export default function MyPage({ onToast, onLogout, loggingOut, dark, onToggleDa
                                 disabled={!employee.isActive || employee.id === user.id}
                                 onClick={() => openCredentials(employee, 'reset')}
                               >
-                                초기화
+                                비밀번호 초기화
                               </button>
                               <button
                                 className="my-row-button"
