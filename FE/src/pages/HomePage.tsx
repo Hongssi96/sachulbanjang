@@ -83,6 +83,8 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const RECENT_DAYS = 7;
 const INSIGHT_DAYS = 30;
 const NOTE_PAGE_SIZE = 20;
+const DEMO_OPERATION_RATE = 87.5;
+const DEMO_PLANNED_HOURS_PER_EQUIPMENT = 8;
 const kindPill: Record<Kind, string> = {
   점검: 'pill-amber',
   납품: 'pill-green',
@@ -526,9 +528,35 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
       ? todayDefectRate - yesterdayDefectRate
       : null;
   const operationRate = operationQuery.data?.operation_rate ?? null;
+  // 가동 시간 데이터가 아직 없을 때 카드가 비지 않도록 시연 값을 사용한다.
+  const registeredEquipmentCount = equipmentQuery.data?.length ?? 0;
+  const demoOperation =
+    operationQuery.data !== null && operationRate === null && registeredEquipmentCount > 0
+      ? (() => {
+          const plannedHours = registeredEquipmentCount * DEMO_PLANNED_HOURS_PER_EQUIPMENT;
+          return {
+            plannedHours,
+            actualHours: (plannedHours * DEMO_OPERATION_RATE) / 100,
+            rate: DEMO_OPERATION_RATE,
+          };
+        })()
+      : null;
+  const displayedOperationRate = operationRate ?? demoOperation?.rate ?? null;
+  const displayedPlannedHours =
+    demoOperation?.plannedHours ?? operationQuery.data?.planned_hours ?? null;
+  const displayedActualHours =
+    demoOperation?.actualHours ?? operationQuery.data?.actual_hours ?? null;
+  const operationIncludesDemo =
+    Boolean(operationQuery.data?.includes_demo) || demoOperation !== null;
 
   const weekTotal = recordsQuery.data?.pagination.total_items ?? null;
   const todayTotal = todayRecordsQuery.data?.pagination.total_items ?? null;
+  const producedQuantity = qualityTodayQuery.data?.produced_quantity ?? null;
+  const targetQuantity = qualityTodayQuery.data?.target_quantity ?? null;
+  const productionProgress =
+    producedQuantity !== null && targetQuantity !== null && targetQuantity > 0
+      ? Math.min(100, Math.max(0, (producedQuantity / targetQuantity) * 100))
+      : 0;
   const chartTotal = period === 'today' ? todayTotal : weekTotal;
   const previousProduction = previousProductionQuery.data;
   const previousCount =
@@ -680,15 +708,28 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <Layers3 size={19} />
             </div>
             <div className="kpi-value">
-              <MissingValue size="lg" />
+              {producedQuantity === null ? (
+                <MissingValue size="lg" />
+              ) : (
+                formatNumber(producedQuantity)
+              )}
               <span>개</span>
             </div>
             <div className="kpi-bottom">
               <span>생산 기록 {todayTotal ?? '—'}건</span>
-              <span>목표 —</span>
+              <span>
+                목표 {targetQuantity === null ? '—' : `${formatNumber(targetQuantity)}개`}
+              </span>
             </div>
-            <div className="mini-progress">
-              <span style={{ width: '0%' }} />
+            <div
+              className="mini-progress"
+              aria-label={
+                targetQuantity === null
+                  ? '생산 목표 정보 없음'
+                  : `생산 목표 ${formatNumber(targetQuantity)}개 중 ${formatNumber(producedQuantity ?? 0)}개`
+              }
+            >
+              <span style={{ width: `${productionProgress}%` }} />
             </div>
           </article>
           <article className="kpi">
@@ -723,25 +764,33 @@ export default function HomePage({ onToast, extended, onLogout, loggingOut }: Ho
               <Gauge size={19} />
             </div>
             <div className="kpi-value">
-              {operationRate === null ? <MissingValue size="lg" /> : formatDecimal(operationRate)}
+              {displayedOperationRate === null ? (
+                <MissingValue size="lg" />
+              ) : (
+                formatDecimal(displayedOperationRate)
+              )}
               <span>%</span>
               <span className="kpi-secondary" title="최근 공정 기록이 있는 설비 / 등록 설비">
                 {equipmentCount ?? '—'} <small>/ {equipmentQuery.data?.length ?? '—'}대</small>
               </span>
             </div>
             <div className="kpi-bottom">
-              <span>
-                계획 {formatNumber(operationQuery.data?.planned_hours)}시간 · 가동{' '}
-                {formatNumber(operationQuery.data?.actual_hours)}시간
-                {operationQuery.data?.includes_demo ? ' · 시연 포함' : ''}
+              <span
+                title={
+                  demoOperation ? '가동 시간 데이터가 없어 시연 값으로 표시합니다.' : undefined
+                }
+              >
+                계획 {formatNumber(displayedPlannedHours)}시간 · 가동{' '}
+                {formatNumber(displayedActualHours)}시간
+                {operationIncludesDemo ? ' · 시연 데이터' : ''}
               </span>
             </div>
-            {operationRate !== null && (
+            {displayedOperationRate !== null && (
               <div
                 className="mini-progress"
-                aria-label={`오늘 가동률 ${formatNumber(operationRate)}%`}
+                aria-label={`오늘 가동률 ${formatNumber(displayedOperationRate)}%`}
               >
-                <span style={{ width: `${Math.min(100, Math.max(0, operationRate))}%` }} />
+                <span style={{ width: `${Math.min(100, Math.max(0, displayedOperationRate))}%` }} />
               </div>
             )}
           </article>

@@ -22,6 +22,8 @@ export interface QualitySummary {
   defect_rate: number | null;
   defect_types: DefectTypeCount[];
   production_record_count: number;
+  produced_quantity: number | null;
+  target_quantity: number | null;
   includes_demo: boolean;
 }
 
@@ -103,6 +105,11 @@ export async function fetchQualitySummary(
       payload.production_record_count,
       'qualitySummary.production_record_count',
     ),
+    produced_quantity: asNullableNumber(
+      payload.produced_quantity,
+      'qualitySummary.produced_quantity',
+    ),
+    target_quantity: asNullableNumber(payload.target_quantity, 'qualitySummary.target_quantity'),
     includes_demo: asBoolean(payload.includes_demo, 'qualitySummary.includes_demo'),
   };
 }
