@@ -18,13 +18,23 @@ class QualitySummary:
     defect_types: list[tuple[str | None, int]]
     production_record_count: int
     includes_demo: bool
+    produced_quantity: int | None = None
+    target_quantity: int | None = None
 
 
 class QualityService:
     """Aggregate inspection verdicts over the whole filtered range."""
 
-    def __init__(self, repository: QualityRepository) -> None:
+    def __init__(
+        self,
+        repository: QualityRepository,
+        *,
+        demo_target_per_equipment_per_day: int = 320,
+    ) -> None:
+        if demo_target_per_equipment_per_day < 0:
+            raise ValueError("demo_target_per_equipment_per_day must not be negative")
         self._repository = repository
+        self._demo_target_per_equipment_per_day = demo_target_per_equipment_per_day
 
     def get_summary(
         self,
@@ -49,6 +59,29 @@ class QualityService:
             defect_rate = (Decimal(totals.defect_count) * _HUNDRED / Decimal(denominator)).quantize(
                 _RATE_QUANTUM, rounding=ROUND_HALF_UP
             )
+        production_record_count = self._repository.production_record_count(
+            equipment_id=equipment_id,
+            product_id=product_id,
+            period_from=period_from,
+            period_to=period_to,
+            data_cutoff_at=data_cutoff_at,
+        )
+        produced_quantity: int | None = None
+        target_quantity: int | None = None
+        if totals.includes_demo:
+            produced_quantity = production_record_count
+            if (
+                date_from is not None
+                and date_to is not None
+                and date_from <= date_to
+                and product_id is None
+            ):
+                equipment_count = self._repository.active_equipment_count(equipment_id=equipment_id)
+                if equipment_count > 0:
+                    days = (date_to - date_from).days + 1
+                    target_quantity = (
+                        equipment_count * days * self._demo_target_per_equipment_per_day
+                    )
         return QualitySummary(
             inspected_count=totals.inspected_count,
             good_count=totals.good_count,
@@ -61,12 +94,8 @@ class QualityService:
                 period_to=period_to,
                 data_cutoff_at=data_cutoff_at,
             ),
-            production_record_count=self._repository.production_record_count(
-                equipment_id=equipment_id,
-                product_id=product_id,
-                period_from=period_from,
-                period_to=period_to,
-                data_cutoff_at=data_cutoff_at,
-            ),
+            production_record_count=production_record_count,
             includes_demo=totals.includes_demo,
+            produced_quantity=produced_quantity,
+            target_quantity=target_quantity,
         )

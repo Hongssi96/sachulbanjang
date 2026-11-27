@@ -28,6 +28,8 @@ Copy-Item .env.example .env
 인증 기본값을 조정한다. 실제 HTTPS
 배포에서는 `APP_AUTH_COOKIE_SECURE=true`로 설정한다. FE 개발 서버 출처는 `APP_CORS_ORIGINS`에 JSON
 배열로 나열하며 비어 있으면 CORS 미들웨어를 추가하지 않는다.
+데모 홈의 생산 목표는 `APP_DEMO_TARGET_PER_EQUIPMENT_PER_DAY`(기본 320)와 활성 설비 수로
+계산한다. 실제 생산 수량·목표 원천이 확정되기 전까지 시연용으로만 사용한다.
 
 ## 2. PostgreSQL과 마이그레이션
 

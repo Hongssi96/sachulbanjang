@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.dependencies.auth import get_current_user
 from app.models.master import AppUser
@@ -23,7 +24,10 @@ router = APIRouter(prefix="/quality", tags=["quality"])
 def get_quality_service(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> QualityService:
-    return QualityService(QualityRepository(session))
+    return QualityService(
+        QualityRepository(session),
+        demo_target_per_equipment_per_day=get_settings().demo_target_per_equipment_per_day,
+    )
 
 
 def get_operation_service(
@@ -65,6 +69,8 @@ def read_quality_summary(
             for defect_type, count in summary.defect_types
         ],
         production_record_count=summary.production_record_count,
+        produced_quantity=summary.produced_quantity,
+        target_quantity=summary.target_quantity,
         includes_demo=summary.includes_demo,
     )
 

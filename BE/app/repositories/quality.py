@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 
+from app.models.master import Equipment
 from app.models.process import InspectionRecord, ProcessRecord
 
 
@@ -121,5 +122,14 @@ class QualityRepository:
             conditions.append(ProcessRecord.occurred_at <= data_cutoff_at)
         return (
             self._session.scalar(select(func.count()).select_from(ProcessRecord).where(*conditions))
+            or 0
+        )
+
+    def active_equipment_count(self, *, equipment_id: int | None) -> int:
+        conditions: list[ColumnElement[bool]] = [Equipment.deleted_at.is_(None)]
+        if equipment_id is not None:
+            conditions.append(Equipment.id == equipment_id)
+        return (
+            self._session.scalar(select(func.count()).select_from(Equipment).where(*conditions))
             or 0
         )

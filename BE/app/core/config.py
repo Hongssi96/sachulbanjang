@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     ai_model: str = Field(default="gpt-6.2-sol", min_length=1)
     ai_request_timeout_seconds: int = Field(default=120, ge=1, le=600)
     report_worker_lease_seconds: int = Field(default=300, ge=30, le=3600)
+    # Demo only: target quantity per active equipment per day for the home production card.
+    demo_target_per_equipment_per_day: int = Field(default=320, ge=0)
     access_token_ttl_seconds: int = Field(default=900, ge=1)
     refresh_token_ttl_seconds: int = Field(default=604800, ge=1)
     login_max_failures: int = Field(default=5, ge=1)

@@ -109,6 +109,32 @@ def test_worker_reads_quality_summary() -> None:
     )
 
 
+def test_worker_reads_demo_quantities() -> None:
+    service = MagicMock(spec=QualityService)
+    service.get_summary.return_value = QualitySummary(
+        inspected_count=928,
+        good_count=927,
+        defect_count=1,
+        defect_rate=Decimal("0.11"),
+        defect_types=[("미성형", 1)],
+        production_record_count=928,
+        includes_demo=True,
+        produced_quantity=928,
+        target_quantity=960,
+    )
+    application = make_application(service)
+
+    with TestClient(application) as client:
+        response = client.get(
+            "/api/v1/quality/summary",
+            params={"from": "2026-11-27", "to": "2026-11-27"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["produced_quantity"] == 928
+    assert response.json()["target_quantity"] == 960
+
+
 def test_quality_summary_returns_null_rate() -> None:
     service = MagicMock(spec=QualityService)
     service.get_summary.return_value = QualitySummary(

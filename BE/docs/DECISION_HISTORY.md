@@ -2085,6 +2085,16 @@
 - 검증: ruff·mypy 통과, pytest 413건 통과. 실제 AI로 보고서 본문·PDF 헤더·대화 답변이 (KST) 라벨을 쓰는지 확인했다.
 - 남은 사항: FE는 label 필드를 사용하고 ISO 원문 노출을 피한다(팀원 진행).
 
+## DEC-226 — 홈 생산량 카드의 데모 수량·목표 (Q-226)
+
+- 기록일: 2026-11-27
+- 상태: 확정 (시연용)
+- 질문: 새 데스크탑 홈의 생산량 카드에 필요한 `produced_quantity`와 `target_quantity`를 데모에서 어떻게 채울까?
+- 답변(2026-11-27): `produced_quantity`는 기간 내 공정 기록 건수, `target_quantity`는 활성 설비 수 × 설비당 320 × 기간 일수로 계산해 시연 기간에만 반환한다.
+- 결정: 두 값은 시연용 프록시이며 실제 생산 수량·목표가 아니다. 화면과 응답의 시연 표시를 사용하고, 실제 원천·단위·목표 기준은 DEC-2111에 따라 확정 후 교체한다. `product_id` 필터나 `from`/`to`가 모두 없는 경우 target은 `null`이다.
+- 적용: `/quality/summary`의 `produced_quantity`/`target_quantity`, `APP_DEMO_TARGET_PER_EQUIPMENT_PER_DAY`(기본 320). `includes_demo`가 false인 기간은 두 값을 `null`로 둔다.
+- 남은 사항: 실제 수량·목표 원천 확정 전까지 다른 화면·AI가 두 값을 실제 생산량으로 사용하지 않도록 표시를 확인한다.
+
 ## 2026-11-26 — 재고 수정 시각과 설비·수량 원본 검토
 
 ### 1. 재고 잔고 수정 시각 — BE 구현 완료

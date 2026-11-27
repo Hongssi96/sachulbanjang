@@ -12,7 +12,16 @@ def build_service() -> tuple[QualityService, MagicMock]:
     repository = MagicMock(spec=QualityRepository)
     repository.defect_type_counts.return_value = []
     repository.production_record_count.return_value = 0
+    repository.active_equipment_count.return_value = 0
     return QualityService(repository), repository
+
+
+def build_service_with_target(target: int) -> tuple[QualityService, MagicMock]:
+    repository = MagicMock(spec=QualityRepository)
+    repository.defect_type_counts.return_value = []
+    repository.production_record_count.return_value = 0
+    repository.active_equipment_count.return_value = 0
+    return QualityService(repository, demo_target_per_equipment_per_day=target), repository
 
 
 def totals(good: int, defect: int, *, inspected: int | None = None) -> InspectionTotals:
@@ -70,3 +79,85 @@ def test_summary_returns_null_rate_when_no_verdicts() -> None:
 
     assert summary.inspected_count == 5
     assert summary.defect_rate is None
+
+
+def test_summary_returns_demo_quantities_for_bounded_demo_period() -> None:
+    service, repository = build_service()
+    repository.inspection_totals.return_value = totals(2, 1)
+    repository.production_record_count.return_value = 928
+    repository.active_equipment_count.return_value = 3
+
+    summary = service.get_summary(
+        equipment_id=None,
+        product_id=None,
+        date_from=date(2026, 11, 27),
+        date_to=date(2026, 11, 27),
+    )
+
+    assert summary.produced_quantity == 928
+    assert summary.target_quantity == 960
+    repository.active_equipment_count.assert_called_once_with(equipment_id=None)
+
+
+def test_summary_omits_target_without_bounded_period_or_for_product() -> None:
+    service, repository = build_service()
+    repository.inspection_totals.return_value = totals(2, 1)
+    repository.production_record_count.return_value = 9
+
+    unbounded = service.get_summary(
+        equipment_id=None,
+        product_id=None,
+        date_from=None,
+        date_to=None,
+    )
+    product_filtered = service.get_summary(
+        equipment_id=None,
+        product_id=5,
+        date_from=date(2026, 11, 27),
+        date_to=date(2026, 11, 27),
+    )
+
+    assert unbounded.produced_quantity == 9
+    assert unbounded.target_quantity is None
+    assert product_filtered.produced_quantity == 9
+    assert product_filtered.target_quantity is None
+
+
+def test_summary_omits_demo_quantities_for_real_data() -> None:
+    service, repository = build_service()
+    repository.inspection_totals.return_value = InspectionTotals(
+        inspected_count=2,
+        good_count=2,
+        defect_count=0,
+        includes_demo=False,
+    )
+    repository.production_record_count.return_value = 120
+    repository.active_equipment_count.return_value = 3
+
+    summary = service.get_summary(
+        equipment_id=None,
+        product_id=None,
+        date_from=date(2026, 11, 27),
+        date_to=date(2026, 11, 27),
+    )
+
+    assert summary.produced_quantity is None
+    assert summary.target_quantity is None
+    repository.active_equipment_count.assert_not_called()
+
+
+def test_summary_scales_target_by_days_and_equipment() -> None:
+    service, repository = build_service_with_target(100)
+    repository.inspection_totals.return_value = totals(1, 0)
+    repository.production_record_count.return_value = 450
+    repository.active_equipment_count.return_value = 2
+
+    summary = service.get_summary(
+        equipment_id=20,
+        product_id=None,
+        date_from=date(2026, 11, 25),
+        date_to=date(2026, 11, 27),
+    )
+
+    assert summary.target_quantity == 600
+    repository.active_equipment_count.assert_called_once_with(equipment_id=20)

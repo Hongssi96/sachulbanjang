@@ -202,7 +202,11 @@ JSON 문자열 또는 null로 전송한다. 인증 쿠키가 없거나 유효하
 
 관측 시각은 시간대가 포함된 ISO 8601 문자열 또는 `null`이다. 수량은 0 이상의 제품 개수
 또는 `null`이며, 담당자는 양의 사용자 ID 또는 `null`이다. 현재 원천 수집 연동 전이므로
-새 필드는 모두 `null`이다. 기존 기록 건수, 판정 건수, 기록 기준 불량률은 기존 의미를 유지한다.
+대부분의 새 필드는 `null`이다. `GET /quality/summary`의 `produced_quantity`/`target_quantity`는
+시연 데이터에 한해 각각 기간 내 공정 기록 건수와 `활성 설비 수 × 기간 일수 ×
+APP_DEMO_TARGET_PER_EQUIPMENT_PER_DAY`(기본 320)로 채운다(DEC-226). 제품 필터 또는 열린 기간에는
+target이 `null`이다. 실제 생산 수량·목표는 DEC-2111에 따라 원천 확정 후 교체한다. 기존 기록 건수,
+판정 건수, 기록 기준 불량률은 기존 의미를 유지한다.
 
 ### 필드·응답 기술 기본안
 
@@ -535,13 +539,18 @@ AI 답변 생성은 보고서와 같은 `generation_job` 큐를 쓰는 별도 ch
 - `GET /quality/summary`: 선택 query `from`·`to`(한국 기준 검사 기간, `from` 포함·`to` 제외),
   `equipment_id`(1 이상), `product_id`(1 이상)
 - 응답 필드: `inspected_count`, `good_count`, `defect_count`, `defect_rate`, `defect_types`,
-  `production_record_count`, `includes_demo`
+  `production_record_count`, `produced_quantity`, `target_quantity`, `includes_demo`
 - `defect_rate`는 `불량 ÷ (양품 + 불량) × 100`을 소수 둘째 자리로 반올림한 값이다. 판정 기록이 없어
   분모가 0이면 `null`이며 화면에서 ‘—’로 표시한다(DEC-029)
 - `defect_types`는 불량 유형별 `{"type": <문자열 또는 null>, "count": n}` 목록이다. `type`이 null이면
   유형 없는 불량(‘미분류’)이며, 건수 내림차순·유형 오름차순(null 마지막)으로 정렬한다(DEC-165)
 - `production_record_count`는 같은 기간·필터의 공정 기록 건수다. 실제 생산량이 아니며 화면에서도
   ‘생산 기록 건수’로 표시한다(DEC-190)
+- `produced_quantity`와 `target_quantity`는 시연 기간에만 채운다. `produced_quantity`는 같은 기간의
+  공정 기록 건수, `target_quantity`는 활성 설비 수 × 기간 일수 ×
+  `APP_DEMO_TARGET_PER_EQUIPMENT_PER_DAY`(기본 320)다. 제품 필터나 `from`/`to`가 모두 없으면
+  target은 `null`이다. 실제 생산 수량·목표가 아니므로 화면에 시연 기준임을 표시한다
+  (DEC-226, DEC-2111)
 - soft delete된 검사·공정 기록은 제외한다. `includes_demo`는 집계 대상에 시연 기록이 포함됐는지
   나타낸다
 - 검증: pytest 257건(Ruff·mypy 포함), 별도 일회용 PostgreSQL 18 DB에서 기간 경계·설비/품목 필터·
